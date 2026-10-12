@@ -4,6 +4,7 @@ import Character from './components/Character.jsx';
 import Repositories from './components/Repositories.jsx';
 import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
+import MessageBubble from './components/MessageBubble.js';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -229,17 +230,17 @@ export default function App() {
         <div class="sidebar-bottom"><div class={`status-dot${connected ? ' ready' : ''}`} /><span id="connection-label">{settingsError ? 'Could not load settings' : connected ? 'Provider connected' : 'Set up to get started'}</span><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
       </aside>
       <button ref={menu} class="icon-button sidebar-reopen" id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
-      <button class={`sidebar-backdrop${mobile && sidebarOpen ? '' : ' hidden'}`} id="sidebar-backdrop" aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
+      <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
       <main class="main">
         {page === 'repositories' && <Repositories toast={toast} />}
         <section class={`conversation${page === 'repositories' ? ' hidden' : ''}`} id="conversation" aria-live="polite">
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           <div ref={messageList} class="messages" id="messages">{messages.map((message, index) => <div key={index} class={`message ${message.role}`}>
-            {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}<div class={`message-bubble${message.error ? ' error-text' : ''}`}>{message.content}</div>
+            {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}<MessageBubble content={message.content} error={message.error} />
           </div>)}</div>
         </section>
         <div class={`composer-wrap${page === 'repositories' ? ' hidden' : ''}`} id="chat-composer">
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer"><span class="hint">Enter to send · Shift + Enter for new line</span><button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}>{busy ? '■' : '↑'}</button></div></form>
+          <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer"><button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}>{busy ? '■' : '>'}</button></div></form>
           <div class="composer-controls"><label class="composer-model-label" for="chat-model">MODEL</label><select class="select chat-model" id="chat-model" value={settings?.model || ''} disabled={busy || updatingSettings || !models.length} onChange={event => updateDefaults({ model: event.currentTarget.value })}>{models.length ? models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>) : <option value="">{settings ? 'Connect a provider to see models' : 'Loading models…'}</option>}</select><label class="thinking-label" for="thinking-level">THINKING</label><select class="select thinking-level" id="thinking-level" value={thinking} disabled={busy || updatingSettings || !settings || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => updateDefaults({ thinkingLevel: event.currentTarget.value })}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
         </div>
       </main>

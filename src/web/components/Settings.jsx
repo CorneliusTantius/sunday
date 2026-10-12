@@ -26,11 +26,62 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [code, setCode] = useState('');
   const backdrop = useRef(null);
   const closeButton = useRef(null);
+  const contentViewport = useRef(null);
+  const contentLayout = useRef(null);
   const generation = useRef(0);
   const alive = useRef(true);
   const authGeneration = useRef(0);
   const authPending = useRef(false);
   const defaults = useRef(initial);
+
+  useEffect(() => {
+    const viewport = contentViewport.current;
+    const layout = contentLayout.current;
+    const modal = viewport?.parentElement;
+    const container = backdrop.current;
+    // Without observation, retain natural flex sizing for navigation/async updates.
+    if (typeof ResizeObserver !== 'function' || !viewport || !layout || !modal || !container) return;
+    const header = modal.querySelector('.modal-header');
+    const footer = modal.querySelector('.modal-footer');
+    const pixels = value => parseFloat(value) || 0;
+    const measure = () => {
+      const outer = getComputedStyle(container);
+      const frame = getComputedStyle(modal);
+      const viewportHeight = Math.min(container.clientHeight, window.visualViewport?.height ?? container.clientHeight);
+      const available = viewportHeight - pixels(outer.paddingTop) - pixels(outer.paddingBottom);
+      const limit = frame.maxHeight.endsWith('px') ? pixels(frame.maxHeight) : available;
+      const chrome = header.offsetHeight + footer.offsetHeight
+        + pixels(frame.paddingTop) + pixels(frame.paddingBottom)
+        + pixels(frame.borderTopWidth) + pixels(frame.borderBottomWidth);
+      // The inner grid stays natural-sized; neither the animated viewport nor
+      // the modal's current height is a measurement input (no observer loop).
+      const cap = Math.max(0, Math.min(available, limit) - chrome);
+      // A smaller viewport/chrome budget must clamp immediately, including
+      // during a height transition, so the footer never slides out of view.
+      viewport.style.maxHeight = `${cap}px`;
+      const height = `${Math.min(layout.offsetHeight, cap)}px`;
+      if (viewport.style.height !== height) viewport.style.height = height;
+    };
+    // Initial natural flex sizing already uses this cap. Lock that same height
+    // without animating from auto, then animate only subsequent changes.
+    viewport.style.transition = 'none';
+    measure();
+    viewport.dataset.sized = '';
+    void viewport.offsetHeight;
+    viewport.style.removeProperty('transition');
+    const observer = new ResizeObserver(measure);
+    for (const element of [layout, header, footer, container]) observer.observe(element);
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+      viewport.style.removeProperty('height');
+      viewport.style.removeProperty('max-height');
+      delete viewport.dataset.sized;
+    };
+  }, []);
 
   useEffect(() => {
     if (settings) { defaults.current = settings; setProviders(settings.providers || []); }
@@ -210,7 +261,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   return <div ref={backdrop} class="modal-backdrop" id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header class="modal-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="icon-button close-modal" id="close-settings" aria-label="Close settings" onClick={onClose}>×</button></header>
-      <div class="modal-content settings-layout">
+      <div ref={contentViewport} class="settings-content">
+      <div ref={contentLayout} class="modal-content settings-layout">
         <nav class="settings-providers" aria-label="Settings sections">
           <button class={`settings-nav${page === 'providers' || page === 'connect' ? ' active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
           <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
@@ -259,6 +311,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <Personas hidden={page !== 'personas'} toast={toast} onReload={onReload} />
           <p class="form-error" id="settings-error" role="alert">{error}</p>
         </div>
+      </div>
       </div>
       <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={onClose}>Cancel</button><button class={`primary-button${page === 'providers' || page === 'personas' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
