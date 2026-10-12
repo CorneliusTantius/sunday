@@ -1,6 +1,6 @@
 # Sunday
 
-A local Node.js + Vite chat app using the pi AI SDK (`@earendil-works/pi-ai`, the current package name). Streaming chat with reusable personas and optional repository-scoped file tools.
+A local Node.js + Preact + Vite chat app using the pi AI SDK (`@earendil-works/pi-ai`, the current package name). Streaming chat with reusable personas and optional repository-scoped file tools.
 
 ## Install
 
@@ -31,6 +31,15 @@ npm start
 ```
 
 `PORT=3001 npm run dev` changes the port. The server binds only to loopback; this is a single-user local app, not a public deployment with user authentication.
+
+## Source layout
+
+- `src/server/index.js`: HTTP API, development middleware, and production static serving.
+- `src/server/tools.js`: repository-scoped file tools.
+- `src/web/`: Preact frontend, built by Vite into `dist/`.
+- `vite.config.js`: frontend root and Preact preset.
+
+`npm run dev` and `npm start` launch `src/server/index.js`. Production serves `dist/` relative to the server module, independent of the launch directory or workspace working directory. The installer uses `npm ci` and `npm run build`; no separate frontend install is needed.
 
 ## Storage
 

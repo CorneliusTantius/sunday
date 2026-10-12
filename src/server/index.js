@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile, mkdir, writeFile, rename, chmod, readdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createModels, getSupportedThinkingLevels, clampThinkingLevel } from '@earendil-works/pi-ai';
@@ -9,6 +10,8 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
 import { BASIC_TOOL_NAMES, validateTools, executeTool, makeTools } from './tools.js';
+
+import { uniqueSessionName } from './session-names.js';
 
 const homeDir = join(homedir(), 'sunday');
 const dataDir = join(homeDir, 'data');
@@ -216,10 +219,11 @@ async function readSession(id) {
     return session;
   } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
-async function saveSession(session) { await save(join('sessions', `${session.id}.json`), session); await chmod(join(sessionsDir, `${session.id}.json`), 0o600); }
+async function persistSession(session) { await save(join('sessions', `${session.id}.json`), session); await chmod(join(sessionsDir, `${session.id}.json`), 0o600); }
+function saveSession(session) { return serialize(() => persistSession(session)); }
 const port = Number(process.env.PORT || 3000);
 const production = process.argv.includes('--production');
-const vite = production ? null : await (await import('vite')).createServer({ configFile: new URL('./vite.config.js', import.meta.url).pathname, server: { middlewareMode: true } });
+const vite = production ? null : await (await import('vite')).createServer({ configFile: fileURLToPath(new URL('../../vite.config.js', import.meta.url)), server: { middlewareMode: true } });
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
@@ -228,7 +232,7 @@ const server = http.createServer(async (req, res) => {
       const files = { '/': 'index.html', '/index.html': 'index.html' };
       const relative = files[url.pathname] || ( /^\/assets\/[\w.-]+$/.test(url.pathname) ? url.pathname.slice(1) : null );
       if (!relative) return json(res, 404, { error: 'Not found' });
-      const content = await readFile(new URL(`./dist/${relative}`, import.meta.url));
+      const content = await readFile(new URL(`../../dist/${relative}`, import.meta.url));
       res.setHeader('Content-Type', relative.endsWith('.js') ? 'text/javascript' : relative.endsWith('.css') ? 'text/css' : relative.endsWith('.svg') ? 'image/svg+xml' : 'text/html');
       return res.end(content);
     }
@@ -289,9 +293,18 @@ const server = http.createServer(async (req, res) => {
       const persona = input.personaId === undefined ? null : personas.find(item => item.id === input.personaId);
       if (input.personaId !== undefined && !persona) throw new Error('Persona not found');
       const selectedProfile = persona || (input.profile === undefined ? defaultPersona() : input.profile);
-      const session = { id: randomUUID(), title: 'New chat', updatedAt: now, messages: [], allowedRepositories: [], profile: { ...validateProfile(selectedProfile), personaId: selectedProfile.personaId || selectedProfile.id || defaultPersona().id } };
-      await saveSession(session);
-      return json(res, 201, { session });
+      if (input.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.trim().length > 120)) throw new Error('Chat title must be 1–120 characters');
+      const profile = { ...validateProfile(selectedProfile), personaId: selectedProfile.personaId || selectedProfile.id || defaultPersona().id };
+      return await serialize(async () => {
+        const titles = [];
+        for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
+          const existing = await readSession(name.slice(0, -5));
+          if (existing) titles.push(existing.title);
+        }
+        const session = { id: randomUUID(), title: input.title?.trim() ?? uniqueSessionName(titles), titleEdited: input.title !== undefined, updatedAt: now, messages: [], allowedRepositories: [], profile };
+        await persistSession(session);
+        return json(res, 201, { session });
+      });
     }
     const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/profile)?$/);
     if (sessionMatch && url.pathname.endsWith('/profile') && req.method === 'PATCH') {

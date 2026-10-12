@@ -5,6 +5,8 @@ import { mkdtemp, readFile, writeFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
+import { GREEK_DEITY_NAMES } from '../src/server/session-names.js';
 
 function assertProfile(actual, expected) {
   const { name, specialty, instructions } = actual;
@@ -17,7 +19,7 @@ function assertProfile(actual, expected) {
   const port = 32000 + Math.floor(Math.random() * 20000);
   let child;
   async function start() {
-    child = spawn(process.execPath, [new URL('../server.js', import.meta.url).pathname, '--production'], { env: { ...process.env, HOME: home, PORT: String(port), OPENAI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port), OPENAI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Server startup timed out')), 10000);
       child.stdout.once('data', () => { clearTimeout(timeout); resolve(); });
@@ -39,6 +41,14 @@ function assertProfile(actual, expected) {
     assertProfile(created.body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     assert.equal((await api('/api/sessions', { profile: { name: '', specialty: '', instructions: '' } })).status, 400);
     const id = created.body.session.id;
+    const generatedTitle = created.body.session.title;
+    assert.ok(GREEK_DEITY_NAMES.includes(generatedTitle));
+    const concurrent = await Promise.all(Array.from({ length: 12 }, () => api('/api/sessions', {})));
+    const titles = [generatedTitle, ...concurrent.map(result => result.body.session.title)];
+    assert.equal(new Set(titles).size, titles.length);
+    const custom = await api('/api/sessions', { title: ' My custom title ' });
+    assert.equal(custom.body.session.title, 'My custom title');
+    assert.equal((await api('/api/sessions', { title: '' })).status, 400);
     assert.deepEqual(created.body.session.messages, []);
     const response = await api('/api/chat', { sessionId: id, messages: [{ role: 'user', content: 'Remember this message' }] });
     assert.equal(response.status, 400); // No credentials; user message must still persist.
@@ -84,11 +94,13 @@ function assertProfile(actual, expected) {
     assert.equal(noOauth.status, 400);
     assert.equal(noOauth.body.error, 'Connect OpenAI in settings first');
     const restored = await api(`/api/sessions/${id}`);
-    assert.equal(restored.body.session.title, 'Remember this message');
+    assert.equal(restored.body.session.title, generatedTitle);
+    assert.equal((await api(`/api/sessions/${custom.body.session.id}`)).body.session.title, 'My custom title');
     assert.deepEqual(restored.body.session.messages, [{ role: 'user', content: 'Remember this message' }, { role: 'user', content: 'No API key fallback in OAuth mode' }]);
     assert.equal((await api('/api/sessions')).body.sessions[0].id, id);
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     const other = await api('/api/sessions', {});
+    assert.ok(!titles.includes(other.body.session.title));
     assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: 'Be helpful, clear, and thoughtful. Ask clarifying questions when needed.' });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);
@@ -104,7 +116,7 @@ function assertProfile(actual, expected) {
 test('personas persist and copy into independent session profiles', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-personas-'));
   const port = 32000 + Math.floor(Math.random() * 20000);
-  const child = spawn(process.execPath, [new URL('../server.js', import.meta.url).pathname, '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
   try {
     await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
     const api = async (path, data, method = 'GET') => {

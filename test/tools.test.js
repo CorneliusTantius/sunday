@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { executeTool, validateTools, BASIC_TOOL_NAMES } from '../tools.js';
+import { executeTool, validateTools, BASIC_TOOL_NAMES } from '../src/server/tools.js';
 
 test('basic tools restrict paths and sensitive files to allowed repositories', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'sunday-tools-'));

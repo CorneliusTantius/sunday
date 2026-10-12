@@ -5,7 +5,7 @@ import { mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { request } from 'node:http';
 
 test('OAuth resumes, cancels, restarts and times out; chat dispatches to the selected provider', async () => {
@@ -45,7 +45,7 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
   `);
   let child, staleRequest;
   async function start(timeout = 10000) {
-    child = spawn(process.execPath, ['--import', pathToFileURL(preload).href, new URL('../server.js', import.meta.url).pathname, '--production'], {
+    child = spawn(process.execPath, ['--import', pathToFileURL(preload).href, fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], {
       env: { ...process.env, HOME: home, PORT: String(port), OPENAI_API_KEY: '', ANTHROPIC_API_KEY: '', GEMINI_API_KEY: '', OAUTH_TEST_TIMEOUT_MS: String(timeout) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

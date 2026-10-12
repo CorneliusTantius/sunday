@@ -100,7 +100,7 @@ body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}
 .toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:var(--panel2);border:1px solid var(--highlight);color:var(--text);border-radius:9px;padding:10px 15px;font-size:15px;transition:opacity 160ms ease, transform 160ms ease;z-index:8}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
-@media(max-width:700px){.sidebar{position:fixed;z-index:4;inset:0 auto 0 0;width:250px;transform:translateX(-100%);transition:transform .2s;box-shadow:10px 0 30px var(--bg)}
+@media(max-width:700px){.sidebar{position:fixed;z-index:4;inset:0 auto 0 0;width:250px;transform:translateX(-100%);transition:transform 240ms cubic-bezier(.2,.8,.2,1);box-shadow:10px 0 30px var(--bg)}
 .sidebar.open{transform:translateX(0)}
 .mobile-menu{display:block;margin-right:12px;font-size:17px}
 .conversation,.composer-wrap{width:calc(100% - 30px)}
@@ -166,20 +166,20 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .composer:focus-within {
   box-shadow: 0 0 18px color-mix(in srgb, var(--highlight) 8%, transparent);
 }
-.message { animation: packet-arrive 160ms ease-out both; }
-.settings-modal { animation: packet-arrive 160ms ease-out both; }
+.message { animation: packet-arrive 220ms cubic-bezier(.2,.8,.2,1) both; }
+.settings-modal { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }
 .composer:has(.send-button[aria-label="Stop response"])::before {
   width: 60px;
   border-color: var(--violet);
-  animation: signal-boot 700ms ease-out both;
+  animation: streaming-signal 1600ms ease-in-out infinite;
 }
-@keyframes circuit-boot {
-  from { transform: scaleX(.15); opacity: 0; }
-  to { transform: scaleX(1); opacity: 1; }
+@keyframes streaming-signal {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
 }
-@keyframes signal-boot {
-  from { opacity: .3; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes dialog-arrive {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes packet-arrive {
   from { opacity: 0; transform: translateY(5px); }
@@ -363,10 +363,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 #persona-preview { margin: 18px 0; }
 .session-config-dialog { width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 40px); padding: 0; overflow: auto; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .session-config-dialog::backdrop { background: rgb(9 11 16 / 85%); }
-.session-config-dialog[open] { animation: packet-arrive 160ms ease-out both; }
-@starting-style {
-  .session-config-dialog[open] { opacity: 0; transform: translateY(5px); }
-}
+.session-config-dialog[open] { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }
 .session-row .session-item { grid-column: 2; }
 .session-row .configure-session { grid-row: 1; grid-column: 3; }
 .session-row .delete-session { grid-row: 1; grid-column: 4; }
@@ -385,3 +382,49 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .persona-picker #new-persona { margin-top: 12px; }
 #persona-form { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); }
 .persona-config-note { margin-bottom: 20px; }
+
+/* Animate mounts/reveals, not streaming text updates or layout dimensions. */
+.session-row, .repositories-page .repos-list li,
+.agents-sessions:not(.hidden), .repositories-page,
+.conversation:not(.hidden), .settings-detail > section:not(.hidden) {
+  animation: packet-arrive 220ms cubic-bezier(.2,.8,.2,1) both;
+}
+.modal-backdrop, .sidebar-backdrop:not(.hidden),
+.session-config-dialog[open]::backdrop {
+  animation: surface-arrive 180ms ease-out both;
+}
+@keyframes surface-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+button, .feature-heading, .provider-card {
+  transition: transform 160ms ease, border-color 160ms ease, color 160ms ease,
+    background-color 160ms ease, box-shadow 160ms ease;
+}
+button:enabled:active { transform: translateY(1px); }
+@media (hover: hover) {
+  .primary-button:enabled:hover, .secondary-button:enabled:hover,
+  .new-chat:enabled:hover, .provider-card:enabled:hover { transform: translateY(-1px); }
+}
+/* Discrete display transitions keep collapsed content hidden and inert.
+   Older browsers retain the existing immediate desktop collapse. */
+@media (min-width: 701px) {
+  .sidebar {
+    transition: opacity 200ms ease, transform 240ms cubic-bezier(.2,.8,.2,1),
+      display 240ms allow-discrete;
+  }
+  .sidebar.collapsed { opacity: 0; transform: translateX(-12px); }
+  @starting-style {
+    .sidebar:not(.collapsed) { opacity: 0; transform: translateX(-12px); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  button:enabled:active { transform: none; }
+  .primary-button:enabled:hover, .secondary-button:enabled:hover,
+  .new-chat:enabled:hover, .provider-card:enabled:hover { transform: none; }
+}

@@ -5,13 +5,14 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
 
 test('provider credentials and model catalogs are isolated and persist', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-provider-'));
   const port = 32000 + Math.floor(Math.random() * 20000);
   let child;
   async function start() {
-    child = spawn(process.execPath, [new URL('../server.js', import.meta.url).pathname, '--production'], { env: { ...process.env, HOME: home, PORT: String(port), OPENAI_API_KEY: '', ANTHROPIC_API_KEY: '', GEMINI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port), OPENAI_API_KEY: '', ANTHROPIC_API_KEY: '', GEMINI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Server startup timed out')), 10000);
       child.stdout.once('data', () => { clearTimeout(timeout); resolve(); });

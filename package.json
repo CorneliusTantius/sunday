@@ -1,21 +1,24 @@
 {
   "name": "sunday",
   "version": "1.0.0",
-  "description": "Simple OpenAI chat powered by the pi SDK and Vite",
+  "description": "Local AI chat powered by Node.js, Preact, Vite, and the pi SDK",
   "scripts": {
     "test": "node --test",
-    "dev": "node server.js",
+    "dev": "node src/server/index.js",
     "build": "vite build",
-    "start": "node server.js --production"
+    "start": "node src/server/index.js --production"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@earendil-works/pi-ai": "^1.1.0"
+    "@earendil-works/pi-ai": "^1.1.0",
+    "preact": "^11.0.1"
   },
   "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "jsdom": "^30.1.2",
     "vite": "^8.3.4"
   },
   "engines": {
