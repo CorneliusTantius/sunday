@@ -1,6 +1,18 @@
 # Sunday
 
-A local Node.js + Vite chat app using the pi AI SDK (`@earendil-works/pi-ai`, the current package name). Plain text streaming chat only: no agent loop, tools, or tool execution.
+A local Node.js + Vite chat app using the pi AI SDK (`@earendil-works/pi-ai`, the current package name). Streaming chat with reusable personas and optional repository-scoped file tools.
+
+## Install
+
+Requires Git, npm, and Node.js 22.19+. Install with one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CorneliusTantius/sunday/main/install.sh | sh
+```
+
+After installation, run `cd ~/sunday/sunday && npm start` and open http://localhost:3000.
+
+The installer clones the app into `~/sunday/sunday`, creates `~/sunday/workspace/repos` and `~/sunday/data/sessions`, initializes `settings.json` and `auth.json`, installs dependencies, and builds the app. Existing settings, credentials, sessions, repositories, and checkout changes are preserved. It does not pull updates into an existing checkout or start a background service. Personas and installation identity are initialized on first launch.
 
 ## Run
 
@@ -29,7 +41,7 @@ Files are written atomically with owner-only permissions (0600). Secrets are sto
 
 Chat sessions persist in `~/sunday/data/sessions/<session-id>.json` and appear in the sidebar. Reload restores the last opened session; New chat creates a separate session without deleting previous chats. Stop cancels the response and saves any generated partial text.
 
-The default launch working directory is `~/sunday/workspace`, created automatically. This does not enable filesystem tools or tool calls. The interface uses neutral Void (`#090B10`), Surface (`#11151D`), Elevated (`#1A202B`), and Steel (`#303846`) layers, with cyan actions, blue selection, violet branding, magenta destructive actions, lime connection status, and amber warnings.
+The default launch working directory is `~/sunday/workspace`, created automatically. Sessions select allowed shared repositories under `~/sunday/workspace/repos`. Persona settings select allowed file tools. Tools are unavailable when no repositories are selected; writes affect the shared repository. The interface uses neutral Void (`#090B10`), Surface (`#11151D`), Elevated (`#1A202B`), and Steel (`#303846`) layers, with cyan actions, blue selection, violet branding, magenta destructive actions, lime connection status, and amber warnings.
 
 ## Checks
 
