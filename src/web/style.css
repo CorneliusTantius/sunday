@@ -41,6 +41,7 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .session-item{width:100%;padding:10px;border:0;border-radius:7px;background:transparent;color:var(--text);text-align:left;font:600 16px 'DM Sans',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .session-item:hover,.session-item.active{background:var(--panel2);color:var(--highlight)}
 .session-item:disabled{opacity:.55;cursor:default}
+.session-running{margin-left:8px;color:var(--accent);font:700 9px ui-monospace,monospace;letter-spacing:.5px}
 .sidebar-bottom{margin-top:auto;display:flex;align-items:center;gap:9px;color:var(--muted);font-size:14px;padding:10px 4px}
 .status-dot{width:7px;height:7px;border-radius:50%;background:var(--panel2)}
 .status-dot.ready{background:var(--accent);box-shadow:0 0 9px var(--highlight)}
@@ -262,6 +263,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
   font-weight: 600;
 }
 .message { font-size: 18px; font-weight: 500; }
+.background-run-status{width:min(75%,900px);margin:12px auto;padding:10px 14px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--muted);font-size:13px}
 .field-label, .session-item, .new-chat { font-weight: 600; }
 .sidebar { width: 280px; }
 .sidebar-bottom { flex-wrap: wrap; }

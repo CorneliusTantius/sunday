@@ -40,6 +40,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [activeRunning, setActiveRunning] = useState(false);
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [page, setPage] = useState(location.hash === '#repositories' ? 'repositories' : 'chat');
@@ -83,9 +84,11 @@ export default function App() {
   }, [toast]);
 
   function selectSession(session) {
-    activeSession.current = session.id; setSessionId(session.id);
+    activeSession.current = session.id; setSessionId(session.id); setActiveRunning(Boolean(session.running));
     localStorage.setItem('sunday-session-id', session.id);
-    setMessages((session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)));
+    const nextMessages = (session.messages || []).filter(message => ['user', 'assistant'].includes(message.role));
+    if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
+    setMessages(nextMessages);
     setContextUsage(session.contextUsage || null);
     setPrompt(''); setReady(true);
   }
@@ -93,8 +96,16 @@ export default function App() {
     if (navigate) location.hash = 'chat';
     if (mobile) setSidebarOpen(false);
   }
+  function detachResponse() {
+    const active = controller.current;
+    if (!active) return;
+    controller.current = null;
+    active.abort();
+    setBusy(false);
+  }
   async function createSession(navigate = true) {
-    if (controller.current || sessionLock.current) return;
+    if (sessionLock.current) return;
+    detachResponse();
     sessionLock.current = true; setLoadingSession(true); setReady(false);
     try {
       const data = await jsonRequest('/api/sessions', 'POST', {});
@@ -105,14 +116,18 @@ export default function App() {
     promptInput.current?.focus();
   }
   async function openSession(id, navigate = true) {
-    if (controller.current || sessionLock.current || id === activeSession.current) return;
+    if (sessionLock.current || id === activeSession.current) return;
+    detachResponse();
     sessionLock.current = true; setLoadingSession(true); setReady(false);
+    let resumeIndex = null;
     try {
       const data = await request(`/api/sessions/${encodeURIComponent(id)}`);
       if (!data.session) throw new Error('Session not found');
       selectSession(data.session); navigateChat(navigate);
+      if (data.session.running) resumeIndex = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
     } catch (error) { setReady(!!activeSession.current); toast(`Could not open chat: ${error.message}`); }
     finally { sessionLock.current = false; setLoadingSession(false); }
+    if (resumeIndex !== null) void resumeChat(id, resumeIndex);
   }
   async function deleteSession(session) {
     if (controller.current || sessionLock.current || !window.confirm(`Delete “${session.title}”? This cannot be undone.`)) return;
@@ -186,44 +201,114 @@ export default function App() {
     if (input) { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }
   }, [prompt]);
   useEffect(() => { messageList.current?.lastElementChild?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end' }); }, [messages.length]);
-  useEffect(() => { if (!busy && ready) promptInput.current?.focus(); }, [busy, ready]);
+  useEffect(() => { if (!busy && ready && !activeRunning) promptInput.current?.focus(); }, [busy, ready, activeRunning]);
+  useEffect(() => {
+    if (!activeRunning || busy || !sessionId) return;
+    const id = sessionId;
+    const timer = setInterval(async () => {
+      try {
+        const data = await request(`/api/sessions/${encodeURIComponent(id)}`);
+        if (activeSession.current !== id || !data.session) return;
+        if (data.session.running) {
+          const index = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
+          if (!controller.current) void resumeChat(id, index);
+          return;
+        }
+        selectSession(data.session);
+        await loadSessions();
+      } catch {}
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [activeRunning, busy, sessionId, loadSessions]);
+  useEffect(() => {
+    if (!sessions.some(session => session.running)) return;
+    const timer = setInterval(() => loadSessions(), 5000);
+    return () => clearInterval(timer);
+  }, [sessions.some(session => session.running), loadSessions]);
 
+  async function stopResponse() {
+    const active = controller.current;
+    if (!active) return;
+    try { await jsonRequest('/api/chat/cancel', 'POST', { sessionId: activeSession.current }); } catch {}
+    active.abort();
+  }
+
+  async function readChatStream(response, sessionId, abort, index) {
+    if (!response.body) throw new Error('Streaming is unavailable.');
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let buffer = '', content = '', serverError = '', finished = false;
+    function updateMessages(update) { if (controller.current === abort && activeSession.current === sessionId) setMessages(update); }
+    function updateAnswer(error = false) { updateMessages(previous => previous.map((message, position) => position === index ? { ...message, content, error } : message)); }
+    function consume(line) {
+      if (!line.startsWith('data:')) return;
+      const raw = line.slice(5).trim(); if (!raw || raw === '[DONE]') return;
+      let data;
+      try { data = JSON.parse(raw); } catch (error) { if (error instanceof SyntaxError) return; throw error; }
+      if (data.type === 'snapshot') {
+        content = data.answer || '';
+        if (data.error) serverError = data.error;
+        updateMessages(previous => previous.map((message, position) => position === index ? { ...message, content, toolCalls: data.toolCalls || [] } : message));
+        if (data.contextUsage && activeSession.current === sessionId) setContextUsage(data.contextUsage);
+      } else if (data.type === 'delta') { content += data.text; updateAnswer(); }
+      else if (data.type === 'context_usage') { if (controller.current === abort && activeSession.current === sessionId) setContextUsage(data); }
+      else if (data.type === 'tool_status') updateMessages(previous => previous.map((message, position) => position === index ? { ...message, toolCalls: [...(message.toolCalls || []), { id: data.id, name: data.name, arguments: data.arguments, status: data.status }] } : message));
+      else if (data.type === 'tool_complete') updateMessages(previous => previous.map((message, position) => position === index ? { ...message, toolCalls: (message.toolCalls || []).map(call => call.id === data.id ? { ...call, status: data.status } : call) } : message));
+      else if (data.type === 'error') serverError = data.error || 'Something went wrong.';
+      else if (data.type === 'done') finished = true;
+    }
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) { buffer += decoder.decode(); if (buffer) consume(buffer); break; }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n'); buffer = lines.pop(); lines.forEach(consume);
+    }
+    if (serverError) {
+      if (content) toast(serverError);
+      else { content = serverError; updateAnswer(true); }
+    }
+    return finished;
+  }
+  async function connectChat(sessionId, index, resume = false, text = '') {
+    const abort = new AbortController(); controller.current = abort; setBusy(true); setActiveRunning(true);
+    let finished = false;
+    try {
+      const response = resume
+        ? await request(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`, { signal: abort.signal, stream: true })
+        : await jsonRequest('/api/chat', 'POST', { sessionId, messages: [{ role: 'user', content: text }] }, { signal: abort.signal, stream: true });
+      finished = await readChatStream(response, sessionId, abort, index);
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        if (resume && error.message === 'No active chat') {
+          try {
+            const data = await request(`/api/sessions/${encodeURIComponent(sessionId)}`);
+            if (activeSession.current === sessionId && data.session) selectSession(data.session);
+          } catch {}
+        } else if (activeSession.current === sessionId && controller.current === abort) {
+          setMessages(previous => previous.map((message, position) => position === index ? { ...message, content: error.message, error: true } : message));
+          if (!resume) setActiveRunning(false);
+        }
+      }
+    } finally {
+      if (controller.current === abort) { controller.current = null; setBusy(false); if (finished) setActiveRunning(false); }
+      await loadSessions();
+    }
+  }
+  function resumeChat(sessionId, index) {
+    if (controller.current || activeSession.current !== sessionId) return;
+    return connectChat(sessionId, index, true);
+  }
   async function sendMessage(event) {
     event.preventDefault();
-    if (controller.current) { controller.current.abort(); return; }
+    if (controller.current) { await stopResponse(); return; }
+    if (activeRunning) { toast('This agent is still running. Switch sessions or wait for it to finish.'); return; }
     if (!ready || !activeSession.current || sessionLock.current) { toast('Chat is still loading'); return; }
     const text = prompt;
     if (!text.trim()) return;
-    const abort = new AbortController(); controller.current = abort; setBusy(true); setPrompt('');
+    const requestSessionId = activeSession.current;
     const index = messages.length + 1;
     setMessages(previous => [...previous, { role: 'user', content: text }, { role: 'assistant', content: '', toolCalls: [] }]);
-    let content = '';
-    function updateAnswer(error = false) { setMessages(previous => previous.map((message, position) => position === index ? { ...message, content, error } : message)); }
-    try {
-      const response = await jsonRequest('/api/chat', 'POST', { sessionId: activeSession.current, messages: [{ role: 'user', content: text }] }, { signal: abort.signal, stream: true });
-      if (!response.body) throw new Error('Streaming is unavailable.');
-      const reader = response.body.getReader(), decoder = new TextDecoder();
-      let buffer = '';
-      function consume(line) {
-        if (!line.startsWith('data:')) return;
-        const raw = line.slice(5).trim(); if (!raw || raw === '[DONE]') return;
-        let data;
-        try { data = JSON.parse(raw); } catch (error) { if (error instanceof SyntaxError) return; throw error; }
-        if (data.type === 'delta') { content += data.text; updateAnswer(); }
-        else if (data.type === 'context_usage') setContextUsage(data);
-        else if (data.type === 'tool_status') setMessages(previous => previous.map((message, position) => position === index ? { ...message, toolCalls: [...(message.toolCalls || []), { id: data.id, name: data.name, arguments: data.arguments, status: data.status }] } : message));
-        else if (data.type === 'tool_complete') setMessages(previous => previous.map((message, position) => position === index ? { ...message, toolCalls: (message.toolCalls || []).map(call => call.id === data.id ? { ...call, status: data.status } : call) } : message));
-        else if (data.type === 'error') throw new Error(data.error || 'Something went wrong.');
-      }
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) { buffer += decoder.decode(); if (buffer) consume(buffer); break; }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n'); buffer = lines.pop(); lines.forEach(consume);
-      }
-    } catch (error) {
-      if (error.name !== 'AbortError') { if (content) toast(error.message); else { content = error.message; updateAnswer(true); } }
-    } finally { controller.current = null; setBusy(false); await loadSessions(); }
+    setPrompt('');
+    return connectChat(requestSessionId, index, false, text);
   }
   async function updateDefaults(change) {
     if (!settings || busy || updatingSettings) return;
@@ -250,8 +335,8 @@ export default function App() {
   const unpinnedSessions = sessions.filter(session => !pinnedIds.has(session.id));
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
-    return <div class="session-row" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!busy && !loadingSession) openSession(session.id); }}>
-      <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={busy || loadingSession} onClick={() => openSession(session.id)}>{session.title || 'New agent'}</button>
+    return <div class="session-row" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
+      <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}>{session.title || 'New agent'}{session.running && <span class="session-running">RUNNING</span>}</button>
       <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} disabled={busy || loadingSession} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={busy || loadingSession} onClick={event => { if (controller.current || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
       <button class="icon-button session-action delete-session" title="Delete agent" aria-label={`Delete agent: ${session.title}`} disabled={busy || loadingSession} onClick={() => deleteSession(session)}>×</button>
@@ -266,7 +351,7 @@ export default function App() {
         <section class="agents-feature" aria-labelledby="agents-title">
           <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}>Sunday Agents</a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
           <div id="agents-sessions" class={`agents-sessions${expanded ? '' : ' hidden'}`}>
-            <button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => { if (busy) toast('Stop the response before starting a new agent'); else createSession(); }}><span class="plus">＋</span> New agent</button>
+            <button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
               {pinnedSessions.length > 0 && <div class="agent-list-heading">PINNED</div>}
               {pinnedSessions.map(renderSession)}
@@ -284,13 +369,14 @@ export default function App() {
         {page === 'repositories' && <Repositories toast={toast} />}
         <section class={`conversation${page === 'repositories' ? ' hidden' : ''}`} id="conversation" aria-live="polite">
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
+          {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="messages" id="messages">{messages.map((message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
             {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
           </div>)}</div>
         </section>
         <div class={`composer-wrap${page === 'repositories' ? ' hidden' : ''}`} id="chat-composer">
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
+          <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy || activeRunning} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
           </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}>{busy ? '■' : '>'}</button></div></form>

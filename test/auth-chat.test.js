@@ -11,13 +11,13 @@ import { request } from 'node:http';
 test('OAuth resumes, cancels, restarts and times out; chat dispatches to the selected provider', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-auth-chat-'));
   const port = 32000 + Math.floor(Math.random() * 20000);
-  const preload = join(home, 'preload.mjs'), requests = join(home, 'requests.jsonl');
+  const preload = join(home, 'preload.mjs'), requests = join(home, 'requests.jsonl'), delayChat = join(home, 'delay-chat');
   // Run the installed SDK's real OAuth flow without occupying its fixed port
   // or making upstream requests. Shorten only the app's five-minute timer.
   await writeFile(preload, `
     import http from 'node:http';
     import { syncBuiltinESMExports } from 'node:module';
-    import { appendFileSync } from 'node:fs';
+    import { appendFileSync, existsSync } from 'node:fs';
     const createServer = http.createServer;
     let callbackServer;
     http.createServer = (...args) => {
@@ -39,7 +39,12 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
     const digest = crypto.subtle.digest.bind(crypto.subtle);
     crypto.subtle.digest = async (...args) => { await new Promise(resolve => setTimeout(resolve, 50)); return digest(...args); };
     globalThis.fetch = async (url, options) => {
-      appendFileSync(${JSON.stringify(requests)}, JSON.stringify({ url: String(url), headers: Object.fromEntries(new Headers(options?.headers)) }) + '\\n');
+      const entry = { url: String(url), headers: Object.fromEntries(new Headers(options?.headers)) };
+      if (existsSync(${JSON.stringify(delayChat)}) && entry.url.includes('api.openai.com/v1/responses')) {
+        appendFileSync(${JSON.stringify(requests)}, JSON.stringify({ ...entry, phase: 'started' }) + '\\n');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      appendFileSync(${JSON.stringify(requests)}, JSON.stringify({ ...entry, phase: 'finished', signalAborted: options?.signal?.aborted ?? false }) + '\\n');
       return new Response(JSON.stringify({ error: { message: 'Offline provider test', type: 'authentication_error' } }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     };
   `);
@@ -62,6 +67,17 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
     const response = await fetch(`http://127.0.0.1:${port}${path}`, { method: data === undefined ? method === 'DELETE' ? 'DELETE' : 'GET' : method, ...(data === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) });
     const text = await response.text();
     return { status: response.status, body: response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : text };
+  }
+  function startChatRequest(sessionId) {
+    const payload = JSON.stringify({ sessionId, messages: [{ role: 'user', content: 'Continue after disconnect' }] });
+    let response;
+    const client = request({ hostname: '127.0.0.1', port, path: '/api/chat', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, incoming => {
+      response = incoming;
+      incoming.on('error', () => {});
+    });
+    client.on('error', () => {});
+    client.end(payload);
+    return { disconnect() { response?.destroy(); client.destroy(); } };
   }
   async function waitFor(predicate) {
     const until = Date.now() + 5000;
@@ -150,6 +166,61 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
       assert.equal(new URL(last.url).hostname, host);
       assert.ok(last.headers[keyHeader]?.includes(`offline-${provider}`));
     }
+    await api('/api/settings', { provider: 'openai', mode: 'api_key', apiKey: 'offline-openai' }, 'PUT');
+    const backgroundSession = await api('/api/sessions', {});
+    const previousCount = (await readFile(requests, 'utf8')).trim().split('\n').length;
+    await writeFile(delayChat, '');
+    const chatRequest = startChatRequest(backgroundSession.body.session.id);
+    const waitForPhase = async (phase, startCount = previousCount) => {
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const entries = (await readFile(requests, 'utf8')).trim().split('\n').slice(startCount).map(line => JSON.parse(line));
+        const found = entries.find(entry => entry.phase === phase && entry.url.includes('api.openai.com/v1/responses'));
+        if (found) return found;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      return null;
+    };
+    try {
+      const startedRequest = await waitForPhase('started');
+      assert.ok(startedRequest, 'chat should reach the provider before disconnecting');
+      const runningSession = await api(`/api/sessions/${backgroundSession.body.session.id}`);
+      assert.equal(runningSession.body.session.running, true, 'session status should remain readable while its agent runs');
+      const resumedResponse = await fetch(`http://127.0.0.1:${port}/api/chat/stream?sessionId=${backgroundSession.body.session.id}`);
+      const resumedReader = resumedResponse.body.getReader();
+      const resumedChunk = await resumedReader.read();
+      const resumedEvent = JSON.parse(new TextDecoder().decode(resumedChunk.value).split('data: ')[1].trim());
+      assert.equal(resumedEvent.type, 'snapshot', 'active chat can be reattached and replayed');
+      assert.equal(resumedEvent.answer, '');
+      await resumedReader.cancel();
+      chatRequest.disconnect();
+      const completedRequest = await waitForPhase('finished');
+      assert.ok(completedRequest, 'server should finish the provider request after the client disconnects');
+      assert.equal(completedRequest.signalAborted, false);
+    } finally { chatRequest.disconnect(); }
+    const completedSession = await api(`/api/sessions/${backgroundSession.body.session.id}`);
+    assert.ok(completedSession.body.session.messages.some(message => message.role === 'user' && message.content === 'Continue after disconnect'));
+    assert.equal(completedSession.body.session.running, false);
+
+    const cancelSession = await api('/api/sessions', {});
+    const cancelPreviousCount = (await readFile(requests, 'utf8')).trim().split('\n').length;
+    const cancelRequest = startChatRequest(cancelSession.body.session.id);
+    try {
+      assert.ok(await waitForPhase('started', cancelPreviousCount));
+      const cancelled = await api('/api/chat/cancel', { sessionId: cancelSession.body.session.id });
+      assert.deepEqual(cancelled.body, { cancelled: true });
+      let cancelledProviderRequest;
+      const cancelDeadline = Date.now() + 5000;
+      while (Date.now() < cancelDeadline && !cancelledProviderRequest) {
+        const entries = (await readFile(requests, 'utf8')).trim().split('\n').slice(cancelPreviousCount).map(line => JSON.parse(line));
+        cancelledProviderRequest = entries.find(entry => entry.phase === 'finished' && entry.url.includes('api.openai.com/v1/responses'));
+        if (!cancelledProviderRequest) await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.ok(cancelledProviderRequest);
+      assert.equal(cancelledProviderRequest.signalAborted, true);
+    } finally { cancelRequest.disconnect(); }
+    await rm(delayChat, { force: true });
+
     const authPath = join(home, 'sunday', 'data', 'auth.json');
     assert.equal((await stat(authPath)).mode & 0o777, 0o600);
     const authBefore = await readFile(authPath, 'utf8');

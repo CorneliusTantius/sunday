@@ -51,6 +51,7 @@ async function mount(t) {
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
   window.HTMLElement.prototype.scrollIntoView = function () {};
   window.TextDecoder = TextDecoder;
+  window.TextEncoder = TextEncoder;
   window.AbortController = AbortController;
   window.confirm = () => true;
   window.localStorage.setItem('sunday-session-id', 'session-1');
@@ -59,16 +60,28 @@ async function mount(t) {
   const calls = [];
   let pending = null;
   let stream;
+  let resumeStream;
+  let resumeCount = 0;
+  let streamAborted = false;
   const response = (data, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => data });
   window.fetch = async (url, options = {}) => {
     const method = options.method || 'GET';
     calls.push({ url, method });
     if (url === '/api/settings') return response({ models: [], providers: [] });
     if (url === '/api/sessions' && method === 'GET') return response({ sessions: [...sessions] });
+    if (url === '/api/chat/cancel') return response({ cancelled: true });
+    if (url.startsWith('/api/chat/stream?')) {
+      resumeCount++;
+      return { ok: true, body: new ReadableStream({ start(controller) {
+        resumeStream = controller;
+        controller.enqueue(new TextEncoder().encode('data: {"type":"snapshot","answer":"replayed answer","toolCalls":[]}\n\n'));
+        options.signal.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')));
+      } }) };
+    }
     if (url === '/api/chat') {
       return { ok: true, body: new ReadableStream({ start(controller) {
         stream = controller;
-        options.signal.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')));
+        options.signal.addEventListener('abort', () => { streamAborted = true; controller.error(new DOMException('Aborted', 'AbortError')); });
       } }) };
     }
     if (pending) return pending.promise;
@@ -101,7 +114,8 @@ async function mount(t) {
   click('#agents-toggle');
   await waitFor(() => assert.equal($('#agents-toggle').getAttribute('aria-expanded'), 'true'));
   return {
-    $, click, controls, assertEnabled, actionCalls, selected, response, sessions,
+    $, click, controls, assertEnabled, actionCalls, selected, response, streamAborted: () => streamAborted, resumeCalls: () => resumeCount, sessions,
+    cancelCalls() { return calls.filter(({ url, method }) => url === '/api/chat/cancel' && method === 'POST'); },
     hold() { pending = deferred(); return pending; },
     release() { pending = null; },
     submit(text) {
@@ -110,6 +124,7 @@ async function mount(t) {
     },
     send() { $('#chat-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); },
     finishStream() { stream.close(); },
+    finishResume() { resumeStream.enqueue(new TextEncoder().encode('data: {"type":"done"}\n\n')); resumeStream.close(); },
   };
 }
 
@@ -164,37 +179,47 @@ for (const action of ['create', 'open']) {
   }
 }
 
-test('streaming guards create/open/delete/configure until the response finishes', async t => {
+test('Stop asks the server to cancel the active chat before closing its stream', async t => {
   const h = await mount(t);
   h.submit('Hello');
-  await delay(0); // Let the controlled textarea commit before submitting.
+  await delay(0);
   h.send();
-  const before = h.actionCalls().length;
-  const attemptActions = () => {
-    h.click('#new-chat');
-    h.click('.session-row:nth-child(2) .session-item');
-    h.click('.delete-session');
-    h.click('.configure-session');
-    assert.equal(h.actionCalls().length, before);
-    assert.equal(h.$('#session-config-dialog'), null);
-    assert.equal(h.selected(), 'session-1');
-  };
-  attemptActions(); // controller guard before the busy state rerenders
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
+  h.send();
   await waitFor(() => {
-    assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response');
-    for (const control of h.controls().filter(control => control.id !== 'new-chat')) assert.equal(control.disabled, true);
+    assert.equal(h.cancelCalls().length, 1);
   });
-  attemptActions();
-  await waitFor(() => assert.equal(h.$('#toast').textContent, 'Stop the response before starting a new agent'));
-  h.finishStream();
-  await waitFor(() => {
-    assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
-    h.assertEnabled();
-  });
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message'));
+});
+
+test('reopening a running session reconnects and restores the streamed snapshot', async t => {
+  const h = await mount(t);
+  h.sessions[1].running = true;
+  h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
   h.click('.session-row:nth-child(2) .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
-    assert.equal(h.actionCalls().length, before + 1);
+    assert.equal(h.resumeCalls(), 1);
+    assert.match(h.$('#messages').textContent, /replayed answer/);
+  });
+  h.finishResume();
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message'));
+});
+
+test('switching sessions detaches the client stream without cancelling the server chat', async t => {
+  const h = await mount(t);
+  h.submit('Hello');
+  await delay(0);
+  h.send();
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
+  h.click('.session-row:nth-child(2) .session-item');
+  await waitFor(() => {
+    assert.equal(h.selected(), 'session-2');
+    assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
     h.assertEnabled();
   });
+  assert.equal(h.streamAborted(), true, 'client stream should detach');
+  assert.equal(h.cancelCalls().length, 0, 'navigation must not call server cancellation');
+  h.click('#new-chat');
+  await waitFor(() => assert.equal(h.selected(), 'session-3'));
 });

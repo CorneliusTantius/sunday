@@ -5,6 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { executeTool, validateTools, BASIC_TOOL_NAMES, MEMORY_TOOL_NAMES, makeTools } from '../src/server/tools.js';
 
+test('whisper tool schema requires an existing session ID and message and is server-only', async () => {
+  const tool = makeTools(['whisper_to_agent'])[0];
+  assert.equal(tool.name, 'whisper_to_agent');
+  assert.deepEqual(tool.parameters.required, ['agentSessionId', 'message']);
+  assert.equal(tool.parameters.additionalProperties, false);
+  assert.match(tool.parameters.properties.agentSessionId.pattern, /36/);
+  await assert.rejects(executeTool('whisper_to_agent', { agentSessionId: '00000000-0000-0000-0000-000000000000', message: 'hello' }, [], ''));
+});
+
 test('shared memory tools read and update notes without repository access', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'sunday-memory-'));
   try {
