@@ -183,3 +183,19 @@ test('SessionConfig removes missing repositories after fetch and saves accepted 
   assert.equal(saved, 1); assert.equal(closed, 1);
   h.unmount();
 });
+
+test('SessionConfig shows workspace copy progress while saving', async () => {
+  const pendingSave = deferred();
+  const h = mount('SessionConfig', {
+    session: { id: 'agent-session', title: 'Agent', allowedRepositories: [] },
+    onSaved() {}, onClose() {}, toast() {},
+  }, async url => url === '/api/repos' ? { repos: [{ name: 'demo' }] } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, () => pendingSave.promise);
+  await h.settle();
+  const save = h.view.save({ preventDefault() {} });
+  h.render();
+  assert.equal(h.view.saving, true);
+  pendingSave.resolve({});
+  await save; await h.settle();
+  assert.equal(h.view.saving, false);
+  h.unmount();
+});

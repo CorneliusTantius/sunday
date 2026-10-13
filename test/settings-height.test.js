@@ -13,6 +13,7 @@ function mount({ observer = true, height = 280, viewportHeight = 800, visualHeig
   const container = { clientHeight: viewportHeight, computed: { paddingTop: '20px', paddingBottom: '20px' } };
   const header = { offsetHeight: 100 }, footer = { offsetHeight: 80 };
   const frame = {
+    clientHeight: parseFloat(maxHeight),
     computed: { maxHeight, paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '1px', borderBottomWidth: '1px' },
     querySelector: selector => selector === '.modal-header' ? header : footer,
   };
@@ -148,9 +149,12 @@ test('Settings retains natural CSS sizing for navigation and async updates witho
 
 test('Settings animates only the non-shrinking scroll viewport and honors reduced motion', () => {
   const css = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
-  assert.match(css, /\.settings-content\s*\{[^}]*flex: 0 1 auto;[^}]*min-height: 0;[^}]*overflow-y: auto;[^}]*scrollbar-gutter: stable;[^}]*transition: height 220ms/);
+  assert.match(css, /\.settings-content\s*\{[^}]*flex: 1 1 auto;[^}]*min-height: 0;[^}]*overflow: hidden;[^}]*transition: height 220ms/);
+  assert.match(css, /\.settings-detail\s*\{[^}]*min-height: 0;[^}]*overflow-y: auto;[^}]*overscroll-behavior-y: contain;/);
+  assert.match(css, /\.settings-layout\s*\{[^}]*grid-template-rows: minmax\(0, 1fr\);[^}]*height: 100%;[^}]*min-height: 0;/);
   assert.match(css, /\.settings-content\[data-sized\]\s*\{\s*flex-shrink: 0;/);
   assert.match(css, /\.settings-modal\s*\{[^}]*max-height: calc\(100dvh - 40px\)/);
+  assert.match(css, /\.settings-modal\s*\{[^}]*height: min\(80dvh, calc\(100dvh - 40px\)\)/);
   assert.match(css, /\.settings-layout\s*\{[^}]*display: grid;[^}]*padding: 28px;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\*, \*::before, \*::after\s*\{[^}]*transition: none !important/);
 });

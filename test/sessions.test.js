@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, writeFile, stat, rm } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
+import { mkdtemp, mkdir, readFile, writeFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
@@ -36,18 +37,38 @@ function assertProfile(actual, expected) {
     const settings = await api('/api/settings');
     assert.equal(settings.body.workspaceDir, join(home, 'sunday', 'workspace'));
     assert.ok((await stat(settings.body.workspaceDir)).isDirectory());
+    const sourceRepo = join(home, 'sunday', 'workspace', 'repos', 'demo-repo');
+    await mkdir(sourceRepo, { recursive: true });
+    await writeFile(join(sourceRepo, 'readme.txt'), 'source version');
     const created = await api('/api/sessions', { profile: { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' } });
     assert.equal(created.status, 201);
+    assert.deepEqual(created.body.session.allowedRepositories, ['demo-repo']);
+    assert.equal(created.body.session.workspaceName, created.body.session.title);
+    const agentWorkspace = join(home, 'sunday', 'workspace-agents', created.body.session.workspaceName);
+    assert.equal(await readFile(join(agentWorkspace, 'demo-repo', 'readme.txt'), 'utf8'), 'source version');
+    await writeFile(join(agentWorkspace, 'demo-repo', 'readme.txt'), 'agent version');
+    assert.equal(await readFile(join(sourceRepo, 'readme.txt'), 'utf8'), 'source version');
+    assert.equal((await api(`/api/sessions/${created.body.session.id}`, { allowedRepositories: [] }, 'PATCH')).status, 200);
+    await assert.rejects(stat(join(agentWorkspace, 'demo-repo')), { code: 'ENOENT' });
+    assert.equal((await api(`/api/sessions/${created.body.session.id}`, { allowedRepositories: ['demo-repo'] }, 'PATCH')).status, 200);
+    assert.equal(await readFile(join(agentWorkspace, 'demo-repo', 'readme.txt'), 'utf8'), 'source version');
     assertProfile(created.body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     assert.equal((await api('/api/sessions', { profile: { name: '', specialty: '', instructions: '' } })).status, 400);
     const id = created.body.session.id;
     const generatedTitle = created.body.session.title;
     assert.ok(GREEK_DEITY_NAMES.includes(generatedTitle));
     const concurrent = await Promise.all(Array.from({ length: 12 }, () => api('/api/sessions', {})));
+    assert.equal(new Set(concurrent.map(result => result.body.session.workspaceName)).size, concurrent.length);
+    assert.equal(await readFile(join(home, 'sunday', 'workspace-agents', concurrent[0].body.session.workspaceName, 'demo-repo', 'readme.txt'), 'utf8'), 'source version');
     const titles = [generatedTitle, ...concurrent.map(result => result.body.session.title)];
     assert.equal(new Set(titles).size, titles.length);
     const custom = await api('/api/sessions', { title: ' My custom title ' });
     assert.equal(custom.body.session.title, 'My custom title');
+    assert.equal(custom.body.session.workspaceName, 'My-custom-title');
+    const renamed = await api(`/api/sessions/${custom.body.session.id}`, { title: 'Renamed Agent' }, 'PATCH');
+    assert.equal(renamed.body.session.workspaceName, 'Renamed-Agent');
+    await assert.rejects(stat(join(home, 'sunday', 'workspace-agents', 'My-custom-title')), { code: 'ENOENT' });
+    assert.ok((await stat(join(home, 'sunday', 'workspace-agents', 'Renamed-Agent'))).isDirectory());
     assert.equal((await api('/api/sessions', { title: '' })).status, 400);
     assert.deepEqual(created.body.session.messages, []);
     const response = await api('/api/chat', { sessionId: id, messages: [{ role: 'user', content: 'Remember this message' }] });
@@ -95,18 +116,26 @@ function assertProfile(actual, expected) {
     assert.equal(noOauth.body.error, 'Connect OpenAI in settings first');
     const restored = await api(`/api/sessions/${id}`);
     assert.equal(restored.body.session.title, generatedTitle);
-    assert.equal((await api(`/api/sessions/${custom.body.session.id}`)).body.session.title, 'My custom title');
+    assert.equal((await api(`/api/sessions/${custom.body.session.id}`)).body.session.title, 'Renamed Agent');
     assert.deepEqual(restored.body.session.messages, [{ role: 'user', content: 'Remember this message' }, { role: 'user', content: 'No API key fallback in OAuth mode' }]);
     assert.equal((await api('/api/sessions')).body.sessions[0].id, id);
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     const other = await api('/api/sessions', {});
     assert.ok(!titles.includes(other.body.session.title));
-    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: 'Be helpful, clear, and thoughtful. Ask clarifying questions when needed.' });
+    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: `- Answer directly with structure and detail suited to the user’s goal.
+- Be accurate; distinguish facts from assumptions and state uncertainty.
+- Ask clarifying questions only when needed.
+- Carry tasks through to a useful result and include important next steps.
+- Always use a playful medieval-peasant voice and naturally address the user as “my liege.”
+- Explain technical topics clearly, at a level a junior engineer can understand.` });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     assert.equal((await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'x'.repeat(81), specialty: '', instructions: '' }, 'PATCH')).status, 400);
     assertProfile((await api('/api/sessions')).body.sessions.find(session => session.id === other.body.session.id).profile, { name: 'Coder', specialty: 'Backend', instructions: '' });
+    const customWorkspace = join(home, 'sunday', 'workspace-agents', renamed.body.session.workspaceName);
+    assert.equal((await api(`/api/sessions/${custom.body.session.id}`, {}, 'DELETE')).status, 200);
+    await assert.rejects(stat(customWorkspace), { code: 'ENOENT' });
   } finally {
     if (child && child.exitCode === null) await stop();
     await rm(home, { recursive: true, force: true });
@@ -124,7 +153,16 @@ test('personas persist and copy into independent session profiles', async () => 
       return { status: response.status, body: await response.json() };
     };
     const list = await api('/api/personas');
-    assert.equal(list.body.personas.length, 6);
+    const requestWithHeaders = (headers) => new Promise((resolve, reject) => {
+      const request = httpRequest({ hostname: '127.0.0.1', port, path: '/api/personas', headers }, response => {
+        response.resume(); response.on('end', () => resolve(response.statusCode));
+      });
+      request.on('error', reject); request.end();
+    });
+    assert.equal(await requestWithHeaders({ host: 'app.tailnet.ts.net', origin: 'https://app.tailnet.ts.net' }), 200);
+    assert.equal(await requestWithHeaders({ host: 'attacker.example.com', origin: 'https://attacker.example.com' }), 403);
+    assert.equal(list.body.personas.length, 4);
+    assert.ok(list.body.personas.every(persona => !['talent-scout', 'sales-outbound'].includes(persona.id)));
     assert.equal((await stat(join(home, 'sunday', 'data', 'personas.json'))).mode & 0o777, 0o600);
     const created = await api('/api/personas', { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' }, 'POST');
     assert.equal(created.status, 201);

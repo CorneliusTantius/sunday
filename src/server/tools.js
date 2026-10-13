@@ -1,102 +1,149 @@
-import { open, lstat, readdir, mkdir } from 'node:fs/promises';
+import { open, lstat, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
+const execFileAsync = promisify(execFile);
 export const BASIC_TOOLS = [
-  { name: 'read_file', description: "Read a text file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
-  { name: 'list_files', description: "List '<repo-name>/relative-path'; use '.' to list allowed repository names.", parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
-  { name: 'search_files', description: "Search '<repo-name>/relative-path'; use '.' to search all allowed repositories.", parameters: { type: 'object', properties: { query: { type: 'string' }, path: { type: 'string' } }, required: ['query'], additionalProperties: false } },
-  { name: 'write_file', description: "Write a text file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'], additionalProperties: false } },
+  { name: 'read', description: "Read a text file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
+  { name: 'edit', description: "Replace exact text in a file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
+  { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
+  { name: 'memory_search', description: 'Search shared notes for relevant saved knowledge. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
+  { name: 'memory_update', description: 'Create or replace a shared note by title. Save durable, useful knowledge for other agents; never save credentials or secrets.', parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['title', 'content'], additionalProperties: false } },
 ];
+export const REPOSITORY_TOOL_NAMES = ['read', 'edit', 'bash'];
+export const MEMORY_TOOL_NAMES = ['memory_search', 'memory_update'];
 export const BASIC_TOOL_NAMES = BASIC_TOOLS.map(tool => tool.name);
 export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
-  if (!Array.isArray(value) || value.length > BASIC_TOOL_NAMES.length || value.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(value).size !== value.length) throw new Error('Invalid allowed tools');
-  return [...value];
+  if (!Array.isArray(value)) throw new Error('Invalid allowed tools');
+  // Migrate permissions persisted under the previous file-tool names.
+  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
+  if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
+  return migrated;
 }
 export function makeTools(names) { return BASIC_TOOLS.filter(tool => names.includes(tool.name)).map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })); }
 
 const sensitive = name => name === '.git' || name === '.ssh' || /^\.env(?:\.|$)/i.test(name) || /credential|secret/i.test(name) || /\.(?:pem|key|p12|pfx)$/i.test(name);
 const within = (base, path) => path === base || path.startsWith(base + sep);
-export async function executeTool(name, args, repositories) {
+function memoryFileName(title) {
+  const slug = title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'note';
+  const hash = createHash('sha256').update(title.normalize('NFKC').toLowerCase()).digest('hex').slice(0, 8);
+  return `${slug}-${hash}.md`;
+}
+async function memoryRootInfo(memoryDir, create = false) {
+  if (typeof memoryDir !== 'string' || !memoryDir) throw new Error('Shared memory is unavailable');
+  if (create) await mkdir(memoryDir, { recursive: true, mode: 0o700 });
+  const info = await lstat(memoryDir);
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid shared memory directory');
+  return resolve(memoryDir);
+}
+async function executeMemoryTool(name, args, memoryDir) {
+  if (name === 'memory_search') {
+    if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 300) throw new Error('Invalid memory search query');
+    const root = await memoryRootInfo(memoryDir);
+    const terms = [...new Set(args.query.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])];
+    if (!terms.length) throw new Error('Invalid memory search query');
+    const matches = [];
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+      const path = join(root, entry.name), handle = await open(path, constants.O_NOFOLLOW);
+      let content;
+      try {
+        const stat = await handle.stat();
+        if (!stat.isFile() || stat.size > 20000) continue;
+        content = await handle.readFile('utf8');
+      } finally { await handle.close(); }
+      const lower = content.toLowerCase(), found = terms.filter(term => lower.includes(term));
+      if (!found.length) continue;
+      const position = Math.max(0, Math.min(...found.map(term => lower.indexOf(term))));
+      const excerpt = content.slice(Math.max(0, position - 180), position + 900).trim();
+      matches.push({ score: found.length, title: content.split('\n')[0].replace(/^#\s*/, ''), excerpt });
+    }
+    matches.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+    return matches.length ? matches.slice(0, 5).map(item => `## ${item.title}\n${item.excerpt}`).join('\n\n') : 'No shared notes matched that query.';
+  }
+  if (typeof args.title !== 'string' || !args.title.trim() || args.title.trim().length > 120 || typeof args.content !== 'string' || !args.content.trim() || args.content.length > 20000) throw new Error('Invalid shared memory note');
+  const title = args.title.trim(), root = await memoryRootInfo(memoryDir, true);
+  const path = join(root, memoryFileName(title)), temporary = join(root, `.${randomUUID()}.tmp`);
+  const existing = await lstat(path).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+  if (existing && (!existing.isFile() || existing.isSymbolicLink())) throw new Error('Invalid shared memory note');
+  try {
+    await writeFile(temporary, `# ${title}\n\n${args.content.trim()}\n`, { flag: 'wx', mode: 0o600 });
+    await rename(temporary, path);
+  } catch (error) { await rm(temporary, { force: true }); throw error; }
+  return `Shared note saved: ${title}`;
+}
+export async function executeTool(name, args, repositories, memoryDir) {
   if (!BASIC_TOOL_NAMES.includes(name)) throw new Error('Unknown tool');
-  if (!Array.isArray(repositories) || !repositories.length) throw new Error('No repositories are allowed for this session');
   args ||= {};
+  if (MEMORY_TOOL_NAMES.includes(name)) return executeMemoryTool(name, args, memoryDir);
+  if (!Array.isArray(repositories) || !repositories.length) throw new Error('No repositories are allowed for this session');
   const raw = args.path ?? '.';
   if (typeof raw !== 'string' || raw.includes('\\') || raw.startsWith('/') || raw.split('/').includes('..')) throw new Error('Invalid repository path');
-  if (name === 'write_file' && (typeof args.content !== 'string' || args.content.length > 50000)) throw new Error('Invalid file content');
-  if (name === 'search_files' && (typeof args.query !== 'string' || !args.query)) throw new Error('Search query required');
+  if (name === 'bash' && (typeof args.command !== 'string' || args.command.length > 10000 || (args.timeout !== undefined && (!Number.isInteger(args.timeout) || args.timeout < 1 || args.timeout > 300000)))) throw new Error('Invalid bash command or timeout');
+  if (name === 'edit' && (typeof args.oldText !== 'string' || !args.oldText || typeof args.newText !== 'string' || args.newText.length > 50000)) throw new Error('Invalid edit arguments');
   async function rootInfo(root) {
     const info = await lstat(root);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid repository root');
     return { name: root.split(/[\\/]/).filter(Boolean).at(-1), base: resolve(root) };
   }
   const roots = await Promise.all(repositories.map(rootInfo));
-  async function safePath(root, parts, creating = false) {
-    let current = root.base;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (!part || part === '.') continue;
-      if (sensitive(part)) throw new Error('Access to sensitive files is denied');
-      current = join(current, part);
-      try {
-        const st = await lstat(current);
-        if (st.isSymbolicLink()) throw new Error('Symlinks are denied');
-        if (i < parts.length - 1 && !st.isDirectory()) throw new Error('Invalid repository path');
-      } catch (e) {
-        if (e.code !== 'ENOENT' || !creating || i !== parts.length - 1) throw e;
-      }
+  const slash = raw.indexOf('/');
+  const repoName = slash < 0 ? raw : raw.slice(0, slash);
+  const root = name === 'bash' && raw === '.' ? { base: resolve(dirname(roots[0].base)) } : roots.find(item => item.name === repoName);
+  if (!root) throw new Error('Repository name is required');
+  const parts = raw === '.' ? [] : slash < 0 ? [] : raw.slice(slash + 1).split('/');
+  if (name !== 'bash' && parts.length === 0) throw new Error('A file path is required');
+  let path = root.base;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part || part === '.') continue;
+    if (sensitive(part)) throw new Error('Access to sensitive files is denied');
+    path = join(path, part);
+    try {
+      const st = await lstat(path);
+      if (st.isSymbolicLink()) throw new Error('Symlinks are denied');
+      if (i < parts.length - 1 && !st.isDirectory()) throw new Error('Invalid repository path');
+    } catch (error) {
+      if (error.code !== 'ENOENT' || name !== 'edit' || i !== parts.length - 1) throw error;
     }
-    if (!within(root.base, current)) throw new Error('Path is outside allowed repositories');
-    return current;
   }
-  if (raw === '.' && name === 'list_files') return roots.map(x => x.name).join('\n');
-  let selected, parts;
-  if (raw === '.') {
-    if (name === 'read_file' || name === 'write_file') throw new Error('A repository path is required');
-  } else {
-    const slash = raw.indexOf('/');
-    const repoName = slash < 0 ? raw : raw.slice(0, slash);
-    selected = roots.find(root => root.name === repoName);
-    if (!selected) throw new Error('Repository name is required');
-    parts = slash < 0 ? [] : raw.slice(slash + 1).split('/');
+  if (!within(root.base, path)) throw new Error('Path is outside allowed repositories');
+  if (name === 'bash') {
+    const cwd = path;
+    const stat = await lstat(cwd);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Invalid repository directory');
+    try {
+      const { stdout, stderr } = await execFileAsync('bash', ['-c', args.command], { cwd, maxBuffer: 50000, timeout: args.timeout ?? 30000 });
+      return (stdout + stderr).slice(0, 50000);
+    } catch (error) { return `${error.message}\n${error.stdout || ''}${error.stderr || ''}`.slice(0, 50000); }
   }
-  const targets = selected ? [selected] : roots;
-  const results = [];
-  for (const root of targets) {
-    const path = await safePath(root, selected ? parts : [], name === 'write_file');
-    if (name === 'list_files') return (await readdir(path)).filter(item => !sensitive(item)).join('\n');
-    if (name === 'read_file') {
-      const handle = await open(path, constants.O_NOFOLLOW); // O_NOFOLLOW
-      try { const st = await handle.stat(); if (!st.isFile() || st.size > 50000) throw new Error('File is too large or not a regular file'); return await handle.readFile('utf8'); } finally { await handle.close(); }
-    }
-    if (name === 'write_file') {
-      await mkdir(dirname(path), { recursive: true });
-      // Revalidate created parents before opening without following the final symlink.
-      await safePath(root, parts.slice(0, -1));
-      const handle = await open(path, constants.O_NOFOLLOW | constants.O_CREAT | constants.O_WRONLY, 0o600);
-      try { if (!(await handle.stat()).isFile()) throw new Error('Not a regular file'); await handle.truncate(0); await handle.writeFile(args.content, 'utf8'); } finally { await handle.close(); }
-      return 'File written';
-    }
-    const resultsForRoot = [];
-    async function walk(dir, depth) {
-      if (depth > 12 || resultsForRoot.length >= 100) return;
-      const entries = await readdir(dir, { withFileTypes: true });
-      for (const entry of entries.slice(0, 1000)) {
-        if (entry.isSymbolicLink() || sensitive(entry.name) || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-        const file = join(dir, entry.name);
-        if (entry.isDirectory()) await walk(file, depth + 1);
-        else if (entry.isFile()) try {
-          const handle = await open(file, constants.O_NOFOLLOW);
-          let text;
-          try { if ((await handle.stat()).size > 50000) continue; text = await handle.readFile('utf8'); } finally { await handle.close(); }
-          if (text.includes(args.query)) resultsForRoot.push(`${relative(path, file)}: ${text.split('\n').filter(line => line.includes(args.query)).slice(0, 5).join('\n')}`);
-        } catch {}
-        if (resultsForRoot.length >= 100) break;
-      }
-    }
-    await walk(path, 0);
-    results.push(...resultsForRoot.map(result => `${root.name}/${result}`));
+  if (name === 'read') {
+    const handle = await open(path, constants.O_NOFOLLOW);
+    try { const stat = await handle.stat(); if (!stat.isFile() || stat.size > 50000) throw new Error('File is too large or not a regular file'); return await handle.readFile('utf8'); } finally { await handle.close(); }
   }
-  return results.join('\n').slice(0, 20000);
+  await mkdir(dirname(path), { recursive: true });
+  // Revalidate parents created by mkdir before opening the target.
+  let parent = root.base;
+  for (const part of parts.slice(0, -1)) {
+    if (!part || part === '.') continue;
+    parent = join(parent, part);
+    const stat = await lstat(parent);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('Invalid repository path');
+  }
+  const handle = await open(path, constants.O_NOFOLLOW | constants.O_CREAT | constants.O_RDWR, 0o600);
+  try {
+    if (!(await handle.stat()).isFile()) throw new Error('Not a regular file');
+    const content = await handle.readFile('utf8');
+    const first = content.indexOf(args.oldText);
+    if (first < 0 || content.indexOf(args.oldText, first + args.oldText.length) >= 0) throw new Error('Old text must match exactly once');
+    await handle.truncate(0);
+    const updated = Buffer.from(content.slice(0, first) + args.newText + content.slice(first + args.oldText.length), 'utf8');
+    let offset = 0;
+    while (offset < updated.length) offset += (await handle.write(updated, offset, updated.length - offset, offset)).bytesWritten;
+    return 'File edited';
+  } finally { await handle.close(); }
 }

@@ -25,5 +25,7 @@ test('viewport layout confines scrolling to chat history and repository content'
     assert.equal(css(selector).overflowY, 'auto');
     assert.equal(css(selector).getPropertyValue('overscroll-behavior-y'), 'contain');
   }
+  assert.equal(css('.conversation').width, '75%');
+  assert.equal(css('.composer-wrap').width, '75%');
   assert.equal(css('.composer-wrap').flexShrink, '0');
 });

@@ -13,7 +13,7 @@ before(async () => {
 });
 after(async () => { await vite?.close(); });
 
-async function mount(t, mobile = false) {
+async function mount(t, mobile = false, sessions = [{ id: 'sidebar-test', title: 'Test chat', messages: [] }]) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', pretendToBeVisual: true });
   const { window } = dom;
   const listeners = new Set();
@@ -32,11 +32,11 @@ async function mount(t, mobile = false) {
     return this.closest('.hidden') ? [] : [{ width: 10, height: 10 }];
   };
   window.HTMLElement.prototype.scrollIntoView = function () {};
-  const session = { id: 'sidebar-test', title: 'Test chat', messages: [] };
+  const session = sessions[0];
   const fetch = async (url, options = {}) => {
     let data;
     if (url === '/api/settings') data = { providers: [], models: [], thinkingLevel: 'off' };
-    else if (url === '/api/sessions') data = options.method === 'POST' ? { session } : { sessions: [session] };
+    else if (url === '/api/sessions') data = options.method === 'POST' ? { session } : { sessions };
     else throw new Error(`Unexpected sidebar test request: ${url}`);
     return { ok: true, status: 200, json: async () => data };
   };
@@ -75,6 +75,27 @@ async function mount(t, mobile = false) {
     resize(matches) { act(() => { layout.matches = matches; for (const listener of listeners) listener({ matches }); }); },
   };
 }
+
+test('new agent label and pinning keep at most three agents at the top', async t => {
+  const sessions = Array.from({ length: 4 }, (_, index) => ({ id: `agent-${index + 1}`, title: `Agent ${index + 1}`, messages: [] }));
+  const app = await mount(t, false, sessions);
+  await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
+  assert.match(app.get('new-chat').textContent, /New agent/);
+  app.click('agents-toggle');
+  const pinButton = id => app.window.document.querySelector(`.pin-session[data-agent-id="${id}"]`);
+  assert.equal(app.window.document.querySelectorAll('.pin-session').length, 4);
+  for (const session of sessions.slice(0, 3)) act(() => pinButton(session.id).click());
+  const rows = () => [...app.window.document.querySelectorAll('.session-row')].map(row => row.querySelector('.session-item').textContent);
+  assert.deepEqual(rows(), ['Agent 1', 'Agent 2', 'Agent 3', 'Agent 4']);
+  assert.equal(app.window.document.querySelector('.agent-list-heading').textContent, 'PINNED');
+  assert.deepEqual(JSON.parse(app.window.localStorage.getItem('sunday-pinned-agent-ids')), ['agent-1', 'agent-2', 'agent-3']);
+  act(() => pinButton('agent-4').click());
+  assert.equal(app.get('toast').textContent, 'You can pin up to 3 agents. Unpin one first.');
+  assert.equal(app.window.document.querySelectorAll('.pin-session.pinned').length, 3);
+  act(() => pinButton('agent-2').click());
+  act(() => pinButton('agent-4').click());
+  assert.deepEqual(rows(), ['Agent 1', 'Agent 3', 'Agent 4', 'Agent 2']);
+});
 
 function state(harness, { mobile, open }) {
   const sidebar = harness.get('sidebar');

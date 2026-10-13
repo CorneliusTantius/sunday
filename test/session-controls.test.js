@@ -185,7 +185,7 @@ test('streaming guards create/open/delete/configure until the response finishes'
     for (const control of h.controls().filter(control => control.id !== 'new-chat')) assert.equal(control.disabled, true);
   });
   attemptActions();
-  await waitFor(() => assert.equal(h.$('#toast').textContent, 'Stop the response before starting a new chat'));
+  await waitFor(() => assert.equal(h.$('#toast').textContent, 'Stop the response before starting a new agent'));
   h.finishStream();
   await waitFor(() => {
     assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');

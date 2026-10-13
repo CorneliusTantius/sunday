@@ -53,9 +53,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
       const chrome = header.offsetHeight + footer.offsetHeight
         + pixels(frame.paddingTop) + pixels(frame.paddingBottom)
         + pixels(frame.borderTopWidth) + pixels(frame.borderBottomWidth);
-      // The inner grid stays natural-sized; neither the animated viewport nor
-      // the modal's current height is a measurement input (no observer loop).
-      const cap = Math.max(0, Math.min(available, limit) - chrome);
+      // The viewport fills the modal's fixed 80vh height, but remains capped
+      // by the visible viewport and the modal's max-height.
+      const cap = Math.max(0, Math.min(available, limit, modal.clientHeight) - chrome);
       // A smaller viewport/chrome budget must clamp immediately, including
       // during a height transition, so the footer never slides out of view.
       viewport.style.maxHeight = `${cap}px`;

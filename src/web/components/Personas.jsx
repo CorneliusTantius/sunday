@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import Character from './Character.jsx';
 
-const tools = ['read_file', 'list_files', 'search_files', 'write_file'];
+const tools = ['read', 'edit', 'bash'];
 const emptyProfile = () => ({ name: '', specialty: '', instructions: '', color: 'cyan', allowedTools: [...tools] });
 
 export default function Personas({ hidden, toast, onReload }) {
@@ -73,27 +73,29 @@ export default function Personas({ hidden, toast, onReload }) {
 
   return <section id="settings-personas-page" class={`settings-section${hidden ? ' hidden' : ''}`}>
     <h3>Profiles &amp; personas</h3><p class="field-note">Reusable starting profiles. Changes here do not change existing sessions.</p>
-    <section class="persona-picker" aria-labelledby="persona-picker-heading">
-      <h4 id="persona-picker-heading">Choose a persona</h4><p class="field-note">Select a profile to edit, or create a new one.</p>
-      <label class="field-label" for="persona-select">Saved personas</label>
-      <select id="persona-select" class="select" value={id} disabled={busy} onChange={event => select(personas, event.currentTarget.value)}>
-        {!id && <option value="">{personas.length ? 'New persona' : 'No saved personas'}</option>}
-        {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
-      </select>
-      <button id="new-persona" class="text-button" type="button" disabled={busy} onClick={() => { select(personas, ''); nameInput.current?.focus(); }}>＋ New persona</button>
-    </section>
+    <select id="persona-select" class="select persona-select" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
+      if (event.currentTarget.value === '__new__') { select(personas, ''); nameInput.current?.focus(); }
+      else select(personas, event.currentTarget.value);
+    }}>
+      {!id && <option value="">New persona</option>}
+      {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
+      {id && <option value="__new__">＋ New persona</option>}
+    </select>
     <form id="persona-form" aria-labelledby="persona-config-heading" onSubmit={save}>
       <h4 id="persona-config-heading">Persona configuration</h4><p class="field-note persona-config-note">Edit this persona’s identity, instructions, and tool permissions below.</p>
       <label class="field-label" for="persona-name">Name</label><input ref={nameInput} id="persona-name" class="text-input" required maxLength="80" value={profile.name} disabled={busy} onInput={event => change('name', event.currentTarget.value)} />
+      <div class="persona-appearance">
+        <div class="persona-color-field"><label class="field-label" for="persona-color">Character color</label><select class="select" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
+          {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
+        </select></div>
+        <div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div>
+      </div>
       <label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} />
-      <label class="field-label" for="persona-color">Character color</label><select class="select" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
-        {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
-      </select>
-      <div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div>
-      <fieldset class="repository-options"><legend class="field-label">Allowed tools</legend><div id="persona-tools">
+      <label class="field-label" for="persona-instructions">Instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
+      <fieldset class="repository-options"><legend class="field-label">Repository tools</legend><div id="persona-tools">
         {tools.map(tool => <label key={tool} class="repository-checkbox"><input type="checkbox" value={tool} disabled={busy} checked={profile.allowedTools.includes(tool)} onChange={event => change('allowedTools', event.currentTarget.checked ? [...profile.allowedTools, tool] : profile.allowedTools.filter(item => item !== tool))} /><span>{tool}</span></label>)}
       </div></fieldset>
-      <label class="field-label" for="persona-instructions">Instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
+      <p class="field-note">Shared memory search and update are available to every agent.</p>
       <div class="code-row"><button class="primary-button" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="secondary-button" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
       <p id="persona-error" class="form-error" role="alert">{error}</p>
     </form>

@@ -30,7 +30,16 @@ npm run build
 npm start
 ```
 
-`PORT=3001 npm run dev` changes the port. The server binds only to loopback; this is a single-user local app, not a public deployment with user authentication.
+`PORT=3001 npm run dev` changes the port. The server binds only to loopback. To expose it privately to your tailnet, start the app and run Tailscale Serve in a second terminal:
+
+```sh
+npm start
+# In another terminal:
+tailscale serve --bg http://127.0.0.1:3000
+tailscale serve status
+```
+
+Tailscale Serve provides an HTTPS tailnet URL and proxies to the loopback server; it does not expose the app publicly. If using a custom `PORT`, use that port in the Serve target. The app has no user login, so tailnet access controls are the security boundary—do not use Tailscale Funnel to make it public.
 
 ## Source layout
 
@@ -48,9 +57,9 @@ npm start
 
 Files are written atomically with owner-only permissions (0600). Secrets are stored as plaintext on disk, not encrypted. They are never returned by settings endpoints or stored in browser localStorage. An `OPENAI_API_KEY` environment variable can also supply API authorization.
 
-Chat sessions persist in `~/sunday/data/sessions/<session-id>.json` and appear in the sidebar. Reload restores the last opened session; New chat creates a separate session without deleting previous chats. Stop cancels the response and saves any generated partial text.
+Agent sessions persist in `~/sunday/data/sessions/<session-id>.json` and appear in the sidebar. Reload restores the last opened agent; New agent creates a separate session without deleting previous agents. Stop cancels the response and saves any generated partial text.
 
-The default launch working directory is `~/sunday/workspace`, created automatically. Sessions select allowed shared repositories under `~/sunday/workspace/repos`. Persona settings select allowed file tools. Tools are unavailable when no repositories are selected; writes affect the shared repository. The interface uses neutral Void (`#090B10`), Surface (`#11151D`), Elevated (`#1A202B`), and Steel (`#303846`) layers, with cyan actions, blue selection, violet branding, magenta destructive actions, lime connection status, and amber warnings.
+The server launch working directory is `~/sunday/workspace`; source repositories are stored under `~/sunday/workspace/repos`. Each agent gets an isolated workspace at `~/sunday/workspace-agents/<agent-name>`, containing copies of its allowed repositories directly. Folder names are safely derived from the agent name and follow it when renamed. New agents copy all available repositories by default. Saving agent settings copies newly checked repositories in and removes unchecked copies; edits stay isolated to that agent. Persona settings select allowed repository tools, which are unavailable when no repositories are selected. Every agent also has `memory_search` and `memory_update` tools for shared Markdown notes under `~/sunday/workspace/shared-memory/`. The interface uses neutral Void (`#090B10`), Surface (`#11151D`), Elevated (`#1A202B`), and Steel (`#303846`) layers, with cyan actions, blue selection, violet branding, magenta destructive actions, lime connection status, and amber warnings.
 
 ## Checks
 
