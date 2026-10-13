@@ -431,6 +431,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.headers.host !== `127.0.0.1:${port}` && req.headers.host !== `localhost:${port}` && !isTailnetHost(req.headers.host)) return json(res, 403, { error: 'Invalid host' });
     if (req.headers.origin && !localOrigins.has(req.headers.origin) && !isTailnetOrigin(req.headers.origin)) return json(res, 403, { error: 'Invalid origin' });
+    if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { status: 'ok' });
     if (!['GET', 'DELETE'].includes(req.method) && req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
     if (url.pathname === '/api/personas' && req.method === 'GET') return json(res, 200, { personas });
     const personaMatch = url.pathname.match(/^\/api\/personas\/([^/]+)$/);

@@ -30,6 +30,16 @@ npm run build
 npm start
 ```
 
+To run Sunday in the background with systemd, use the per-user service installer from the repository root:
+
+```sh
+./install-systemctl.sh
+systemctl --user status sunday.service
+journalctl --user -u sunday.service -f
+```
+
+The installer registers `npm start`, enables restart-on-exit, and installs a one-minute healthcheck timer that restarts Sunday if `/api/health` fails. It may ask for your password to enable systemd lingering, which keeps the user service running after logout and across reboots. Stop or disable it with `systemctl --user disable --now sunday.service sunday-healthcheck.timer`. To use a non-default port, run `PORT=3001 ./install-systemctl.sh`.
+
 `PORT=3001 npm run dev` changes the port. The server binds only to loopback. To expose it privately to your tailnet, start the app and run Tailscale Serve in a second terminal:
 
 ```sh

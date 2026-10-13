@@ -90,6 +90,7 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
   }
   try {
     await start();
+    assert.deepEqual((await api('/api/health')).body, { status: 'ok' });
     const initial = await api('/api/settings');
     assert.deepEqual(initial.body.providers.map(p => [p.id, p.modes]), [
       ['openai', ['api_key', 'oauth']], ['anthropic', ['api_key']], ['google', ['api_key']],
