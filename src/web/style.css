@@ -739,3 +739,6 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   .context-meter-label small { border-color: ButtonText; }
   .select:focus, input.text-input:focus { outline: 2px solid Highlight; }
 }
+
+/* Separate the update action from its explanatory text. */
+#settings-update-page > .field-note { margin-bottom: 20px; }
