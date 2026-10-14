@@ -13,7 +13,7 @@ import ComposerInput from './components/ComposerInput.jsx';
 import { chatCommands, fileReferences } from './composer.js';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
-const activityLabels = { waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
+const activityLabels = { compacting: 'Compacting context…', waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
 const streamIdleTimeout = 150_000;
 
 function progressLabel(status) {
@@ -468,10 +468,10 @@ export default function App() {
   const selectedModel = models.find(model => model.id === sessionConfig?.model);
   const levels = selectedModel?.thinkingLevels || ['off'];
   const thinking = levels.includes(sessionConfig?.thinkingLevel) ? sessionConfig.thinkingLevel : levels[0];
-  const measuredUsage = Boolean(contextUsage && sessionConfig && contextUsage.model === sessionConfig.model);
+  const measuredUsage = Boolean(contextUsage && sessionConfig && contextUsage.model === sessionConfig.model && contextUsage.provider === sessionConfig.provider && contextUsage.messageCount >= messages.length - 1);
   const contextWindow = selectedModel?.contextWindow || (measuredUsage ? contextUsage.contextWindow : 0);
-  const estimatedCharacters = messages.reduce((total, message) => total + (message.content?.length || 0) + (message.toolCalls || []).reduce((size, call) => size + JSON.stringify(call.arguments || {}).length, 0), 0);
-  const contextTokens = measuredUsage ? contextUsage.tokens : Math.ceil(estimatedCharacters / 4);
+  const estimatedCharacters = prompt.length + messages.reduce((total, message) => total + (message.content?.length || 0) + (message.fileReferences || []).reduce((size, ref) => size + (ref.content?.length || 0), 0) + (message.toolCalls || []).reduce((size, call) => size + JSON.stringify(call.arguments || {}).length, 0), 0);
+  const contextTokens = measuredUsage ? contextUsage.tokens + Math.ceil(prompt.length / 3) : Math.ceil(estimatedCharacters / 3);
   const contextPercent = contextWindow ? Math.min(100, Math.round(contextTokens / contextWindow * 100)) : 0;
   const connected = settings?.providers?.some(provider => provider.hasApiKey || provider.oauthConnected);
   const closeSidebar = () => { setSidebarOpen(false); menu.current?.focus(); };
@@ -530,8 +530,8 @@ export default function App() {
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
           {showLatest && <button class="scroll-to-latest" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
           {busy && activity && <div class="response-activity" id="response-activity" role="status">{activity}</div>}
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
-            <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
+          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction starts at 75%.">
+            <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage && contextUsage.measured ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
           </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">{busy ? <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" /> : <path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}</svg></button></div></form>
           <div class="composer-controls"><label class="composer-model-label" for="chat-model">MODEL</label><select class="select chat-model" id="chat-model" value={sessionConfig?.model || ''} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !models.length} onChange={event => updateSessionConfig({ model: event.currentTarget.value })}>{models.length ? models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>) : <option value="">{settings ? 'Connect a provider to see models' : 'Loading models…'}</option>}</select><label class="thinking-label" for="thinking-level">THINKING</label><select class="select thinking-level" id="thinking-level" value={thinking} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !sessionConfig || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => updateSessionConfig({ thinkingLevel: event.currentTarget.value })}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
