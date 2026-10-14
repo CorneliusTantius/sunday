@@ -752,6 +752,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 
 /* Keep navigation icons aligned without stealing space from labels. */
 .feature-link { display: flex; align-items: center; gap: 10px; }
+.feature-heading.feature-link { justify-content: flex-start; }
 .menu-icon { flex-shrink: 0; opacity: .8; }
 .repos-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .repo-git-status { display: flex; flex-wrap: wrap; gap: 6px; }
