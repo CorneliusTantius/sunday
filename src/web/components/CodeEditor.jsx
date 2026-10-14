@@ -277,7 +277,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
 
   function fileButton(path, label) {
     return <button type="button" class="code-editor-file-button" disabled={saving}
-      aria-current={file === path ? 'page' : undefined} onClick={() => openFile(path)}>{label}</button>;
+      aria-current={file === path ? 'page' : undefined} onClick={() => openFile(path)}><span class="code-editor-entry-icon" aria-hidden="true">◇</span><span>{label}</span></button>;
   }
 
   function directoryContents(path) {
@@ -297,7 +297,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
             {isDirectory ? <>
               <button type="button" class="code-editor-directory-button" aria-expanded={expanded.has(childPath)}
                 aria-controls={`code-editor-directory-${encodeURIComponent(childPath)}`} onClick={() => toggleDirectory(childPath)}>
-                <span aria-hidden="true">{expanded.has(childPath) ? '▾' : '▸'} </span>{entry.name}/
+                <span class="code-editor-entry-icon" aria-hidden="true">{expanded.has(childPath) ? '▾' : '▸'}</span><span>{entry.name}</span>
               </button>
               {expanded.has(childPath) && directoryContents(childPath)}
             </> : fileButton(childPath, entry.name)}
@@ -326,23 +326,6 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
           </div>
           {directoryError && <p class="form-error" role="alert">{directoryError}</p>}
         </form>
-        <form class="code-editor-search" onSubmit={searchFiles}>
-          <label class="field-label" for="code-editor-search">Search filenames</label>
-          <div class="code-editor-search-controls">
-            <input class="text-input" id="code-editor-search" type="search" value={query} onInput={changeQuery} placeholder="Filename contains…" />
-            <button type="submit" class="secondary-button" disabled={!query.trim() || searching}>Search</button>
-          </div>
-        </form>
-        <div class="code-editor-search-results" aria-busy={searching}>
-          {searching && <p class="field-note" role="status">Searching files…</p>}
-          {searchError && <p class="form-error" role="alert">{searchError}</p>}
-          {results && <>
-            <p class="field-note" role="status">{results.files.length ? `${results.files.length} matching files.` : 'No matching files.'}{results.truncated ? ' Results truncated; narrow your search.' : ''}</p>
-            <ul class="code-editor-results-list" aria-label="Matching files">
-              {results.files.map(path => <li key={path}>{fileButton(path, path)}</li>)}
-            </ul>
-          </>}
-        </div>
         <nav class="code-editor-tree" aria-label={`Files in ${root}`}>
           {directoryContents('')}
         </nav>
