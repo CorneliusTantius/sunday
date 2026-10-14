@@ -1,3 +1,4 @@
+import { repositoryStatus } from './repo-status.js';
 import http from 'node:http';
 import { open, opendir, readFile, readlink, mkdir, writeFile, rename, chmod, readdir, rm, cp, lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -747,7 +748,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/repos' && req.method === 'GET') {
       const repos = [];
-      for (const name of await readdir(reposDir, { withFileTypes: true })) if (name.isDirectory()) repos.push({ name: name.name });
+      for (const name of await readdir(reposDir, { withFileTypes: true })) if (name.isDirectory()) repos.push({ name: name.name, gitStatus: await repositoryStatus(join(reposDir, name.name)) });
       repos.sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, { repos });
     }

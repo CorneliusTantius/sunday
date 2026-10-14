@@ -46,6 +46,17 @@ function trapFocus(event, container) {
   else if (!event.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
 }
 
+function MenuIcon({ name }) {
+  const paths = {
+    dashboard: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    agents: 'M4 5h16v12H9l-5 4V5Z M8 9h8 M8 13h5',
+    repositories: 'M6 3v12a4 4 0 0 0 4 4h7 M17 5v14 M3 3h6 M14 5h6 M14 19h6',
+    files: 'M4 6h6l2 2h8v12H4V6Z',
+    socials: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z M4 21v-2a8 8 0 0 1 16 0v2',
+  };
+  return <svg class="menu-icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d={paths[name]} stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>;
+}
+
 export default function App() {
   const [settings, setSettings] = useState(null);
   const [settingsError, setSettingsError] = useState(false);
@@ -481,9 +492,9 @@ export default function App() {
       <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
         <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><Character brand /><span> sunday</span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}>☰</button></div>
         <div class="sessions-heading">FEATURES</div>
-        <a class="feature-heading feature-link" id="dashboard-link" href="#dashboard" aria-current={page === 'dashboard' ? 'page' : undefined}>Dashboard</a>
+        <a class="feature-heading feature-link" id="dashboard-link" href="#dashboard" aria-current={page === 'dashboard' ? 'page' : undefined}><MenuIcon name="dashboard" /><span>Dashboard</span></a>
         <section class="agents-feature" aria-labelledby="agents-title">
-          <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}>Sunday Agents</a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
+          <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
           <div id="agents-sessions" class={`agents-sessions${expanded ? ' expanded' : ''}`} inert={!expanded} aria-hidden={!expanded}>
             <div class="agents-sessions-content"><button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
@@ -495,9 +506,9 @@ export default function App() {
             </div>
           </div>
         </section>
-        <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}>Repositories</a>
-        <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}>Files</a>
-        <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}>Socials</a>
+        <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
+        <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
+        <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" /><span>Socials</span></a>
         <div class="sidebar-bottom"><div class={`status-dot${connected ? ' ready' : ''}`} /><span id="connection-label">{settingsError ? 'Could not load settings' : connected ? 'Provider connected' : 'Set up to get started'}</span><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
       </aside>
       <button ref={menu} class="icon-button sidebar-reopen" id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>

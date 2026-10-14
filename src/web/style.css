@@ -749,3 +749,10 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .dashboard-page { flex: 1; min-height: 0; display: grid; place-items: center; padding: 64px 24px; overflow-y: auto; text-align: center; }
 .dashboard-clock h1 { font-size: clamp(28px, 5vw, 48px); margin: 0 0 16px; }
 .dashboard-clock time { font-size: clamp(24px, 4vw, 36px); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Keep navigation icons aligned without stealing space from labels. */
+.feature-link { display: flex; align-items: center; gap: 10px; }
+.menu-icon { flex-shrink: 0; opacity: .8; }
+.repos-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.repo-git-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.repo-status-pill { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
