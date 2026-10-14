@@ -836,7 +836,8 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .settings-select-row .field-label {
   margin: 0;
 }
-.settings-select-row .select {
+.settings-select-row .select,
+.settings-select-row .text-input {
   width: 100%;
   min-width: 0;
   margin: 0;

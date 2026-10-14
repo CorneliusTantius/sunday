@@ -12,3 +12,11 @@ test('persona tools are in an initially open native disclosure', () => {
   assert.match(read('components/Personas.jsx'), /<details class="persona-tools-card" open><summary>Tool permissions<\/summary>/);
   assert.match(read('components/Personas.jsx'), /<\/div><\/fieldset><\/details>/);
 });
+
+test('persona identity inputs share the balanced settings rows', () => {
+  const personas = read('components/Personas.jsx');
+  for (const id of ['persona-name', 'persona-specialty']) {
+    assert.ok(personas.includes(`<div class="settings-select-row"><label class="field-label" for="${id}">`));
+  }
+  assert.match(read('style.css'), /\.settings-select-row \.select,\s*\.settings-select-row \.text-input \{/);
+});
