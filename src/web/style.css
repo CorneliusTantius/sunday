@@ -719,6 +719,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   border-color: var(--line);
   background-color: var(--panel2);
 }
+.settings-modal .primary-button { color: var(--text); }
 .settings-modal .settings-nav.active { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--panel)); }
 .settings-modal .select:focus, .settings-modal input.text-input:focus,
 .settings-modal .secondary-button:hover { border-color: var(--highlight); }
