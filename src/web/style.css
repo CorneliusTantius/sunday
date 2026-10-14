@@ -788,7 +788,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  padding: 14px 14px 16px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--panel);
