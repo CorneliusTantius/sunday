@@ -162,7 +162,8 @@ export default function App() {
     promptInput.current?.focus();
   }
   async function openSession(id, navigate = true) {
-    if (sessionLock.current || id === activeSession.current) return;
+    if (id === activeSession.current) { navigateChat(navigate); return; }
+    if (sessionLock.current) return;
     detachResponse();
     sessionLock.current = true; setLoadingSession(true); setReady(false);
     let resumeIndex = null;

@@ -23,3 +23,18 @@ test('nested agents use smaller text, avatars and spacing than parent navigation
   assert.match(css, /\.agents-sessions \.session-row \.avatar-character \{ width: 22px; height: 22px; \}/);
   assert.match(css, /\.agents-sessions \.session-row \.session-item \{ padding: 2px; font-size: 13px; \}/);
 });
+
+
+test('agents destination fills the heading without absorbing its disclosure button', () => {
+  assert.match(css, /\.agents-feature \.feature-heading > \.feature-link \{ flex: 1; align-self: stretch; min-width: 0; \}/);
+});
+
+test('opening the current session navigates before skipping the session reload', () => {
+  const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /if \(id === activeSession\.current\) \{ navigateChat\(navigate\); return; \}/);
+});
+
+test('settings dismiss action is labeled Close', () => {
+  const settings = readFileSync(new URL('../src/web/components/Settings.jsx', import.meta.url), 'utf8');
+  assert.match(settings, /id="cancel-settings" onClick=\{onClose\}>Close<\/button>/);
+});

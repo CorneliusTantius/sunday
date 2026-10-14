@@ -765,3 +765,6 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .agents-sessions .session-row { grid-template-columns: 22px minmax(0, 1fr) 14px repeat(2, 24px); gap: 2px; padding: 8px; }
 .agents-sessions .session-row .avatar-character { width: 22px; height: 22px; }
 .agents-sessions .session-row .session-item { padding: 2px; font-size: 13px; }
+
+/* Let the agents destination cover the space up to its separate disclosure. */
+.agents-feature .feature-heading > .feature-link { flex: 1; align-self: stretch; min-width: 0; }
