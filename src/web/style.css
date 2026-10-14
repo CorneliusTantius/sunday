@@ -295,8 +295,12 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
   .hint { font-size: 12px; }
 }
 
-.sidebar-brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; gap: 12px; }
-.sidebar-brand .brand { margin-bottom: 0; }
+.sidebar-brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 16px; padding: 8px 0 16px; border-bottom: 1px solid var(--line); }
+.sidebar-brand .brand { margin-bottom: 0; gap: 12px; padding: 0 10px; font-size: 28px; letter-spacing: -.5px; line-height: 1.2; }
+.sidebar-brand .brand > span:last-child { text-shadow: 0 0 12px color-mix(in srgb, var(--violet) 45%, transparent), 0 0 28px color-mix(in srgb, var(--violet) 20%, transparent); }
+@media (forced-colors: active) {
+  .sidebar-brand .brand > span:last-child { text-shadow: none; }
+}
 .brand-mark { width: 36px; height: 36px; background: none; }
 .avatar img { display: block; }
 .mobile-menu { display: block; }
