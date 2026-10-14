@@ -20,3 +20,10 @@ test('persona identity inputs share the balanced settings rows', () => {
   }
   assert.match(read('style.css'), /\.settings-select-row \.select,\s*\.settings-select-row \.text-input \{/);
 });
+
+ test('persona color preview sits in the left column and centers with the control', () => {
+  const personas = read('components/Personas.jsx');
+  assert.match(personas, /class="persona-color-label">[\s\S]*?id="persona-preview"[\s\S]*?<\/div><\/div><select class="select" id="persona-color"/);
+  assert.match(read('style.css'), /\.persona-color-label \{ display: flex; align-items: center;/);
+  assert.doesNotMatch(read('style.css'), /\.persona-appearance \{[^}]*align-items: flex-end/);
+});

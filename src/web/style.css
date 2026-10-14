@@ -452,10 +452,10 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .session-row .session-item { grid-row: 1; grid-column: 2 / -1; width: 100%; padding: 3px; background: transparent; box-shadow: none; color: var(--text); }
 .session-persona-select { grid-row: 2; grid-column: 1 / 3; width: 100%; min-width: 0; margin: 0; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12px; }
 .session-row .rename-session { grid-row: 2; grid-column: 3; }
-.persona-appearance { display: flex; align-items: flex-end; gap: 24px; margin-top: 22px; }
-.persona-color-field { flex: 1; min-width: 0; }
-.persona-color-field .field-label { margin-bottom: 8px; }
-#persona-preview { display: grid; place-items: center; flex: none; width: 100px; height: 46px; margin: 0; }
+.persona-appearance { margin: 0; }
+.persona-color-field { min-width: 0; }
+.persona-color-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+#persona-preview { display: grid; place-items: center; flex: none; width: 36px; height: 36px; margin: 0; }
 .session-config-dialog { width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 40px); padding: 0; overflow: auto; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .session-config-dialog::backdrop { background: rgb(9 11 16 / 85%); }
 .session-config-dialog[open] { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }

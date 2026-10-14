@@ -88,10 +88,9 @@ export default function Personas({ hidden, toast, onReload }) {
       <h4 id="persona-config-heading">Persona configuration</h4><p class="field-note persona-config-note">Edit this persona’s identity, instructions, and tool permissions below.</p>
       <div class="settings-select-row"><label class="field-label" for="persona-name">Name</label><input ref={nameInput} id="persona-name" class="text-input" required maxLength="80" value={profile.name} disabled={busy} onInput={event => change('name', event.currentTarget.value)} /></div>
       <div class="persona-appearance">
-        <div class="persona-color-field settings-select-row"><label class="field-label" for="persona-color">Character color</label><select class="select" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
+        <div class="persona-color-field settings-select-row"><div class="persona-color-label"><label class="field-label" for="persona-color">Character color</label><div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div></div><select class="select" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
           {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
         </select></div>
-        <div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div>
       </div>
       <div class="settings-select-row"><label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
       <label class="field-label" for="persona-instructions">Instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
