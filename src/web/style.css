@@ -824,3 +824,51 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   .settings-modal .modal-header { padding: 10px 16px; }
   .settings-modal .modal-footer { padding: 8px 16px; }
 }
+
+/* Keep dropdown labels and controls in balanced, consistent columns. */
+.settings-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0;
+}
+.settings-select-row .field-label {
+  margin: 0;
+}
+.settings-select-row .select {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.persona-tools-card {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel2);
+  box-shadow: 0 4px 12px #0002;
+}
+.persona-tools-card summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.persona-tools-card summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+.persona-tools-card .repository-options {
+  border: 0;
+  padding: 0;
+  margin: 14px 0 0;
+  min-width: 0;
+}
+
+.persona-tools-card legend {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
