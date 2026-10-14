@@ -755,4 +755,4 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .menu-icon { flex-shrink: 0; opacity: .8; }
 .repos-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .repo-git-status { display: flex; flex-wrap: wrap; gap: 6px; }
-.repo-status-pill { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
+.repo-status-pill { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; }
