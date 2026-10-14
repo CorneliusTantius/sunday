@@ -699,6 +699,27 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .toolcall-status.running { border-color: color-mix(in srgb, var(--highlight) 45%, transparent); background-color: color-mix(in srgb, var(--highlight) 12%, transparent); }
 .toolcall-status.failed { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background-color: color-mix(in srgb, var(--danger) 12%, transparent); }
 
+/* Settings pills retain definition without losing their soft depth. */
+.settings-modal .settings-nav,
+.settings-modal .primary-button, .settings-modal .secondary-button,
+.settings-modal .select, .settings-modal input.text-input {
+  border-color: var(--line);
+  background-color: var(--panel2);
+}
+.settings-modal .settings-nav.active { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--panel)); }
+.settings-modal .select:focus, .settings-modal input.text-input:focus,
+.settings-modal .secondary-button:hover { border-color: var(--highlight); }
+
+/* Only composer selectors are compact; settings fields remain full size.
+   Keep 16px text to avoid focus zoom on mobile browsers. */
+.chat-model, .thinking-level {
+  height: 36px;
+  padding-inline: 12px;
+  font-size: 16px;
+}
+.chat-model { flex: 0 1 240px; max-width: 240px; }
+.thinking-level { width: 110px; flex-shrink: 0; }
+
 /* Keep native select behavior, but omit arrows on model/reasoning controls. */
 .chat-model, .thinking-level, #model, #settings-thinking-level {
   -webkit-appearance: none;
