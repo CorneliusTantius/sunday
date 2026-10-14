@@ -344,11 +344,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
           </>}
         </div>
         <nav class="code-editor-tree" aria-label={`Files in ${root}`}>
-          <button type="button" class="code-editor-root code-editor-directory-button" aria-expanded={expanded.has('')}
-            aria-controls="code-editor-directory-" onClick={() => toggleDirectory('')}>
-            <span aria-hidden="true">{expanded.has('') ? '▾' : '▸'} </span>{root}
-          </button>
-          {expanded.has('') && directoryContents('')}
+          {directoryContents('')}
         </nav>
       </aside>
       <div class="code-editor-main">

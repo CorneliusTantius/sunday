@@ -799,3 +799,11 @@ test('CodeEditor does not persist a pending root response after unmount', async 
   assert.equal(h.localStorage.writes.length, writes);
   assert.equal(h.state.root, defaultRoot);
 });
+
+test('file tree renders root contents directly while child folders remain expandable', () => {
+  const source = readFileSync(new URL('../src/web/components/CodeEditor.jsx', import.meta.url), 'utf8');
+  const tree = source.slice(source.indexOf('<nav class="code-editor-tree"'), source.indexOf('</nav>', source.indexOf('<nav class="code-editor-tree"')));
+  assert.match(tree, /\{directoryContents\(''\)\}/);
+  assert.doesNotMatch(tree, /toggleDirectory|expanded\.has|code-editor-root/);
+  assert.match(source, /onClick=\{\(\) => toggleDirectory\(childPath\)\}/);
+});
