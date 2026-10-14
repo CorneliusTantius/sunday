@@ -490,7 +490,11 @@ export default function App() {
   return <>
     <div class="app-shell" ref={shell}>
       <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
-        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><Character brand /><span> sunday</span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
+        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><span class="brand-ascii" aria-hidden="true">{`                     ██
+▄█▀▀▀ ██ ▄▄ ██▀█▄ ▄█▀██ ▄█▀█▄ ▄█ █▄
+ ▀▀█▄ ██ ██ ██ ██ ██ ██ ██▀██ ██ ██
+▀▀▀▀   ▀▀▀  ▀▀ ▀▀  ▀▀▀▀ ▀▀ ▀▀  ▀▀██
+                               ▀▀▀ `}</span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
         <a class="feature-heading feature-link" id="dashboard-link" href="#dashboard" aria-current={page === 'dashboard' ? 'page' : undefined}><MenuIcon name="dashboard" /><span>Dashboard</span></a>
         <section class="agents-feature" aria-labelledby="agents-title">
           <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>

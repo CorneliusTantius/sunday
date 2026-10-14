@@ -772,3 +772,9 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 
 /* Let the agents destination cover the space up to its separate disclosure. */
 .agents-feature .feature-heading > .feature-link { flex: 1; align-self: stretch; min-width: 0; }
+
+/* Preserve the block-art logo without terminal escape sequences. */
+.sidebar-brand { gap: 8px; }
+.sidebar-brand .brand { min-width: 0; padding: 0; }
+.sidebar-brand .brand-ascii { display: block; white-space: pre; font-family: monospace; font-size: 9px; font-weight: 400; line-height: 1.1; letter-spacing: 0; }
+.sidebar-brand > .icon-button { flex-shrink: 0; }
