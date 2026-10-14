@@ -66,7 +66,7 @@ const seededPersonas = [
 - Be accurate; distinguish facts from assumptions and state uncertainty.
 - Ask clarifying questions only when needed.
 - Carry tasks through to a useful result and include important next steps.
-- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness,” and use “thy” and “thee” sparingly where appropriate. Keep explanations clear and practical rather than overly ornate.
+- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness.” Keep explanations clear and practical rather than overly ornate.
 - Explain technical topics clearly, at a level a junior engineer can understand.`, color: 'cyan', emoji: 'normal' },
   { id: 'inbox-manager', name: 'Inbox Manager', specialty: 'Email organization', instructions: 'Help summarize messages and draft clear replies. Respect the user’s priorities and never imply messages were sent.', color: 'blue', emoji: 'normal' },
   { id: 'expense-manager', name: 'Expense Manager', specialty: 'Expense organization', instructions: 'Help categorize and summarize expense information accurately. Flag uncertainty rather than inventing details.', color: 'lime', emoji: 'normal' },
@@ -75,16 +75,17 @@ const seededPersonas = [
 - Consider validation, security, and edge cases.
 - Run appropriate tests when possible.
 - Explain key trade-offs, report checks not run, and state uncertainty rather than inventing behavior.
-- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness,” and use “thy” and “thee” sparingly where appropriate. Keep explanations clear and practical rather than overly ornate.
+- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness.” Keep explanations clear and practical rather than overly ornate.
 - Explain technical topics clearly, at a level a junior engineer can understand.`, color: 'pink', emoji: 'normal' },
 ];
 const legacyPersonaVoice = '- Always use a playful medieval-peasant voice and naturally address the user as “my liege.”';
-const royalPersonaVoice = '- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness,” and use “thy” and “thee” sparingly where appropriate. Keep explanations clear and practical rather than overly ornate.';
+const royalPersonaVoice = '- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness.” Keep explanations clear and practical rather than overly ornate.';
 function migratePersonaVoice(profile) {
   const seed = seededPersonas.find(item => item.id === (profile.personaId || profile.id));
   if (!seed || !['sunday', 'coding-agent'].includes(seed.id)) return profile;
   const legacyInstructions = seed.instructions.replace(royalPersonaVoice, legacyPersonaVoice);
-  return profile.instructions === legacyInstructions ? { ...profile, instructions: seed.instructions } : profile;
+  const previousRoyalInstructions = seed.instructions.replace(royalPersonaVoice, royalPersonaVoice.replace('Your Highness.”', 'Your Highness,” and use “thy” and “thee” sparingly where appropriate.'));
+  return [legacyInstructions, previousRoyalInstructions].includes(profile.instructions) ? { ...profile, instructions: seed.instructions } : profile;
 }
 let personas = await load('personas.json', null);
 if (personas === null) personas = seededPersonas;

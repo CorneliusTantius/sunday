@@ -283,7 +283,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
           <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
-        <div class="settings-detail">
+        <div class={`settings-detail${page === 'personas' ? ' settings-detail-personas' : ''}`}>
           <section id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
             <div class="settings-page-heading"><h3>Connected providers</h3><button class="secondary-button" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div>
             <p class="field-note">Manage the providers you have connected.</p>

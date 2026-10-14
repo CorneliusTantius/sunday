@@ -808,3 +808,9 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 @media (forced-colors: active) {
   .sidebar-brand .brand-ascii { text-shadow: none; }
 }
+
+/* Keep persona selection fixed while its configuration scrolls. */
+.settings-detail-personas { overflow: hidden; display: flex; flex-direction: column; }
+#settings-personas-page:not(.hidden) { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+#settings-personas-page > h3, #settings-personas-page > .field-note, #persona-select { flex-shrink: 0; }
+#persona-form { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding-right: 8px; }
