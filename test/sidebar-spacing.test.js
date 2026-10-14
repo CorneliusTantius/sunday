@@ -39,8 +39,13 @@ test('settings dismiss action is labeled Close', () => {
   assert.match(settings, /id="cancel-settings" onClick=\{onClose\}>Close<\/button>/);
 });
 
-test('sidebar header omits Features and uses a left arrow to collapse', () => {
+test('sidebar header omits Features and uses a left chevron to collapse', () => {
   const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(app, /<div class="sessions-heading">FEATURES<\/div>/);
-  assert.match(app, /id="collapse-sidebar"[^>]*onClick=\{closeSidebar\}><svg[^>]*aria-hidden="true"[^>]*><path d="M19 12H5m7-7-7 7 7 7"/);
+  assert.match(app, /id="collapse-sidebar"[^>]*onClick=\{closeSidebar\}><svg[^>]*aria-hidden="true"[^>]*><path d="m15 6-6 6 6 6"/);
+});
+
+test('sidebar omits provider status but retains Settings', () => {
+  assert.doesNotMatch(app, /id="connection-label"|Provider connected|class=\{`status-dot/);
+  assert.match(app, /id="open-settings"/);
 });

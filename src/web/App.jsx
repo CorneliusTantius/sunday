@@ -473,7 +473,6 @@ export default function App() {
   const estimatedCharacters = prompt.length + messages.reduce((total, message) => total + (message.content?.length || 0) + (message.fileReferences || []).reduce((size, ref) => size + (ref.content?.length || 0), 0) + (message.toolCalls || []).reduce((size, call) => size + JSON.stringify(call.arguments || {}).length, 0), 0);
   const contextTokens = measuredUsage ? contextUsage.tokens + Math.ceil(prompt.length / 3) : Math.ceil(estimatedCharacters / 3);
   const contextPercent = contextWindow ? Math.min(100, Math.round(contextTokens / contextWindow * 100)) : 0;
-  const connected = settings?.providers?.some(provider => provider.hasApiKey || provider.oauthConnected);
   const closeSidebar = () => { setSidebarOpen(false); menu.current?.focus(); };
   const pinnedSessions = pinnedAgentIds.map(id => sessions.find(session => session.id === id)).filter(Boolean);
   const pinnedIds = new Set(pinnedSessions.map(session => session.id));
@@ -491,7 +490,7 @@ export default function App() {
   return <>
     <div class="app-shell" ref={shell}>
       <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
-        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><Character brand /><span> sunday</span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M19 12H5m7-7-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
+        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><Character brand /><span> sunday</span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
         <a class="feature-heading feature-link" id="dashboard-link" href="#dashboard" aria-current={page === 'dashboard' ? 'page' : undefined}><MenuIcon name="dashboard" /><span>Dashboard</span></a>
         <section class="agents-feature" aria-labelledby="agents-title">
           <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
@@ -509,7 +508,7 @@ export default function App() {
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
         <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
         <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" /><span>Socials</span></a>
-        <div class="sidebar-bottom"><div class={`status-dot${connected ? ' ready' : ''}`} /><span id="connection-label">{settingsError ? 'Could not load settings' : connected ? 'Provider connected' : 'Set up to get started'}</span><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
+        <div class="sidebar-bottom"><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
       </aside>
       <button ref={menu} class="icon-button sidebar-reopen" id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
       <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
