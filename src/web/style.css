@@ -742,3 +742,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 
 /* Separate the update action from its explanatory text. */
 #settings-update-page > .field-note { margin-bottom: 20px; }
+
+.dashboard-page { flex: 1; min-height: 0; display: grid; place-items: center; padding: 64px 24px; overflow-y: auto; text-align: center; }
+.dashboard-clock h1 { font-size: clamp(28px, 5vw, 48px); margin: 0 0 16px; }
+.dashboard-clock time { font-size: clamp(24px, 4vw, 36px); color: var(--muted); font-variant-numeric: tabular-nums; }
