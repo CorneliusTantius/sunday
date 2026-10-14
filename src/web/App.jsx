@@ -491,7 +491,7 @@ export default function App() {
     <div class="app-shell" ref={shell}>
       <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
         <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><Character brand /><span class="brand-ascii" aria-hidden="true">{`                     ██
-▄█▀▀▀ ██ ▄▄ ██▀█▄ ▄█▀██ ▄█▀█▄ ▄█ █▄
+▄█▀▀▀ ██ █▄ ██▀█▄ ▄█▀██ ▄█▀█▄ ▄█ █▄
  ▀▀█▄ ██ ██ ██ ██ ██ ██ ██▀██ ██ ██
 ▀▀▀▀   ▀▀▀  ▀▀ ▀▀  ▀▀▀▀ ▀▀ ▀▀  ▀▀██
                                ▀▀▀ `}</span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
