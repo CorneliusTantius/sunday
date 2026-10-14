@@ -14,6 +14,10 @@
   --success: #B7F52A;
   --warning: #FFB020;
   --accent: var(--highlight);
+  --radius-pill: 999px;
+  --radius-card: 20px;
+  --radius-panel: 28px;
+  --radius-inset: 14px;
   font-family: 'DM Sans', sans-serif;
   font-size: 16px;
   font-weight: 500;
@@ -209,32 +213,14 @@ textarea::placeholder, input::placeholder { color: var(--muted); opacity: 1; }
 * { scrollbar-color: var(--line) var(--bg); }
 
 
-/* Cyberpunk hardware details, without tinting the Void background. */
+/* Soft surfaces; compact controls use pills, larger content keeps room to breathe. */
 .brand { letter-spacing: .5px; }
-.brand-mark, .avatar, .sun-icon { border-radius: 3px; }
-.new-chat, .session-item, .send-button, .primary-button,
-.secondary-button, .select, .text-input, .toast { border-radius: 3px; }
-.composer, .settings-modal { border-radius: 3px 14px 3px 3px; }
-.user .message-bubble { border-radius: 3px 12px 3px 3px; }
-.composer, .settings-modal { position: relative; }
-.composer::before, .settings-modal::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 28px;
-  height: 9px;
-  border-top: 2px solid var(--highlight);
-  border-left: 2px solid var(--highlight);
-  pointer-events: none;
-}
-.settings-modal::before { border-color: var(--violet); }
 .sessions-heading, .eyebrow, .hint, .disclaimer {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .sessions-heading { letter-spacing: 1.8px; }
 .session-item.active { box-shadow: inset 2px 0 var(--blue); }
-.brand-mark { box-shadow: 3px 3px 0 var(--panel2); }
+.brand-mark { box-shadow: none; }
 button, .composer, .select, .text-input, .session-row, .feature-heading, .provider-card {
   transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
@@ -247,11 +233,6 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .composer:focus-within { box-shadow: none; }
 .message { animation: packet-arrive 220ms cubic-bezier(.2,.8,.2,1) both; }
 .settings-modal { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }
-.composer:has(.send-button[aria-label="Stop response"])::before {
-  width: 60px;
-  border-color: var(--violet);
-  animation: streaming-signal 1600ms ease-in-out infinite;
-}
 @keyframes streaming-signal {
   0%, 100% { opacity: .45; }
   50% { opacity: 1; }
@@ -635,4 +616,46 @@ button:enabled:active { transform: translateY(1px); }
 .session-running-pill { grid-row: 1; grid-column: 3; width: 14px; height: 7px; border-radius: 999px; background: var(--success); animation: streaming-signal 1600ms ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .session-running-pill { animation: none; }
+}
+
+/* Shared shape language across chat, settings, repositories, and the file editor.
+   Multiline fields and content panels stay softly rounded rather than elliptical. */
+.new-chat, .session-item, .primary-button, .secondary-button,
+.select, input.text-input, .session-persona-select, .settings-nav,
+.feature-heading, .toolcalls-row, .toolcalls-count, .toolcall-status,
+.scroll-to-latest, .toast, .context-meter-label small {
+  border-radius: var(--radius-pill);
+}
+.new-chat, .primary-button, .secondary-button, .select, input.text-input {
+  padding-inline: 16px;
+}
+.brand-mark, .avatar, .sun-icon, .send-button, .icon-button {
+  border-radius: 50%;
+}
+.send-button { width: 36px; height: 36px; }
+.composer, .settings-modal, .toolcalls-dialog, .session-config-dialog,
+.code-editor-layout { border-radius: var(--radius-panel); }
+.composer { padding: 16px 18px 12px; }
+.composer:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--highlight) 10%, transparent);
+}
+.user .message-bubble, .session-row, .provider-card, .repository-clone,
+.repositories-page .repos-list li, .bot-profile-bar, .composer-suggestions,
+.background-run-status { border-radius: var(--radius-card); }
+.user .message-bubble { padding-inline: 18px; }
+textarea.text-input, #session-config-repos, .code-editor-host,
+.toolcall-detail pre, .message-bubble.markdown pre,
+.composer-suggestions button, .repository-checkbox,
+.code-editor-directory-button, .code-editor-file-button {
+  border-radius: var(--radius-inset);
+}
+.message-bubble.markdown code { border-radius: 6px; }
+.message-bubble.markdown .markdown-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inset);
+}
+.composer-suggestions { left: -18px; right: -18px; }
+@media (max-width: 700px) {
+  .composer { padding: 12px; border-radius: 24px; }
+  .composer-suggestions { left: -12px; right: -12px; }
 }
