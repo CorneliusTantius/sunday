@@ -200,6 +200,11 @@ test('reopening a running session reconnects and restores the streamed snapshot'
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.resumeCalls(), 1);
+    const pill = h.$('.session-row:nth-child(2) .session-running-pill');
+    assert.ok(pill, 'running session has an activity pill');
+    assert.equal(pill.getAttribute('aria-label'), 'Running');
+    assert.equal(pill.textContent, '');
+    assert.equal(h.$('.session-row:first-child .session-running-pill'), null);
     assert.match(h.$('#messages').textContent, /replayed answer/);
   });
   h.finishResume();
