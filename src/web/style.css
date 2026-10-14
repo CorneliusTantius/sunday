@@ -814,3 +814,12 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 #settings-personas-page:not(.hidden) { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 #settings-personas-page > h3, #settings-personas-page > .field-note, #persona-select { flex-shrink: 0; }
 #persona-form { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding-right: 8px; }
+
+/* Compact Settings chrome without reducing action button hit areas. */
+.settings-modal .modal-header { padding: 12px 24px; align-items: center; }
+.settings-modal .modal-header h2 { font-size: 20px; }
+.settings-modal .modal-footer { padding: 10px 24px; }
+@media (max-width: 700px) {
+  .settings-modal .modal-header { padding: 10px 16px; }
+  .settings-modal .modal-footer { padding: 8px 16px; }
+}
