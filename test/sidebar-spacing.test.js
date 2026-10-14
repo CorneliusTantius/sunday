@@ -60,3 +60,8 @@ test('compact sidebar artwork retains the character beside it', () => {
   assert.match(css, /\.sidebar-brand \.brand-ascii \{[^}]*font-size: 7px;/);
   assert.match(css, /\.sidebar-brand \.brand-character \{ width: 28px; height: 28px; flex-shrink: 0;/);
 });
+
+test('artwork scales to the card space remaining beside the character', () => {
+  assert.match(css, /container-type: inline-size;/);
+  assert.ok(css.includes('font-size: min(7px, calc((100cqw - 42px) * .045))'));
+});

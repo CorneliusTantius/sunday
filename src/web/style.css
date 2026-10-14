@@ -784,6 +784,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 /* Compact app name card; the collapse control remains outside its hit area. */
 .sidebar-brand .brand {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
@@ -793,8 +794,11 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   background: var(--panel);
   box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
 }
-.brand-card-heading { display: flex; align-items: center; gap: 14px; }
+.brand-card-heading { display: flex; align-items: center; gap: 14px; width: 100%; container-type: inline-size; }
 .sidebar-brand .brand-ascii {
+  /* Reserve the character and gap before fitting the 35-column artwork. */
+  font-size: min(7px, calc((100cqw - 42px) * .045));
+  flex-shrink: 0;
   text-shadow: 0 0 12px color-mix(in srgb, var(--violet) 45%, transparent);
 }
 @media (forced-colors: active) {
