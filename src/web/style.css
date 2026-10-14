@@ -3,6 +3,7 @@
   color-scheme: dark;
   --bg: #090B10;
   --panel: #11151D;
+  --sidebar-bg: #0D1016;
   --panel2: #151A23;
   --line: #303846;
   --text: #E7EDF5;
@@ -34,7 +35,7 @@ html, body, #app { height: 100%; overflow: hidden; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text)}
 .app-shell{display:flex;height:100vh;height:100dvh;overflow:hidden}
-.sidebar{width:250px;flex:none;border-right:1px solid var(--line);padding:27px 18px 20px;display:flex;flex-direction:column;background:var(--panel)}
+.sidebar{width:250px;flex:none;border-right:1px solid var(--line);padding:27px 18px 20px;display:flex;flex-direction:column;background:var(--sidebar-bg)}
 .brand{display:flex;align-items:center;gap:7px;color:var(--text);text-decoration:none;font:800 24px Manrope,sans-serif;letter-spacing:-1px;padding:0 10px;margin-bottom:38px}
 .brand-mark{width:25px;height:25px;background:var(--accent);border-radius:8px;color:var(--bg);display:grid;place-items:center;font:800 18px Manrope}
 .new-chat{height:38px;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:9px;text-align:left;padding:0 13px;font:600 15px 'DM Sans',sans-serif;cursor:pointer}
@@ -585,7 +586,7 @@ button:enabled:active { transform: translateY(1px); }
 .code-editor-header h1 { margin: 0; font: 700 28px Manrope, sans-serif; }
 .app-shell:has(.sidebar.collapsed) .code-editor-header { padding-left: 48px; }
 .code-editor-layout { display: flex; flex: 1; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.code-editor-sidebar { width: 260px; flex: none; min-width: 0; overflow: auto; padding: 14px; background: var(--panel); border-right: 1px solid var(--line); }
+.code-editor-sidebar { width: 260px; flex: none; min-width: 0; overflow: auto; padding: 14px; background: var(--sidebar-bg); border-right: 1px solid var(--line); }
 .code-editor-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
 .code-editor-tree-title { margin: 0; font: 700 11px ui-monospace, monospace; letter-spacing: 1px; color: var(--muted); }
 .code-editor-sidebar-header .secondary-button { height: 34px; padding: 0 8px; font-size: 12px; }
