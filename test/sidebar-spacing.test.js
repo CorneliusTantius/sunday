@@ -53,7 +53,8 @@ test('sidebar omits provider status but retains Settings', () => {
 
 test('compact sidebar artwork retains the character beside it', () => {
   const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
-  assert.match(app, /aria-label="Sunday home"><Character brand \/><span class="brand-ascii"/);
+  assert.match(app, /aria-label="Sunday home"><span class="brand-card-heading"><Character brand \/><span class="brand-ascii"/);
+  assert.match(app, /class="brand-tagline">your sunday butler<\/span>/);
   assert.match(css, /\.sidebar-brand \.brand-ascii \{[^}]*font-size: 7px;/);
   assert.match(css, /\.sidebar-brand \.brand-character \{ width: 28px; height: 28px; flex-shrink: 0;/);
 });
