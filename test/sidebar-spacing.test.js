@@ -15,3 +15,11 @@ test('standalone menu links group icons and labels like the agents link', () => 
   // The agents heading still reserves the opposite edge for its disclosure button.
   assert.match(css, /\.feature-heading \{[^}]*justify-content: space-between;/);
 });
+
+test('nested agents use smaller text, avatars and spacing than parent navigation', () => {
+  assert.match(css, /\.agents-sessions \.new-chat \{ height: 32px; padding: 0 10px; font-size: 13px;/);
+  assert.match(css, /\.agents-sessions \.sessions-list \{ gap: 6px; \}/);
+  assert.match(css, /\.agents-sessions \.session-row \{[^}]*repeat\(2, 24px\); gap: 2px; padding: 8px;/);
+  assert.match(css, /\.agents-sessions \.session-row \.avatar-character \{ width: 22px; height: 22px; \}/);
+  assert.match(css, /\.agents-sessions \.session-row \.session-item \{ padding: 2px; font-size: 13px; \}/);
+});

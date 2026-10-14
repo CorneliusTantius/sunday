@@ -757,3 +757,11 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .repos-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .repo-git-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .repo-status-pill { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; }
+
+/* Nested agents are compact and visually subordinate to main navigation. */
+.agents-sessions .new-chat { height: 32px; padding: 0 10px; font-size: 13px; margin-bottom: 6px; }
+.agents-sessions .plus { font-size: 16px; margin-right: 5px; vertical-align: 0; }
+.agents-sessions .sessions-list { gap: 6px; }
+.agents-sessions .session-row { grid-template-columns: 22px minmax(0, 1fr) 14px repeat(2, 24px); gap: 2px; padding: 8px; }
+.agents-sessions .session-row .avatar-character { width: 22px; height: 22px; }
+.agents-sessions .session-row .session-item { padding: 2px; font-size: 13px; }
