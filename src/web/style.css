@@ -87,10 +87,12 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .toolcalls-indicator{color:var(--highlight);font-size:14px}
 .toolcalls-count{padding:1px 6px;border-radius:8px;background:var(--panel2);color:var(--text)}
 .toolcalls-open{color:var(--highlight)}
-.toolcalls-dialog{flex-direction:column;width:min(560px,calc(100% - 32px));height:min(75dvh,calc(100dvh - 40px));max-height:calc(100dvh - 40px);padding:0;overflow:hidden;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 70px rgb(0 0 0 / 45%);opacity:0;transform:translateY(10px) scale(.98);transition:opacity 180ms ease,transform 180ms ease,display 180ms allow-discrete,overlay 180ms allow-discrete}
+.toolcalls-dialog{flex-direction:column;width:min(560px,calc(100% - 32px));height:min(75dvh,calc(100dvh - 40px));max-height:calc(100dvh - 40px);padding:0;overflow:hidden;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 70px rgb(0 0 0 / 45%);opacity:0;transform:translateY(10px) scale(.98);transition:opacity 240ms ease,transform 240ms ease,display 240ms allow-discrete,overlay 240ms allow-discrete}
 .toolcalls-dialog[open]{display:flex;opacity:1;transform:none}
-.toolcalls-dialog::backdrop{background:rgb(9 11 16 / 85%);opacity:0;transition:opacity 180ms ease,display 180ms allow-discrete,overlay 180ms allow-discrete}
+.toolcalls-dialog::backdrop{background:rgb(9 11 16 / 85%);opacity:0;transition:opacity 240ms ease,display 240ms allow-discrete,overlay 240ms allow-discrete}
 .toolcalls-dialog[open]::backdrop{opacity:1}
+.toolcalls-dialog[open].closing{opacity:0;transform:translateY(10px) scale(.98)}
+.toolcalls-dialog[open].closing::backdrop{opacity:0}
 @starting-style {
   .toolcalls-dialog[open]{opacity:0;transform:translateY(10px) scale(.98)}
   .toolcalls-dialog[open]::backdrop{opacity:0}

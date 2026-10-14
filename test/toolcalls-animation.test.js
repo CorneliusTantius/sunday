@@ -16,7 +16,7 @@ test('tool calls dialog uses native discrete entry and exit transitions', () => 
   const base = rule('.toolcalls-dialog');
   assert.match(base, /opacity\s*:\s*0\b/);
   assert.match(base, /transform\s*:\s*translateY\(10px\)\s+scale\(\.98\)/);
-  assert.match(base, /transition\s*:[^;]*opacity\s+180ms\s+ease[^;]*transform\s+180ms\s+ease[^;]*display\s+180ms\s+allow-discrete[^;]*overlay\s+180ms\s+allow-discrete/);
+  assert.match(base, /transition\s*:[^;]*opacity\s+240ms\s+ease[^;]*transform\s+240ms\s+ease[^;]*display\s+240ms\s+allow-discrete[^;]*overlay\s+240ms\s+allow-discrete/);
   const open = rule('.toolcalls-dialog[open]');
   assert.match(open, /display\s*:\s*flex/);
   assert.match(open, /opacity\s*:\s*1\b/);
@@ -37,9 +37,14 @@ test('tool calls backdrop transitions in and reduced motion disables both transi
   assert.match(reduced, /\.toolcalls-dialog\s*,\s*\.toolcalls-dialog::backdrop\s*\{[^}]*transition\s*:\s*none/s);
 });
 
-test('tool calls retain native dialog dismissal behavior', () => {
-  assert.match(jsx, /<dialog\s+class="toolcalls-dialog"/);
-  assert.match(jsx, /onClose=\{\(\) => setOpen\(false\)\}/);
-  assert.match(jsx, /event\.target === dialog\.current\) dialog\.current\.close\(\)/);
-  assert.match(jsx, /dialog\.current\?\.close\(\)/);
+test('tool calls keep the dialog open through its closing transition', () => {
+  assert.match(jsx, /closing \? ' closing'/);
+  assert.match(jsx, /getComputedStyle\(element\)\.transitionDuration/);
+  assert.match(jsx, /const timer = setTimeout\(/);
+  assert.match(jsx, /return \(\) => clearTimeout\(timer\)/);
+  assert.match(jsx, /onCancel=\{event => \{ event\.preventDefault\(\); close\(\); \}\}/);
+  assert.match(jsx, /event\.target === dialog\.current\) close\(\)/);
+  assert.match(jsx, /aria-label="Close tool calls" onClick=\{close\}/);
+  assert.match(rule('.toolcalls-dialog[open].closing'), /opacity\s*:\s*0/);
+  assert.match(rule('.toolcalls-dialog[open].closing::backdrop'), /opacity\s*:\s*0/);
 });
