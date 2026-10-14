@@ -1,6 +1,7 @@
 import http from 'node:http';
-import { readFile, mkdir, writeFile, rename, chmod, readdir, rm, cp, lstat } from 'node:fs/promises';
+import { open, opendir, readFile, readlink, mkdir, writeFile, rename, chmod, readdir, rm, cp, lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -9,7 +10,7 @@ import { createModels, getSupportedThinkingLevels, clampThinkingLevel } from '@e
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
-import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, executeTool, makeTools } from './tools.js';
+import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, executeTool, makeTools, isSensitiveRepositoryEntry } from './tools.js';
 
 import { uniqueSessionName } from './session-names.js';
 
@@ -181,8 +182,8 @@ function startLogin(provider) {
   });
 }
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
-async function body(req) {
-  let text = ''; for await (const chunk of req) { text += chunk; if (Buffer.byteLength(text) > 1024 * 1024) throw new Error('Request too large'); }
+async function body(req, maxBytes = 1024 * 1024) {
+  let text = ''; for await (const chunk of req) { text += chunk; if (Buffer.byteLength(text) > maxBytes) throw new Error('Request too large'); }
   return text ? JSON.parse(text) : {};
 }
 const sessionLocks = new Map();
@@ -216,6 +217,144 @@ function safeRepoUrl(value) {
   const parts = parsed.pathname.split('/').filter(Boolean);
   if (parts.length < 2 || parts.some(part => !/^[\w.-]+$/.test(part))) return null;
   return { url: parsed.href, name: parts.at(-1).replace(/\.git$/i, '') };
+}
+const MAX_EDITOR_BYTES = 256 * 1024;
+function editorText(buffer) {
+  if (buffer.length > MAX_EDITOR_BYTES) throw new Error('Text file exceeds 256 KiB');
+  if (buffer.includes(0)) throw new Error('Binary files are not supported');
+  try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer); }
+  catch { throw new Error('File must be UTF-8 text'); }
+}
+// The generalized root also contains the server's provider credentials.
+const isSensitiveEditorEntry = isSensitiveRepositoryEntry;
+async function openEditorRoot(value = homeDir) {
+  if (typeof value !== 'string' || !value || value.length > 4096 || /[\\\0]/.test(value)) throw new Error('Invalid file browser root');
+  if (value === '~') value = homedir();
+  else if (value.startsWith('~/')) value = `${homedir()}/${value.slice(2)}`;
+  if (!value.startsWith('/')) throw new Error('File browser root must be absolute');
+  const parts = value.split('/').filter(Boolean);
+  if (parts.some(part => part === '..' || isSensitiveEditorEntry(part))) throw new Error('Invalid or sensitive file browser root');
+  const rootPath = '/' + parts.filter(part => part !== '.').join('/');
+  const handles = [];
+  try {
+    let directory = await open('/', constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    handles.push(directory);
+    for (const part of parts) {
+      directory = await open(`/proc/self/fd/${directory.fd}/${part}`, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+      handles.push(directory);
+    }
+    if (await readlink(`/proc/self/fd/${directory.fd}`) !== rootPath) throw new Error('File browser root moved');
+    handles.pop();
+    return { directory, rootPath };
+  } finally { await Promise.all(handles.map(handle => handle.close())); }
+}
+async function checkEditorLocation(root, handle, rootPath, relative) {
+  const currentRoot = await readlink(`/proc/self/fd/${root.fd}`);
+  const current = await readlink(`/proc/self/fd/${handle.fd}`);
+  const expected = relative ? `${rootPath === '/' ? '' : rootPath}/${relative}` : rootPath;
+  if (currentRoot !== rootPath || current !== expected || current.endsWith(' (deleted)')) throw new Error('File or directory moved outside the file editor path');
+}
+async function fileEditor(relative, operation, content, originalContent, chosenRoot) {
+  if (typeof relative !== 'string' || relative.length > 4096 || relative.includes('\\') || relative.includes('\0') || relative.startsWith('/')) throw new Error('Invalid file path');
+  const parts = relative === '' ? [] : relative.split('/');
+  if (parts.some(part => !part || part === '.' || part === '..' || isSensitiveEditorEntry(part))) throw new Error('Invalid or sensitive file path');
+  if (operation !== 'list' && !parts.length) throw new Error('A file path is required');
+  const handles = [];
+  try {
+    // Pin every directory inode. Linux proc-fd paths avoid parent symlink/rename
+    // races; O_NOFOLLOW rejects symlinks at every user-controlled component.
+    let { directory, rootPath } = await openEditorRoot(chosenRoot);
+    handles.push(directory);
+    const directoryPath = operation === 'list' ? relative : parts.slice(0, -1).join('/');
+    const checkDirectory = () => checkEditorLocation(handles[0], directory, rootPath, directoryPath);
+    for (const part of operation === 'list' ? parts : parts.slice(0, -1)) {
+      directory = await open(`/proc/self/fd/${directory.fd}/${part}`, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+      handles.push(directory);
+    }
+    await checkDirectory();
+    if (operation === 'list') {
+      const entries = [];
+      for (const entry of await readdir(`/proc/self/fd/${directory.fd}`, { withFileTypes: true })) {
+        if (isSensitiveEditorEntry(entry.name) || (!entry.isDirectory() && !entry.isFile())) continue;
+        try {
+          const info = await lstat(`/proc/self/fd/${directory.fd}/${entry.name}`);
+          if (info.isDirectory() || (info.isFile() && info.nlink === 1)) entries.push({ name: entry.name, type: info.isDirectory() ? 'directory' : 'file' });
+        } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      await checkDirectory();
+      return { root: rootPath, path: relative, entries };
+    }
+    if (operation === 'save' && typeof content === 'string' && !content.isWellFormed()) throw new Error('Content must be well-formed Unicode');
+    const replacement = operation === 'save' ? (typeof content === 'string' ? Buffer.from(content, 'utf8') : null) : null;
+    if (operation === 'save') { if (!replacement) throw new Error('Content must be a string'); editorText(replacement); }
+    const file = await open(`/proc/self/fd/${directory.fd}/${parts.at(-1)}`, constants.O_NOFOLLOW | constants.O_NONBLOCK | (operation === 'save' ? constants.O_RDWR : constants.O_RDONLY));
+    handles.push(file);
+    const info = await file.stat();
+    if (!info.isFile() || info.nlink !== 1) throw new Error('File must be regular and have exactly one hard link');
+    if (info.size > MAX_EDITOR_BYTES) throw new Error('Text file exceeds 256 KiB');
+    const buffer = Buffer.alloc(MAX_EDITOR_BYTES + 1);
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+    const text = editorText(buffer.subarray(0, bytesRead));
+    await checkEditorLocation(handles[0], file, rootPath, relative);
+    if (operation === 'read') return { path: relative, content: text };
+    if (typeof originalContent !== 'string') throw new Error('Original file content is required');
+    if (text !== originalContent) throw new Error('File changed on disk. Reopen it before saving.');
+    const temporary = `/proc/self/fd/${directory.fd}/.sunday-editor-${randomUUID()}`;
+    try {
+      await writeFile(temporary, replacement, { flag: 'wx', mode: info.mode & 0o777 });
+      await checkDirectory();
+      const current = await lstat(`/proc/self/fd/${directory.fd}/${parts.at(-1)}`);
+      if (!current.isFile() || current.nlink !== 1 || current.dev !== info.dev || current.ino !== info.ino || current.size !== info.size || current.mtimeMs !== info.mtimeMs || current.ctimeMs !== info.ctimeMs) throw new Error('File changed on disk. Reopen it before saving.');
+      await checkDirectory();
+      await rename(temporary, `/proc/self/fd/${directory.fd}/${parts.at(-1)}`);
+    } finally { await rm(temporary, { force: true }); }
+    return { path: relative, saved: true };
+  } finally { await Promise.all(handles.map(handle => handle.close())); }
+}
+async function searchEditorFiles(query, chosenRoot) {
+  if (typeof query !== 'string' || !query.trim() || query.length > 256 || /[/\\\0]/.test(query)) throw new Error('Invalid filename query');
+  const needle = query.toLowerCase(), files = [];
+  let visited = 0, truncated = false;
+  const skippable = error => ['ENOENT', 'ENOTDIR', 'ELOOP', 'EACCES', 'EPERM'].includes(error.code);
+  let rootPath;
+  async function walk(directory, relative, depth) {
+    await checkEditorLocation(root, directory, rootPath, relative);
+    const entries = await opendir(`/proc/self/fd/${directory.fd}`);
+    for await (const entry of entries) {
+      if (visited >= 10000 || files.length >= 500) { truncated = true; break; }
+      visited++;
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || isSensitiveEditorEntry(entry.name)) continue;
+      const path = relative ? `${relative}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (depth >= 64) { truncated = true; continue; }
+        let child;
+        try {
+          child = await open(`/proc/self/fd/${directory.fd}/${entry.name}`, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+          await walk(child, path, depth + 1);
+        } catch (error) { if (!skippable(error)) throw error; }
+        finally { await child?.close(); }
+      } else if (entry.isFile() && entry.name.toLowerCase().includes(needle)) {
+        let file;
+        try {
+          file = await open(`/proc/self/fd/${directory.fd}/${entry.name}`, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+          const info = await file.stat();
+          if (info.isFile() && info.nlink === 1) {
+            await checkEditorLocation(root, file, rootPath, path);
+            files.push(path);
+          }
+        } catch (error) { if (!skippable(error)) throw error; }
+        finally { await file?.close(); }
+      }
+      if (visited >= 10000 || files.length >= 500) { truncated = true; break; }
+    }
+    await checkEditorLocation(root, directory, rootPath, relative);
+  }
+  const opened = await openEditorRoot(chosenRoot), root = opened.directory;
+  rootPath = opened.rootPath;
+  try { await walk(root, '', 0); }
+  finally { await root.close(); }
+  return { files: files.sort((a, b) => a.localeCompare(b)), truncated };
 }
 function cloneRepo(url, destination) {
   return new Promise((resolve, reject) => {
@@ -457,6 +596,21 @@ const server = http.createServer(async (req, res) => {
         await save('personas.json', next); personas = next;
         return json(res, 200, { persona });
       });
+    }
+    if (url.pathname === '/api/files/search') {
+      if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+      return json(res, 200, await searchEditorFiles(url.searchParams.get('q'), url.searchParams.get('root') ?? undefined));
+    }
+    if (['/api/files', '/api/file'].includes(url.pathname)) {
+      const listing = url.pathname === '/api/files';
+      if (req.method !== 'GET' && (listing || req.method !== 'PUT')) return json(res, 405, { error: 'Method not allowed' });
+      // JSON can escape each byte as six characters in both content fields.
+      const input = req.method === 'PUT' ? await body(req, 4 * 1024 * 1024) : Object.fromEntries(url.searchParams);
+      const operation = listing ? 'list' : req.method === 'PUT' ? 'save' : 'read';
+      const perform = () => fileEditor(input.path ?? '', operation, input.content, input.originalContent, input.root);
+      // Overlapping roots can address the same file with different relative paths.
+      const result = operation === 'save' ? await withSessionLock('editor:save', perform) : await perform();
+      return json(res, 200, result);
     }
     if (url.pathname === '/api/repos' && req.method === 'GET') {
       const repos = [];

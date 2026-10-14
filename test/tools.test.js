@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { executeTool, validateTools, BASIC_TOOL_NAMES, MEMORY_TOOL_NAMES, makeTools } from '../src/server/tools.js';
+import { executeTool, validateTools, BASIC_TOOL_NAMES, MEMORY_TOOL_NAMES, makeTools, isSensitiveRepositoryEntry } from '../src/server/tools.js';
+
+test('file access policy protects authentication files and temporary copies', () => {
+  for (const name of ['auth.json', 'auth.json.backup', 'auth.json.123.tmp', '.env', 'secret.txt']) {
+    assert.equal(isSensitiveRepositoryEntry(name), true, name);
+  }
+  assert.equal(isSensitiveRepositoryEntry('notes.md'), false);
+});
 
 test('whisper tool schema requires an existing session ID and message and is server-only', async () => {
   const tool = makeTools(['whisper_to_agent'])[0];

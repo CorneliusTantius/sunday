@@ -2,10 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from './api.js';
 import Character from './components/Character.jsx';
 import Repositories from './components/Repositories.jsx';
+import { lazy, Suspense } from 'preact/compat';
 import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
 import MessageBubble from './components/MessageBubble.js';
 import ToolCalls from './components/ToolCalls.jsx';
+
+const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
+function currentPage() {
+  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : 'chat';
+}
 
 function formatTokens(value) {
   return value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)}M` : value >= 1_000 ? `${(value / 1_000).toFixed(1)}k` : String(value);
@@ -43,7 +49,9 @@ export default function App() {
   const [activeRunning, setActiveRunning] = useState(false);
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [prompt, setPrompt] = useState('');
-  const [page, setPage] = useState(location.hash === '#repositories' ? 'repositories' : 'chat');
+  const [page, setPage] = useState(currentPage);
+  const editorDirty = useRef(false);
+  const editorSaving = useRef(false);
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 700px)').matches);
   const [sidebarOpen, setSidebarOpen] = useState(() => !matchMedia('(max-width: 700px)').matches);
   const [expanded, setExpanded] = useState(false);
@@ -168,7 +176,20 @@ export default function App() {
     })();
     const timer = setInterval(() => setGreetingText(greeting()), 60_000);
     const visibility = () => { if (!document.hidden) setGreetingText(greeting()); };
-    const route = () => setPage(location.hash === '#repositories' ? 'repositories' : 'chat');
+    const route = () => {
+      const next = currentPage();
+      if (next !== 'editor' && editorSaving.current) {
+        window.alert('Wait for the file to finish saving before leaving.');
+        history.replaceState(null, '', '#files');
+        return;
+      }
+      if (next !== 'editor' && editorDirty.current && !window.confirm('Discard unsaved changes?')) {
+        history.replaceState(null, '', '#files');
+        return;
+      }
+      if (next !== 'editor') editorDirty.current = false;
+      setPage(next);
+    };
     const layout = matchMedia('(max-width: 700px)');
     const resize = () => { setMobile(layout.matches); setSidebarOpen(!layout.matches); };
     document.addEventListener('visibilitychange', visibility);
@@ -176,10 +197,11 @@ export default function App() {
     return () => { clearInterval(timer); clearTimeout(toastTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    document.title = `Sunday — ${page === 'repositories' ? 'Repositories' : 'Chat'}`;
+    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : 'Chat'}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
-    if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
+    if (page === 'editor') shell.current?.querySelector('#code-editor-title')?.focus();
+    else if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
     else promptInput.current?.focus();
   }, [page]);
   useEffect(() => {
@@ -361,13 +383,15 @@ export default function App() {
           </div>
         </section>
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}>Repositories</a>
+        <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}>Files</a>
         <div class="sidebar-bottom"><div class={`status-dot${connected ? ' ready' : ''}`} /><span id="connection-label">{settingsError ? 'Could not load settings' : connected ? 'Provider connected' : 'Set up to get started'}</span><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
       </aside>
       <button ref={menu} class="icon-button sidebar-reopen" id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
       <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
       <main class="main">
         {page === 'repositories' && <Repositories toast={toast} />}
-        <section class={`conversation${page === 'repositories' ? ' hidden' : ''}`} id="conversation" aria-live="polite">
+        {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
+        <section class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite">
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="messages" id="messages">{messages.map((message, index) => <div key={index} class={`message ${message.role}`}>
@@ -375,7 +399,7 @@ export default function App() {
             {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
           </div>)}</div>
         </section>
-        <div class={`composer-wrap${page === 'repositories' ? ' hidden' : ''}`} id="chat-composer">
+        <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
           <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy || activeRunning} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>

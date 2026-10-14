@@ -27,7 +27,7 @@ export function validateTools(value) {
 }
 export function makeTools(names) { return BASIC_TOOLS.filter(tool => names.includes(tool.name)).map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })); }
 
-const sensitive = name => name === '.git' || name === '.ssh' || /^\.env(?:\.|$)/i.test(name) || /credential|secret/i.test(name) || /\.(?:pem|key|p12|pfx)$/i.test(name);
+export const isSensitiveRepositoryEntry = name => name === '.git' || name === '.ssh' || /^auth\.json(?:\.|$)/i.test(name) || /^\.env(?:\.|$)/i.test(name) || /credential|secret/i.test(name) || /\.(?:pem|key|p12|pfx)$/i.test(name);
 const within = (base, path) => path === base || path.startsWith(base + sep);
 function memoryFileName(title) {
   const slug = title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'note';
@@ -103,7 +103,7 @@ export async function executeTool(name, args, repositories, memoryDir) {
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (!part || part === '.') continue;
-    if (sensitive(part)) throw new Error('Access to sensitive files is denied');
+    if (isSensitiveRepositoryEntry(part)) throw new Error('Access to sensitive files is denied');
     path = join(path, part);
     try {
       const st = await lstat(path);
