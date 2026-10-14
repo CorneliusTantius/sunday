@@ -106,6 +106,8 @@ function assertProfile(actual, expected) {
     assert.equal(off.body.thinkingLevel, 'off');
     assert.equal((await api('/api/settings', { mode: 'oauth', model: oauth.body.model }, 'PUT')).status, 200);
     assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).deviceId, deviceId);
+    const configured = await api(`/api/sessions/${id}`, { config: { mode: 'oauth', model: oauth.body.model } }, 'PATCH');
+    assert.equal(configured.status, 200);
     const disconnected = await fetch(`http://127.0.0.1:${port}/api/auth`, { method: 'DELETE' });
     assert.equal(disconnected.status, 200);
     const credentials = JSON.parse(await readFile(authPath, 'utf8'));

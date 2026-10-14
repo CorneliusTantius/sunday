@@ -20,6 +20,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateOutput, setUpdateOutput] = useState('');
+  const updatePending = useRef(false);
   const [auth, setAuth] = useState(null);
   const [authTick, setAuthTick] = useState(0);
   const [authBusy, setAuthBusy] = useState(false);
@@ -258,6 +261,17 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { if (alive.current) setSaving(false); }
   }
 
+  async function update() {
+    if (updatePending.current) return;
+    updatePending.current = true;
+    setUpdating(true); setError(''); setUpdateOutput('');
+    try {
+      const data = await jsonRequest('/api/update', 'POST', {});
+      if (alive.current) { setUpdateOutput(data.output); toast('Update complete'); }
+    } catch (error) { if (alive.current) setError(error.message); }
+    finally { updatePending.current = false; if (alive.current) setUpdating(false); }
+  }
+
   return <div ref={backdrop} class="modal-backdrop" id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header class="modal-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="icon-button close-modal" id="close-settings" aria-label="Close settings" onClick={onClose}>×</button></header>
@@ -267,6 +281,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`settings-nav${page === 'providers' || page === 'connect' ? ' active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
           <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
           <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
+          <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
         <div class="settings-detail">
           <section id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
@@ -306,14 +321,20 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <label class="field-label" for="config-mode">Authorization</label><select id="config-mode" class="select" value={mode} disabled={saving || !available.length} onChange={event => chooseProvider(provider, event.currentTarget.value)}>{configModes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
             <label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={model} disabled={loading || saving || !models.length} onChange={event => setModel(event.currentTarget.value)}>{models.length ? models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>) : <option value="">Connect a provider to see models</option>}</select>
             <label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select>
-            <p class="field-note">Only connected providers have available models. Save an API key first, then choose a default model. Saved choices remain selected after restarting Sunday.</p>
+            <p class="field-note">Only connected providers have available models. Save an API key first, then choose a default model. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
+          </section>
+          <section id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
+            <h3>Update Sunday</h3>
+            <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
+            <button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
+            <pre id="update-output" role="status" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{updateOutput}</pre>
           </section>
           <Personas hidden={page !== 'personas'} toast={toast} onReload={onReload} />
           <p class="form-error" id="settings-error" role="alert">{error}</p>
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={onClose}>Cancel</button><button class={`primary-button${page === 'providers' || page === 'personas' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={onClose}>Cancel</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }

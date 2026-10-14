@@ -54,6 +54,9 @@ export default function App() {
     } catch { return []; }
   });
   const [sessionId, setSessionId] = useState(null);
+  const [sessionConfig, setSessionConfig] = useState(null);
+  const [sessionModels, setSessionModels] = useState([]);
+  const configPending = useRef(false);
   const [messages, setMessages] = useState([]);
   const [contextUsage, setContextUsage] = useState(null);
   const [ready, setReady] = useState(false);
@@ -112,6 +115,8 @@ export default function App() {
     if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
     setMessages(nextMessages);
     setContextUsage(session.contextUsage || null);
+    setSessionConfig(session.config || null);
+    setSessionModels(session.models || []);
     setPrompt(''); setReady(true);
   }
   function navigateChat(navigate) {
@@ -374,6 +379,7 @@ export default function App() {
     event.preventDefault();
     if (controller.current) { await stopResponse(); return; }
     if (activeRunning) { toast('This agent is still running. Switch sessions or wait for it to finish.'); return; }
+    if (configPending.current) { toast('Model settings are still saving'); return; }
     if (!ready || !activeSession.current || sessionLock.current) { toast('Chat is still loading'); return; }
     const text = prompt;
     if (!text.trim()) return;
@@ -383,20 +389,23 @@ export default function App() {
     setPrompt('');
     return connectChat(requestSessionId, index, false, text);
   }
-  async function updateDefaults(change) {
-    if (!settings || busy || updatingSettings) return;
-    setUpdatingSettings(true);
-    try { await jsonRequest('/api/settings', 'PUT', { provider: settings.provider, mode: settings.mode, model: settings.model, ...change }); await loadSettings(); }
-    catch (error) { toast(error.message); }
-    finally { setUpdatingSettings(false); }
+  async function updateSessionConfig(change) {
+    const id = activeSession.current;
+    if (!id || !ready || loadingSession || busy || activeRunning || configPending.current) return;
+    configPending.current = true; setUpdatingSettings(true);
+    try {
+      const data = await jsonRequest(`/api/sessions/${encodeURIComponent(id)}`, 'PATCH', { config: change });
+      if (activeSession.current === id) { setSessionConfig(data.session.config); setSessionModels(data.session.models || []); }
+    } catch (error) { toast(error.message); }
+    finally { configPending.current = false; setUpdatingSettings(false); }
   }
   const closeSettings = useCallback(() => { setSettingsOpen(false); if (shell.current) shell.current.inert = false; if (sidebar.current) sidebar.current.inert = false; settingsButton.current?.focus(); }, []);
   const profile = sessions.find(session => session.id === sessionId)?.profile;
-  const models = settings?.models || [];
-  const selectedModel = models.find(model => model.id === settings?.model);
+  const models = sessionModels;
+  const selectedModel = models.find(model => model.id === sessionConfig?.model);
   const levels = selectedModel?.thinkingLevels || ['off'];
-  const thinking = levels.includes(settings?.thinkingLevel) ? settings.thinkingLevel : levels[0];
-  const measuredUsage = Boolean(contextUsage && settings && contextUsage.model === settings.model);
+  const thinking = levels.includes(sessionConfig?.thinkingLevel) ? sessionConfig.thinkingLevel : levels[0];
+  const measuredUsage = Boolean(contextUsage && sessionConfig && contextUsage.model === sessionConfig.model);
   const contextWindow = selectedModel?.contextWindow || (measuredUsage ? contextUsage.contextWindow : 0);
   const estimatedCharacters = messages.reduce((total, message) => total + (message.content?.length || 0) + (message.toolCalls || []).reduce((size, call) => size + JSON.stringify(call.arguments || {}).length, 0), 0);
   const contextTokens = measuredUsage ? contextUsage.tokens : Math.ceil(estimatedCharacters / 4);
@@ -456,7 +465,7 @@ export default function App() {
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
           </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}>{busy ? '■' : '>'}</button></div></form>
-          <div class="composer-controls"><label class="composer-model-label" for="chat-model">MODEL</label><select class="select chat-model" id="chat-model" value={settings?.model || ''} disabled={busy || updatingSettings || !models.length} onChange={event => updateDefaults({ model: event.currentTarget.value })}>{models.length ? models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>) : <option value="">{settings ? 'Connect a provider to see models' : 'Loading models…'}</option>}</select><label class="thinking-label" for="thinking-level">THINKING</label><select class="select thinking-level" id="thinking-level" value={thinking} disabled={busy || updatingSettings || !settings || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => updateDefaults({ thinkingLevel: event.currentTarget.value })}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
+          <div class="composer-controls"><label class="composer-model-label" for="chat-model">MODEL</label><select class="select chat-model" id="chat-model" value={sessionConfig?.model || ''} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !models.length} onChange={event => updateSessionConfig({ model: event.currentTarget.value })}>{models.length ? models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>) : <option value="">{settings ? 'Connect a provider to see models' : 'Loading models…'}</option>}</select><label class="thinking-label" for="thinking-level">THINKING</label><select class="select thinking-level" id="thinking-level" value={thinking} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !sessionConfig || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => updateSessionConfig({ thinkingLevel: event.currentTarget.value })}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
 
         </div>
       </main>

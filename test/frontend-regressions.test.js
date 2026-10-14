@@ -84,6 +84,20 @@ function settingsHarness(status) {
 const authCalls = calls => calls.filter(url => url === '/api/auth/status');
 const refreshCalls = calls => calls.filter(url => url.startsWith('/api/settings'));
 
+test('Settings exposes an Update action that only posts to the pull endpoint', () => {
+  const source = readFileSync(new URL('../src/web/components/Settings.jsx', import.meta.url), 'utf8');
+  assert.match(source, /id="settings-update-nav"/);
+  assert.match(source, /id="settings-update-page"/);
+  assert.match(source, /id="update-app"/);
+  assert.match(source, /jsonRequest\('\/api\/update', 'POST', \{\}\)/);
+  assert.match(source, /disabled=\{updating\}/);
+  assert.match(source, /updating \? 'Updating…'/);
+  assert.match(source, /toast\('Update complete'\)/);
+  assert.match(source, /id="update-output"/);
+  assert.match(source, /catch \(error\) \{ if \(alive\.current\) setError\(error\.message\); \}/);
+  assert.doesNotMatch(source, /window\.location\.(?:reload|replace)|onReload\(\)/);
+});
+
 test('Settings polls only on OpenAI OAuth connect, not Config or API key', async () => {
   const { harness: h, calls } = settingsHarness(() => ({ status: 'pending' }));
   await h.settle();
@@ -197,5 +211,43 @@ test('SessionConfig shows workspace copy progress while saving', async () => {
   pendingSave.resolve({});
   await save; await h.settle();
   assert.equal(h.view.saving, false);
+  h.unmount();
+});
+
+test('Settings update prevents duplicate requests, reports output, and releases controls', async () => {
+  const pending = deferred(), calls = [], toasts = [];
+  let reloads = 0;
+  const h = mount('Settings', { settings, onClose() {}, onReload() { reloads++; }, toast(message) { toasts.push(message); } }, async () => settings,
+    (url, method, body) => { calls.push({ url, method, body }); return pending.promise; });
+  await h.settle();
+  h.view.navigate('update'); h.render();
+  const run = h.view.update(); h.render();
+  assert.equal(h.view.updating, true);
+  await h.view.update();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, '/api/update');
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(Object.keys(calls[0].body).length, 0);
+  pending.resolve({ output: 'Already up to date.' });
+  await run; await h.settle();
+  assert.equal(h.view.updating, false);
+  assert.equal(h.view.updateOutput, 'Already up to date.');
+  assert.deepEqual(toasts, ['Update complete']);
+  assert.equal(reloads, 0);
+  h.unmount();
+});
+
+test('Settings update displays git errors and permits retry', async () => {
+  let calls = 0;
+  const h = mount('Settings', { settings, onClose() {}, onReload() {}, toast() {} }, async () => settings,
+    async () => { calls++; if (calls === 1) throw new Error('Git pull failed'); return { output: 'Updated' }; });
+  await h.settle();
+  await h.view.update(); await h.settle();
+  assert.equal(h.view.error, 'Git pull failed');
+  assert.equal(h.view.updating, false);
+  await h.view.update(); await h.settle();
+  assert.equal(calls, 2);
+  assert.equal(h.view.error, '');
+  assert.equal(h.view.updateOutput, 'Updated');
   h.unmount();
 });

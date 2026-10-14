@@ -159,6 +159,8 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
       assert.equal(preview.selectedProvider, provider);
       assert.deepEqual(preview.models, []);
       assert.equal((await api('/api/settings')).body.provider, provider);
+      const configured = await api(`/api/sessions/${created.body.session.id}`, { config: { provider, mode: 'api_key', model: saved.body.model, thinkingLevel: saved.body.thinkingLevel } }, 'PATCH');
+      assert.equal(configured.status, 200);
       const chat = await api('/api/chat', { sessionId: created.body.session.id, messages: [{ role: 'user', content: `Hello ${provider}` }] });
       assert.equal(chat.status, 200);
       assert.match(chat.body, /"type":"error"/);
@@ -169,6 +171,8 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
     }
     await api('/api/settings', { provider: 'openai', mode: 'api_key', apiKey: 'offline-openai' }, 'PUT');
     const backgroundSession = await api('/api/sessions', {});
+    // Changing defaults must not change this existing session's chat provider.
+    await api('/api/settings', { provider: 'google', mode: 'api_key' }, 'PUT');
     const previousCount = (await readFile(requests, 'utf8')).trim().split('\n').length;
     await writeFile(delayChat, '');
     const chatRequest = startChatRequest(backgroundSession.body.session.id);
@@ -203,6 +207,7 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
     assert.ok(completedSession.body.session.messages.some(message => message.role === 'user' && message.content === 'Continue after disconnect'));
     assert.equal(completedSession.body.session.running, false);
 
+    await api('/api/settings', { provider: 'openai', mode: 'api_key' }, 'PUT');
     const cancelSession = await api('/api/sessions', {});
     const cancelPreviousCount = (await readFile(requests, 'utf8')).trim().split('\n').length;
     const cancelRequest = startChatRequest(cancelSession.body.session.id);

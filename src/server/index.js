@@ -5,7 +5,7 @@ import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { createModels, getSupportedThinkingLevels, clampThinkingLevel } from '@earendil-works/pi-ai';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
@@ -13,6 +13,17 @@ import { googleProvider } from '@earendil-works/pi-ai/providers/google';
 import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, executeTool, makeTools, isSensitiveRepositoryEntry } from './tools.js';
 
 import { uniqueSessionName } from './session-names.js';
+
+const appDir = fileURLToPath(new URL('../../', import.meta.url));
+let updateRunning = false;
+function pullUpdate() {
+  return new Promise((resolve, reject) => {
+    execFile('git', ['pull'], { cwd: appDir, timeout: 120000, maxBuffer: 64 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, stdout, stderr) => {
+      if (error) return reject(new Error(error.killed ? 'Git pull timed out' : (stderr.trim() || error.message).slice(0, 2000)));
+      resolve({ output: [stdout.trim(), stderr.trim()].filter(Boolean).join('\n') || 'Git pull complete' });
+    });
+  });
+}
 
 const homeDir = join(homedir(), 'sunday');
 const dataDir = join(homeDir, 'data');
@@ -115,6 +126,23 @@ if (!providers.find(p => p.id === settings.provider).modes.includes(settings.mod
 if (!modelsByMode[settings.mode].getModel(settings.provider, settings.model)) settings.model = defaultModel(settings.provider, settings.mode);
 settings.thinkingLevel = clampThinkingLevel(modelsByMode[settings.mode].getModel(settings.provider, settings.model), settings.thinkingLevel || 'off');
 await save('settings.json', settings);
+function sessionConfig() { return { provider: settings.provider, mode: settings.mode, model: settings.model, thinkingLevel: settings.thinkingLevel }; }
+function sessionModels(config) { return modelsByMode[config.mode].getAvailable(config.provider).then(list => list.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) }))); }
+function configureSession(session, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Invalid session config');
+  const config = { ...session.config };
+  for (const key of Object.keys(patch)) if (!['provider', 'mode', 'model', 'thinkingLevel'].includes(key)) throw new Error('Invalid session config');
+  const { provider, mode } = selection(patch.provider ?? config.provider, patch.mode ?? config.mode);
+  config.provider = provider; config.mode = mode;
+  const catalog = modelsByMode[mode].getModels(provider), model = patch.model ?? config.model;
+  if (typeof model !== 'string' || !catalog.some(item => item.id === model)) throw new Error('Invalid model');
+  config.model = model;
+  const selectedModel = modelsByMode[mode].getModel(provider, model);
+  if (patch.thinkingLevel !== undefined && !getSupportedThinkingLevels(selectedModel).includes(patch.thinkingLevel)) throw new Error('Unsupported thinking level for this model');
+  config.thinkingLevel = patch.thinkingLevel ?? clampThinkingLevel(selectedModel, config.thinkingLevel);
+  return config;
+}
+
 async function publicSettings(provider = settings.provider, mode) {
   ({ provider, mode } = selection(provider, mode));
   const statuses = await Promise.all(providers.map(async p => {
@@ -404,7 +432,7 @@ async function executeChatTurn(session, job, allowWhisper = true) {
   finally { clearTimeout(timer); clearInterval(heartbeat); }
 }
 async function runChatTurn(session, job, allowWhisper = true) {
-  const selected = { ...settings }, models = modelsByMode[selected.mode], model = models.getModel(selected.provider, selected.model);
+  const selected = session.config, models = modelsByMode[selected.mode], model = models.getModel(selected.provider, selected.model);
   if (!model) throw new Error('Choose a valid model in settings');
   if (!await waitForChat(models.getAuth(model), job.controller.signal)) throw new Error(`Connect ${providers.find(p => p.id === selected.provider).name} in settings first`);
   const agentWorkspace = await syncAgentWorkspace(session);
@@ -571,6 +599,10 @@ async function readSession(id) {
   } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
 async function persistSession(session) { await save(join('sessions', `${session.id}.json`), session); await chmod(join(sessionsDir, `${session.id}.json`), 0o600); }
+for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
+  const session = await readSession(name.slice(0, -5));
+  if (session && !session.config) { session.config = sessionConfig(); await persistSession(session); }
+}
 function saveSession(session) { return serialize(() => persistSession(session)); }
 function workspaceSlug(title) {
   return String(title || 'agent').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0, 80) || 'agent';
@@ -721,7 +753,7 @@ const server = http.createServer(async (req, res) => {
       const sessions = [];
       for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
         const session = await readSession(name.slice(0, -5));
-        if (session) sessions.push({ id: session.id, title: session.title, updatedAt: session.updatedAt, profile: session.profile, allowedRepositories: session.allowedRepositories || [], running: activeChats.has(session.id) });
+        if (session) sessions.push({ id: session.id, title: session.title, updatedAt: session.updatedAt, profile: session.profile, config: session.config, allowedRepositories: session.allowedRepositories || [], running: activeChats.has(session.id) });
       }
       sessions.sort((a, b) => b.updatedAt - a.updatedAt);
       return json(res, 200, { sessions });
@@ -733,6 +765,7 @@ const server = http.createServer(async (req, res) => {
       const selectedProfile = persona || (input.profile === undefined ? defaultPersona() : input.profile);
       if (input.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.trim().length > 120)) throw new Error('Chat title must be 1–120 characters');
       const profile = { ...validateProfile(selectedProfile), personaId: selectedProfile.personaId || selectedProfile.id || defaultPersona().id };
+      const config = sessionConfig(), models = await sessionModels(config);
       return await serialize(async () => {
         const titles = [];
         for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
@@ -740,10 +773,10 @@ const server = http.createServer(async (req, res) => {
           if (existing) titles.push(existing.title);
         }
         const allowedRepositories = (await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
-        const session = { id: randomUUID(), title: input.title?.trim() ?? uniqueSessionName(titles), titleEdited: input.title !== undefined, updatedAt: now, messages: [], allowedRepositories, profile };
+        const session = { id: randomUUID(), title: input.title?.trim() ?? uniqueSessionName(titles), titleEdited: input.title !== undefined, updatedAt: now, messages: [], allowedRepositories, profile, config };
         await syncAgentWorkspace(session, allowedRepositories);
         await persistSession(session);
-        return json(res, 201, { session });
+        return json(res, 201, { session: { ...session, models } });
       });
     }
     const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/profile)?$/);
@@ -767,6 +800,7 @@ const server = http.createServer(async (req, res) => {
       const id = sessionMatch[1];
       if (!validSessionId(id)) return json(res, 400, { error: 'Invalid session ID' });
       const input = req.method === 'PATCH' ? await body(req) : null;
+      if (input?.config !== undefined && activeChats.has(id)) throw new Error('Cannot change config while agent is busy');
       if (input?.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.trim().length > 120)) throw new Error('Chat title must be 1–120 characters');
       const persona = input?.personaId === undefined ? null : personas.find(item => item.id === input.personaId);
       if (input?.personaId !== undefined && !persona) throw new Error('Persona not found');
@@ -785,13 +819,14 @@ const server = http.createServer(async (req, res) => {
           if (/^[A-Za-z0-9_-]{1,80}$/.test(workspaceName || '')) await rm(join(agentWorkspacesDir, workspaceName), { recursive: true, force: true });
           return json(res, 200, { deleted: true });
         }
+        if (input.config !== undefined) session.config = configureSession(session, input.config);
         if (input.title !== undefined) { session.title = input.title.trim(); session.titleEdited = true; }
         await syncAgentWorkspace(session, input.allowedRepositories ?? session.allowedRepositories ?? []);
         if (persona) session.profile = { ...validateProfile(persona), personaId: persona.id };
         if (input.allowedRepositories !== undefined) session.allowedRepositories = [...new Set(input.allowedRepositories)];
         session.updatedAt = Date.now();
         await saveSession(session);
-        return json(res, 200, { session });
+        return json(res, 200, { session: { ...session, models: await sessionModels(session.config) } });
       });
     }
     if (sessionMatch && req.method === 'GET') {
@@ -799,7 +834,14 @@ const server = http.createServer(async (req, res) => {
       if (!validSessionId(id)) return json(res, 400, { error: 'Invalid session ID' });
       const session = await readSession(id);
       if (!session) return json(res, 404, { error: 'Session not found' });
-      return json(res, 200, { session: { ...session, running: activeChats.has(id) } });
+      return json(res, 200, { session: { ...session, running: activeChats.has(id), models: await sessionModels(session.config) } });
+    }
+    if (url.pathname === '/api/update') {
+      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      if (updateRunning) return json(res, 409, { error: 'An update is already running' });
+      updateRunning = true;
+      try { return json(res, 200, await pullUpdate()); }
+      finally { updateRunning = false; }
     }
     if (url.pathname === '/api/settings' && req.method === 'GET') return json(res, 200, await publicSettings(url.searchParams.get('provider') ?? settings.provider, url.searchParams.get('mode') ?? undefined));
     if (url.pathname === '/api/providers' && req.method === 'POST') {
@@ -873,7 +915,7 @@ const server = http.createServer(async (req, res) => {
         if (session.title === 'New chat' && !session.titleEdited) session.title = userMessage.content.slice(0, 80);
         await syncAgentWorkspace(session);
         await saveSession(session);
-        const selected = { ...settings }, models = modelsByMode[selected.mode], model = models.getModel(selected.provider, selected.model);
+        const selected = session.config, models = modelsByMode[selected.mode], model = models.getModel(selected.provider, selected.model);
         if (!model) throw new Error('Choose a valid model in settings');
         if (!await waitForChat(models.getAuth(model), AbortSignal.timeout(CHAT_IDLE_TIMEOUT_MS))) throw new Error(`Connect ${providers.find(p => p.id === selected.provider).name} in settings first`);
         if (activeChats.has(input.sessionId)) throw new Error('Agent is busy');

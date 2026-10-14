@@ -22,7 +22,7 @@ function harness(streams, idle = 100, total = 1000) {
     publishChat: (job, event) => events.push(event),
   });
   vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('async function whisperToAgent')), context);
-  const session = { id: 'session', messages: [], allowedRepositories: ['repo'] };
+  const session = { id: 'session', messages: [], allowedRepositories: ['repo'], config: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' } };
   const job = { controller: new AbortController() };
   return { events, prompts, options, delays, session, job, run: () => context.executeChatTurn(session, job), get calls() { return calls; } };
 }

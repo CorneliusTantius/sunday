@@ -68,7 +68,9 @@ async function mount(t, options = {}) {
   window.confirm = () => true;
   window.localStorage.setItem('sunday-session-id', 'session-1');
 
-  const sessions = [1, 2].map(id => ({ id: `session-${id}`, title: `Chat ${id}`, messages: [] }));
+  const models = [{ id: 'model-a', name: 'Model A', thinkingLevels: ['off', 'high'] }, { id: 'model-b', name: 'Model B', thinkingLevels: ['off', 'high'] }];
+  const defaults = { provider: 'openai', mode: 'api_key', model: 'model-a', thinkingLevel: 'off', models, providers: [] };
+  const sessions = [1, 2].map(id => ({ id: `session-${id}`, title: `Chat ${id}`, messages: [], config: { provider: 'openai', mode: 'api_key', model: id === 1 ? 'model-a' : 'model-b', thinkingLevel: id === 1 ? 'off' : 'high' }, models }));
   const calls = [];
   let pending = null;
   let stream;
@@ -81,7 +83,7 @@ async function mount(t, options = {}) {
   window.fetch = async (url, requestOptions = {}) => {
     const method = requestOptions.method || 'GET';
     calls.push({ url, method });
-    if (url === '/api/settings') return response({ models: [], providers: [] });
+    if (url === '/api/settings') return response(defaults);
     if (url === '/api/sessions' && method === 'GET') return response({ sessions: [...sessions] });
     if (url === '/api/chat/cancel') {
       if (options.cancelFailure) throw new Error('cancel failed');
@@ -110,12 +112,17 @@ async function mount(t, options = {}) {
     }
     if (pending) return pending.promise;
     if (url === '/api/sessions' && method === 'POST') {
-      const session = { id: `session-${sessions.length + 1}`, title: 'New chat', messages: [] };
+      const session = { id: `session-${sessions.length + 1}`, title: 'New chat', messages: [], config: { provider: defaults.provider, mode: defaults.mode, model: defaults.model, thinkingLevel: defaults.thinkingLevel }, models };
       sessions.push(session);
       return response({ session });
     }
     const session = sessions.find(item => url === `/api/sessions/${item.id}`);
     if (session && method === 'GET') return response({ session });
+    if (session && method === 'PATCH') {
+      const input = JSON.parse(requestOptions.body);
+      session.config = { ...session.config, ...input.config };
+      return response({ session });
+    }
     assert.fail(`Unexpected request: ${method} ${url}`);
   };
   window.eval(bundle);
@@ -138,7 +145,7 @@ async function mount(t, options = {}) {
   click('#agents-toggle');
   await waitFor(() => assert.equal($('#agents-toggle').getAttribute('aria-expanded'), 'true'));
   return {
-    $, click, controls, assertEnabled, actionCalls, selected, response, streamAborted: () => streamAborted, resumeCalls: () => resumeCount, sessions,
+    $, click, controls, assertEnabled, actionCalls, selected, response, calls, defaults, streamAborted: () => streamAborted, resumeCalls: () => resumeCount, sessions,
     cancelCalls() { return calls.filter(({ url, method }) => url === '/api/chat/cancel' && method === 'POST'); },
     hold() { pending = deferred(); return pending; },
     release() { pending = null; },
@@ -435,4 +442,33 @@ test('unexpected stream EOF preserves partial text and releases the composer wit
   });
   assert.equal(h.resumeCalls(), 0);
   assert.ok(h.timers.filter(timer => timer.ms === 150000).every(timer => timer.cleared));
+});
+
+test('model and thinking controls save only the active session and restore each session independently', async t => {
+  const h = await mount(t);
+  assert.equal(h.$('#chat-model').value, 'model-a');
+  h.$('#thinking-level').value = 'high';
+  h.$('#thinking-level').dispatchEvent(new (h.$('#thinking-level').ownerDocument.defaultView.Event)('change', { bubbles: true }));
+  await waitFor(() => assert.equal(h.sessions[0].config.thinkingLevel, 'high'));
+  await waitFor(() => assert.equal(h.$('#thinking-level').disabled, false));
+  h.$('#chat-model').value = 'model-b';
+  h.$('#chat-model').dispatchEvent(new (h.$('#chat-model').ownerDocument.defaultView.Event)('change', { bubbles: true }));
+  await waitFor(() => assert.equal(h.sessions[0].config.model, 'model-b'));
+  await waitFor(() => assert.equal(h.$('#chat-model').disabled, false));
+  assert.equal(h.defaults.model, 'model-a');
+  assert.equal(h.defaults.thinkingLevel, 'off');
+  assert.equal(h.calls.filter(call => call.url === '/api/settings' && call.method !== 'GET').length, 0);
+  h.click('.session-row:nth-child(2) .session-item');
+  await waitFor(() => assert.equal(h.selected(), 'session-2'));
+  assert.equal(h.$('#chat-model').value, 'model-b');
+  assert.equal(h.$('#thinking-level').value, 'high');
+  h.defaults.model = 'model-a'; h.defaults.thinkingLevel = 'off';
+  h.click('#new-chat');
+  await waitFor(() => assert.equal(h.selected(), 'session-3'));
+  assert.equal(h.$('#chat-model').value, 'model-a');
+  assert.equal(h.$('#thinking-level').value, 'off');
+  h.click('.session-row:nth-child(1) .session-item');
+  await waitFor(() => assert.equal(h.selected(), 'session-1'));
+  assert.equal(h.$('#chat-model').value, 'model-b');
+  assert.equal(h.$('#thinking-level').value, 'high');
 });
