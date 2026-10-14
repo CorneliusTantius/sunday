@@ -333,7 +333,10 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
   .thinking-level { width: 115px; font-size: 16px; }
 }
 
-.feature-heading { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; font-weight: 600; }
+.feature-heading { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; font-weight: 600; }
+/* Space top-level destinations alike, without changing the agents disclosure. */
+.sidebar > .feature-heading, .sidebar > .agents-feature { flex-shrink: 0; }
+.sidebar > :is(.feature-heading, .agents-feature) + :is(.feature-heading, .agents-feature) { margin-top: 8px; }
 .agents-toggle { flex: none; display: grid; place-items: center; padding: 0; }
 .agents-toggle svg { display: block; transform-origin: center; transition: transform .15s ease; }
 .agents-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
