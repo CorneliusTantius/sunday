@@ -479,14 +479,15 @@ export default function App() {
         <div class="sessions-heading">FEATURES</div>
         <section class="agents-feature" aria-labelledby="agents-title">
           <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}>Sunday Agents</a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
-          <div id="agents-sessions" class={`agents-sessions${expanded ? '' : ' hidden'}`}>
-            <button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
+          <div id="agents-sessions" class={`agents-sessions${expanded ? ' expanded' : ''}`} inert={!expanded} aria-hidden={!expanded}>
+            <div class="agents-sessions-content"><button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
               {pinnedSessions.length > 0 && <div class="agent-list-heading">PINNED</div>}
               {pinnedSessions.map(renderSession)}
               {pinnedSessions.length > 0 && unpinnedSessions.length > 0 && <div class="agent-list-heading">AGENTS</div>}
               {unpinnedSessions.map(renderSession)}
             </nav>
+            </div>
           </div>
         </section>
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}>Repositories</a>

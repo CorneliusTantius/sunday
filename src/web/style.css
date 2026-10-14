@@ -336,7 +336,16 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .agents-toggle { flex: none; display: grid; place-items: center; padding: 0; }
 .agents-toggle svg { display: block; transform-origin: center; transition: transform .15s ease; }
 .agents-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-.agents-sessions { padding: 10px 0 0 10px; }
+.agents-sessions {
+  display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+  transition: grid-template-rows 240ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease, visibility 0s linear 240ms;
+}
+.agents-sessions.expanded {
+  grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s;
+}
+.agents-sessions-content { min-height: 0; overflow: hidden; }
+.agents-sessions-content > .new-chat { margin-top: 10px; }
+.agents-sessions-content { padding-left: 10px; }
 .agents-sessions .new-chat { width: 100%; margin-bottom: 8px; }
 
 .square-character { position: relative; display: block; width: 72px; height: 72px; margin: 0 auto 22px; flex: none; }
@@ -477,7 +486,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 
 /* Animate mounts/reveals, not streaming text updates or layout dimensions. */
 .session-row, .repositories-page .repos-list li,
-.agents-sessions:not(.hidden), .repositories-page,
+.repositories-page,
 .conversation:not(.hidden) {
   animation: packet-arrive 220ms cubic-bezier(.2,.8,.2,1) both;
 }
@@ -635,7 +644,7 @@ button:enabled:active { transform: translateY(1px); }
 .send-button { width: 36px; height: 36px; }
 .composer, .settings-modal, .toolcalls-dialog, .session-config-dialog,
 .code-editor-layout { border-radius: var(--radius-panel); }
-.composer { padding: 16px 18px 12px; }
+.composer { padding: 16px 22px 12px; border-radius: 40px; }
 .composer:focus-within {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--highlight) 10%, transparent);
 }
@@ -654,8 +663,43 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   border: 1px solid var(--line);
   border-radius: var(--radius-inset);
 }
-.composer-suggestions { left: -18px; right: -18px; }
+.composer-suggestions { left: -22px; right: -22px; }
 @media (max-width: 700px) {
-  .composer { padding: 12px; border-radius: 24px; }
-  .composer-suggestions { left: -12px; right: -12px; }
+  .composer { padding: 12px 16px; border-radius: 32px; }
+  .composer-suggestions { left: -16px; right: -16px; }
+}
+
+/* Lift pill controls with soft depth instead of outlined rings. */
+.new-chat, .primary-button, .secondary-button, .select, input.text-input,
+.session-persona-select, .settings-nav, .feature-heading, .toolcalls-row,
+.toolcalls-count, .toolcall-status, .scroll-to-latest, .toast,
+.context-meter-label small {
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 24%), 0 1px 3px rgb(0 0 0 / 18%);
+}
+.new-chat { background: var(--panel2); }
+.new-chat:hover, .secondary-button:hover, .toolcalls-row:hover,
+.scroll-to-latest:hover { border-color: transparent; }
+.select:focus, input.text-input:focus {
+  border-color: transparent;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 24%),
+    0 0 0 3px color-mix(in srgb, var(--highlight) 35%, transparent);
+}
+
+/* Keep native select behavior, but omit arrows on model/reasoning controls. */
+.chat-model, .thinking-level, #model, #settings-thinking-level {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: none;
+  cursor: pointer;
+}
+.chat-model:disabled, .thinking-level:disabled,
+#model:disabled, #settings-thinking-level:disabled { cursor: not-allowed; }
+
+@media (forced-colors: active) {
+  .new-chat, .primary-button, .secondary-button, .select, input.text-input,
+  .session-persona-select, .settings-nav, .feature-heading, .toolcalls-row,
+  .toolcalls-count, .toolcall-status, .scroll-to-latest, .toast,
+  .context-meter-label small { border-color: ButtonText; }
+  .select:focus, input.text-input:focus { outline: 2px solid Highlight; }
 }
