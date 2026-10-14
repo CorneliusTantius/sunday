@@ -46,6 +46,7 @@ test('sidebar header omits Features and uses a left chevron to collapse', () => 
 });
 
 test('sidebar omits provider status but retains Settings', () => {
+  const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(app, /id="connection-label"|Provider connected|class=\{`status-dot/);
   assert.match(app, /id="open-settings"/);
 });
