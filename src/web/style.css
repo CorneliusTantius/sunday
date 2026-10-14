@@ -150,7 +150,7 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .composer-suggestion-status{padding:10px 12px}
 .composer-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:7px}
 .hint,.disclaimer{color:var(--muted);font-size:13px}
-.send-button{flex:none;border:0;border-radius:9px;width:32px;height:32px;background:var(--accent);color:var(--bg);font-size:21px;line-height:1;cursor:pointer}
+.send-button{display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none;border:0;border-radius:9px;width:32px;height:32px;background:var(--accent);color:var(--bg);font-size:21px;line-height:1;cursor:pointer}
 .send-button:disabled{background:var(--panel2);color:var(--text);cursor:default}
 .disclaimer{text-align:center;margin:10px 0 0}
 .icon-button{border:0;background:transparent;color:var(--text);font-size:19px;cursor:pointer}
