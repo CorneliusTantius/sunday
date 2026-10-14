@@ -410,7 +410,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 #persona-form .code-row { margin-top: 18px; }
 .sessions-list { gap: 10px; padding: 2px; }
 .agent-list-heading { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; padding: 2px 4px 0; }
-.session-row { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) 24px 24px; gap: 10px 3px; padding: 24px 12px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); cursor: pointer; }
+.session-row { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) repeat(3, 24px); gap: 3px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); cursor: pointer; }
 .session-row:hover { background: var(--panel2); }
 .session-row:has(.session-item.active) { border-color: var(--highlight); background: color-mix(in srgb, var(--highlight) 6%, var(--panel)); }
 .session-row .avatar-character { grid-row: 1; grid-column: 1; width: 28px; height: 28px; }
@@ -426,10 +426,10 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .session-config-dialog::backdrop { background: rgb(9 11 16 / 85%); }
 .session-config-dialog[open] { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }
 .session-row .session-item { grid-column: 2; }
-.session-row .pin-session { position: absolute; top: 0; right: 2px; padding: 0; display: grid; place-items: center; }
+.session-row .pin-session { grid-row: 1; grid-column: 3; }
 .session-row .pin-session svg { width: 12px; height: 12px; }
-.session-row .configure-session { grid-row: 1; grid-column: 3; }
-.session-row .delete-session { grid-row: 1; grid-column: 4; }
+.session-row .configure-session { grid-row: 1; grid-column: 4; }
+.session-row .delete-session { grid-row: 1; grid-column: 5; }
 .session-row .session-action { width: 24px; height: 24px; }
 .session-row .pin-session { color: var(--muted); }
 .session-row .pin-session:hover, .session-row .pin-session.pinned { color: var(--highlight); }

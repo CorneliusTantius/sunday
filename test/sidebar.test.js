@@ -290,3 +290,23 @@ test('global reduced-motion CSS disables transitions and animations for sidebar,
       ['transition', 'animation'].every(property => rule.style.getPropertyValue(property) === 'none' && rule.style.getPropertyPriority(property) === 'important');
   })), 'global !important reduced-motion rule also covers pseudo-elements');
 });
+
+test('session pin shares the action row without reserving space above agent details', async t => {
+  const app = await mount(t);
+  await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
+  app.click('agents-toggle');
+  const style = app.window.document.createElement('style');
+  style.textContent = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
+  app.window.document.head.append(style);
+  const css = selector => app.window.getComputedStyle(app.window.document.querySelector(selector));
+  const row = css('.session-row');
+  assert.equal(row.paddingTop, '12px');
+  assert.equal(row.paddingBottom, '12px');
+  assert.equal(row.gridTemplateColumns, '28px minmax(0, 1fr) repeat(3, 24px)');
+  for (const [selector, column] of [['.session-item', '2'], ['.pin-session', '3'], ['.configure-session', '4'], ['.delete-session', '5']]) {
+    const control = css(`.session-row ${selector}`);
+    assert.equal(control.gridRow, '1');
+    assert.equal(control.gridColumn, column);
+    assert.notEqual(control.position, 'absolute');
+  }
+});
