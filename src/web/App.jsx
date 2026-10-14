@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preac
 import { request, jsonRequest } from './api.js';
 import Character from './components/Character.jsx';
 import Repositories from './components/Repositories.jsx';
+import Socials from './components/Socials.jsx';
 import { lazy, Suspense } from 'preact/compat';
 import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
@@ -25,7 +26,7 @@ function cancelChat(sessionId) {
     .catch(() => {}).finally(() => clearTimeout(timer));
 }
 function currentPage() {
-  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : 'chat';
+  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : 'chat';
 }
 
 function formatTokens(value) {
@@ -222,11 +223,12 @@ export default function App() {
     return () => { clearInterval(timer); clearTimeout(toastTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : 'Chat'}`;
+    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : 'Chat'}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
     if (page === 'editor') shell.current?.querySelector('#code-editor-title')?.focus();
     else if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
+    else if (page === 'socials') shell.current?.querySelector('#socials-title')?.focus();
     else promptInput.current?.focus();
   }, [page]);
   useEffect(() => {
@@ -492,12 +494,14 @@ export default function App() {
         </section>
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}>Repositories</a>
         <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}>Files</a>
+        <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}>Socials</a>
         <div class="sidebar-bottom"><div class={`status-dot${connected ? ' ready' : ''}`} /><span id="connection-label">{settingsError ? 'Could not load settings' : connected ? 'Provider connected' : 'Set up to get started'}</span><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
       </aside>
       <button ref={menu} class="icon-button sidebar-reopen" id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
       <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
       <main class="main">
         {page === 'repositories' && <Repositories toast={toast} />}
+        {page === 'socials' && <Socials />}
         {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>

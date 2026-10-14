@@ -281,7 +281,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`settings-nav${page === 'providers' || page === 'connect' ? ' active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
           <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
           <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
-          <button class={`settings-nav${page === 'socials' ? ' active' : ''}`} id="settings-socials-nav" onClick={() => navigate('socials')}>Socials</button>
           <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
         <div class="settings-detail">
@@ -324,11 +323,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select>
             <p class="field-note">Only connected providers have available models. Save an API key first, then choose a default model. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
           </section>
-          <section id="settings-socials-page" class={`settings-section${page === 'socials' ? '' : ' hidden'}`}>
-            <h3>Socials</h3>
-            <p class="field-note">A home for your future social integrations. No platforms are connected yet.</p>
-            <p class="field-note">Integration options will appear here once supported platforms are chosen.</p>
-          </section>
           <section id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
             <h3>Update Sunday</h3>
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
@@ -340,7 +334,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={onClose}>Cancel</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'socials' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={onClose}>Cancel</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }
