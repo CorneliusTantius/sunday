@@ -154,7 +154,7 @@ test('Settings animates only the non-shrinking scroll viewport and honors reduce
   assert.match(css, /\.settings-layout\s*\{[^}]*grid-template-rows: minmax\(0, 1fr\);[^}]*height: 100%;[^}]*min-height: 0;/);
   assert.match(css, /\.settings-content\[data-sized\]\s*\{\s*flex-shrink: 0;/);
   assert.match(css, /\.settings-modal\s*\{[^}]*max-height: calc\(100dvh - 40px\)/);
-  assert.match(css, /\.settings-modal\s*\{[^}]*height: min\(80dvh, calc\(100dvh - 40px\)\)/);
+  assert.match(css, /\.settings-modal\s*\{[^}]*width: min\(1200px, 100%\);[^}]*height: min\(80dvh, calc\(100dvh - 40px\)\)/);
   assert.match(css, /\.settings-layout\s*\{[^}]*display: grid;[^}]*padding: 28px;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\*, \*::before, \*::after\s*\{[^}]*transition: none !important/);
 });

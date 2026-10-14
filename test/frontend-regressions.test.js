@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { BASIC_TOOLS } from '../src/server/tools.js';
 
 const deferred = () => {
   let resolve;
@@ -14,15 +15,16 @@ const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve()
 // Effects run after render, with dependency comparisons and cleanup on rerender.
 function mount(name, props, request, jsonRequest = async () => ({})) {
   const source = readFileSync(new URL(`../src/web/components/${name}.jsx`, import.meta.url), 'utf8');
-  const body = source.slice(0, source.indexOf('  return <')).replace(/^import .*;\n/gm, '').replace('export default function', 'function');
+  const body = source.slice(0, source.indexOf('  return <')).replace(/^import .*;\n/gm, '').replace('export default function', 'function')
+    .replace(/const (dialog|titleInput) = useRef\(null\);/g, 'const $1 = useRef({ showModal() {}, focus() {} });');
   const bindings = [...body.matchAll(/const \[(\w+), (\w+)\] = useState/g)].flatMap(match => [match[1], match[2]]);
   const actions = [...body.matchAll(/(?:async )?function (\w+)\(/g)].map(match => match[1]).filter(value => value !== name && value !== 'keydown' && value !== 'poll');
-  const slots = [], effects = [], timers = new Map();
+  const slots = [], effects = [], timers = new Map(), timerDelays = [];
   let cursor = 0, dirty = false, nextTimer = 0, view;
   const context = vm.createContext({
     request, jsonRequest,
     document: { addEventListener() {}, removeEventListener() {} },
-    setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
+    setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, fn); timerDelays.push(ms); return id; },
     clearTimeout(id) { timers.delete(id); },
     useState(initial) {
       const index = cursor++;
@@ -34,7 +36,7 @@ function mount(name, props, request, jsonRequest = async () => ({})) {
     },
     useRef(initial) {
       const index = cursor++;
-      if (!slots[index]) slots[index] = { current: initial === null ? { showModal() {}, focus() {} } : initial };
+      if (!slots[index]) slots[index] = { current: initial };
       return slots[index];
     },
     useEffect(fn, deps) {
@@ -57,7 +59,8 @@ function mount(name, props, request, jsonRequest = async () => ({})) {
   }
   render();
   return {
-    get view() { return view; }, render,
+    get view() { return view; }, render, timerDelays,
+    get pendingTimers() { return timers.size; },
     async settle() { await flush(); render(); await flush(); render(); },
     async tick() {
       const pending = [...timers.values()]; timers.clear();
@@ -250,4 +253,118 @@ test('Settings update displays git errors and permits retry', async () => {
   assert.equal(h.view.error, '');
   assert.equal(h.view.updateOutput, 'Updated');
   h.unmount();
+});
+
+test('persona permissions use the tool registry and preserve explicit whitelists', async () => {
+  const tools = BASIC_TOOLS.map(({ name, description }) => ({ name, description }));
+  const personas = [{ id: 'empty', name: 'No tools', allowedTools: [] }, { id: 'reader', name: 'Reader', allowedTools: ['read'] }, { id: 'default', name: 'All tools' }];
+  const h = mount('Personas', { toast() {} }, async () => ({ tools, personas }));
+  await h.settle();
+  assert.deepEqual(Array.from(h.view.tools, tool => tool.name), tools.map(tool => tool.name));
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), []);
+  h.view.select(personas, 'reader'); h.render();
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), ['read']);
+  h.view.select(personas, 'default'); h.render();
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));
+  h.view.select(personas, ''); h.render();
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));
+  h.unmount();
+});
+
+test('persona initial load defaults to the loaded registry, not stale state', async () => {
+  const tools = [{ name: 'memory_search', description: 'Search notes' }, { name: 'whisper_to_agent', description: 'Delegate' }];
+  const h = mount('Personas', { toast() {} }, async () => ({ tools, personas: [{ id: 'default', name: 'Default' }] }));
+  await h.settle();
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));
+  h.unmount();
+});
+
+function deleteConfigHarness(onDelete, extras = {}) {
+  return mount('SessionConfig', {
+    session: { id: 'delete-agent', title: 'Agent', allowedRepositories: [] },
+    onDelete, onSaved() {}, onClose() {}, toast() { assert.fail('Deletion must not show a toast'); }, ...extras,
+  }, async url => url === '/api/repos' ? { repos: [] } : { personas: [{ id: 'sunday', name: 'Sunday' }] });
+}
+
+test('agent deletion requires a second click after a three-second wait and prevents duplicate requests', async () => {
+  const pending = deferred();
+  let deletions = 0;
+  const h = deleteConfigHarness(session => {
+    assert.equal(session.id, 'delete-agent');
+    deletions++;
+    return pending.promise;
+  });
+  await h.settle();
+  h.view.armDelete(); h.view.armDelete(); h.render();
+  assert.equal(h.view.deleteArmed, true);
+  assert.equal(h.view.deleteReady, false);
+  assert.equal(h.view.deleteCountdown, 3);
+  assert.deepEqual(h.timerDelays, [1000]);
+  h.view.armDelete(); await h.view.deleteSession();
+  assert.equal(deletions, 0, 'Clicks during countdown cannot delete');
+  for (const remaining of [2, 1, 0]) {
+    await h.tick();
+    assert.equal(h.view.deleteCountdown, remaining);
+    assert.equal(h.view.deleteReady, remaining === 0);
+    if (remaining > 0) { h.view.armDelete(); await h.view.deleteSession(); }
+    assert.equal(deletions, 0, 'Countdown never automatically deletes');
+  }
+  assert.deepEqual(h.timerDelays, [1000, 1000, 1000]);
+  h.view.armDelete(); h.view.armDelete(); h.render();
+  assert.equal(deletions, 1);
+  assert.equal(h.view.deleting, true);
+  pending.resolve(); await h.settle();
+  h.unmount();
+});
+
+test('delete confirmation is cleared on close, save and unmount', async () => {
+  for (const action of ['close', 'save', 'unmount']) {
+    const h = deleteConfigHarness(() => assert.fail('Cancelled confirmation cannot delete'), { toast() {} });
+    await h.settle();
+    h.view.armDelete(); h.render();
+    await h.tick();
+    assert.equal(h.view.deleteCountdown, 2);
+    assert.equal(h.pendingTimers, 1);
+    if (action === 'unmount') h.unmount();
+    else if (action === 'save') await h.view.save({ preventDefault() {} });
+    else h.view.close();
+    assert.equal(h.pendingTimers, 0, action);
+    if (action !== 'unmount') {
+      await h.settle(); await h.tick();
+      assert.equal(h.view.deleteReady, false);
+      assert.equal(h.view.deleteArmed, false);
+      assert.equal(h.view.deleteCountdown, 0);
+      h.unmount();
+    }
+  }
+});
+
+test('delete failure stays inline and requires a fresh confirmation before retrying', async () => {
+  let deletions = 0;
+  const h = deleteConfigHarness(async () => { deletions++; throw new Error('Unable to delete agent'); });
+  await h.settle();
+  h.view.armDelete(); h.render();
+  await h.tick(); await h.tick(); await h.tick();
+  h.view.armDelete(); await h.settle();
+  assert.equal(deletions, 1);
+  assert.equal(h.view.error, 'Unable to delete agent');
+  assert.equal(h.view.deleting, false);
+  assert.equal(h.view.deleteReady, false);
+  assert.equal(h.view.deleteArmed, false);
+  h.view.armDelete(); h.render();
+  assert.equal(h.view.deleteReady, false);
+  assert.equal(deletions, 1);
+  h.unmount();
+});
+
+test('agent settings contains the timed delete control without a native confirmation popup', () => {
+  const component = readFileSync(new URL('../src/web/components/SessionConfig.jsx', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
+  assert.match(component, /id="delete-session-config" type="button"/);
+  assert.match(component, /deleteArmed && !deleteReady/);
+  assert.match(component, /Wait \$\{deleteCountdown\}s…/);
+  assert.match(component, /Confirm delete/);
+  assert.match(app, /onDelete=\{deleteSession\}/);
+  assert.doesNotMatch(app.slice(app.indexOf('  async function deleteSession('), app.indexOf('  function togglePinnedAgent(')), /window\.confirm|toast\(/);
+  assert.doesNotMatch(app, /class="icon-button session-action delete-session"/);
 });

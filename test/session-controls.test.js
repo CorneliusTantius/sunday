@@ -50,6 +50,11 @@ async function mount(t, options = {}) {
   const window = dom.window;
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
   window.HTMLElement.prototype.scrollIntoView = function () {};
+  if (options.resizeObservers) window.ResizeObserver = class {
+    constructor(callback) { this.callback = callback; options.resizeObservers.push(this); }
+    observe() {}
+    disconnect() { this.disconnected = true; }
+  };
   window.TextDecoder = TextDecoder;
   window.TextEncoder = TextEncoder;
   window.AbortController = AbortController;
@@ -82,8 +87,9 @@ async function mount(t, options = {}) {
   const response = (data, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => data });
   window.fetch = async (url, requestOptions = {}) => {
     const method = requestOptions.method || 'GET';
-    calls.push({ url, method });
+    calls.push({ url, method, ...(requestOptions.body ? { body: JSON.parse(requestOptions.body) } : {}) });
     if (url === '/api/settings') return response(defaults);
+    if (/^\/api\/sessions\/[^/]+\/files\?/.test(url)) return response({ files: options.files || ['repo/src/main.js', 'repo/read me.txt'] });
     if (url === '/api/sessions' && method === 'GET') return response({ sessions: [...sessions] });
     if (url === '/api/chat/cancel') {
       if (options.cancelFailure) throw new Error('cancel failed');
@@ -102,6 +108,7 @@ async function mount(t, options = {}) {
       } }) };
     }
     if (url === '/api/chat') {
+      if (options.rejectChat) return response({ error: 'Referenced file is not readable' }, false);
       if (options.hangChat) return new Promise((resolve, reject) => {
         requestOptions.signal.addEventListener('abort', () => { streamAborted = true; reject(new DOMException('Aborted', 'AbortError')); });
       });
@@ -131,9 +138,9 @@ async function mount(t, options = {}) {
     // dispatchEvent also exercises handler guards on disabled buttons and before rerender.
     $(selector).dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   };
-  const controls = () => [...window.document.querySelectorAll('#new-chat, .session-item, .configure-session, .delete-session')];
+  const controls = () => [...window.document.querySelectorAll('#new-chat, .session-item, .configure-session')];
   const assertEnabled = () => {
-    assert.equal(controls().length, 1 + sessions.length * 3);
+    assert.equal(controls().length, 1 + sessions.length * 2);
     for (const control of controls()) assert.equal(control.disabled, false, control.outerHTML);
   };
   const actionCalls = () => calls.filter(({ url, method }) => url.startsWith('/api/sessions/') || (url === '/api/sessions' && method !== 'GET'));
@@ -178,7 +185,6 @@ for (const action of ['create', 'open']) {
       // Attempt competing actions in the same turn, before disabled props can render.
       h.click('#new-chat');
       h.click('.session-row:nth-child(2) .session-item');
-      h.click('.delete-session');
       h.click('.configure-session');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.actionCalls().at(-1).method, action === 'create' ? 'POST' : 'GET');
@@ -471,4 +477,142 @@ test('model and thinking controls save only the active session and restore each 
   await waitFor(() => assert.equal(h.selected(), 'session-1'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
+});
+
+function promptKey(h, key, extra = {}) {
+  const input = h.$('#prompt');
+  return input.dispatchEvent(new input.ownerDocument.defaultView.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
+}
+
+test('slash suggestions accept with Enter and commands do not reach the model', async t => {
+  const h = await mount(t);
+  h.submit('/ne');
+  await waitFor(() => assert.equal(h.$('#composer-options [role="option"]')?.textContent.includes('/new'), true));
+  assert.equal(promptKey(h, 'Enter'), false);
+  await waitFor(() => assert.equal(h.$('#prompt').value, '/new '));
+  assert.equal(h.calls.some(call => call.url === '/api/chat'), false);
+  await delay(0);
+  h.send();
+  await waitFor(() => assert.equal(h.selected(), 'session-3'));
+  h.submit('/help'); await delay(0); h.send();
+  await waitFor(() => assert.match(h.$('#toast').textContent, /@.*reference/));
+  assert.equal(h.calls.some(call => call.url === '/api/chat'), false);
+  h.submit('/unsupported'); await delay(0); h.send();
+  await waitFor(() => assert.match(h.$('#toast').textContent, /Unknown command/));
+  assert.equal(h.$('#prompt').value, '/unsupported');
+});
+
+test('file suggestions support keyboard selection, spaces, and separate reference payloads', async t => {
+  const h = await mount(t);
+  h.submit('Read @repo/');
+  await waitFor(() => assert.equal(h.$('#composer-options')?.children.length, 2));
+  promptKey(h, 'ArrowDown'); await delay(0);
+  promptKey(h, 'Tab');
+  await waitFor(() => assert.equal(h.$('#prompt').value, 'Read @"repo/read me.txt" '));
+  await delay(0);
+  h.send();
+  await waitFor(() => assert.equal(h.calls.some(call => call.url === '/api/chat'), true));
+  const chat = h.calls.find(call => call.url === '/api/chat');
+  assert.deepEqual(chat.body.fileReferences, ['repo/read me.txt']);
+  assert.equal(chat.body.messages[0].content, 'Read @"repo/read me.txt" ');
+  h.finishStream();
+});
+
+test('Escape dismisses suggestions and Shift+Enter keeps normal multiline behavior', async t => {
+  const h = await mount(t);
+  h.submit('/');
+  await waitFor(() => assert.equal(h.$('#prompt').getAttribute('aria-expanded'), 'true'));
+  assert.equal(promptKey(h, 'Enter', { shiftKey: true }), true);
+  promptKey(h, 'Escape');
+  await waitFor(() => assert.equal(h.$('#prompt').getAttribute('aria-expanded'), 'false'));
+  assert.equal(h.calls.some(call => call.url === '/api/chat'), false);
+});
+
+test('rejected file references restore the draft for correction', async t => {
+  const h = await mount(t, { rejectChat: true });
+  const draft = 'Read @"repo/missing.txt"';
+  h.submit(draft); await delay(0); h.send();
+  await waitFor(() => {
+    assert.equal(h.$('#prompt').disabled, false);
+    assert.equal(h.$('#prompt').value, draft);
+    assert.match(h.$('#messages').textContent, /Referenced file is not readable/);
+  });
+});
+
+function mockTranscriptScroll(h) {
+  const element = h.$('#conversation');
+  let height = 1000, top = 0;
+  Object.defineProperties(element, {
+    scrollHeight: { configurable: true, get: () => height },
+    clientHeight: { configurable: true, get: () => 200 },
+    scrollTop: { configurable: true, get: () => top, set: value => { top = Math.max(0, Math.min(value, height - 200)); } },
+  });
+  return {
+    element,
+    grow(value) { height = value; },
+    scroll(value) { element.scrollTop = value; element.dispatchEvent(new element.ownerDocument.defaultView.Event('scroll')); },
+  };
+}
+
+test('streamed response growth follows the transcript bottom without adding messages', async t => {
+  const h = await mount(t);
+  const scroll = mockTranscriptScroll(h);
+  h.submit('Hello'); await delay(0); h.send();
+  await waitFor(() => assert.equal(scroll.element.scrollTop, 800));
+  const count = h.$('#messages').children.length;
+  scroll.grow(1400);
+  h.emit('delta', { text: 'Long streamed response' });
+  await waitFor(() => {
+    assert.equal(scroll.element.scrollTop, 1200);
+    assert.equal(h.$('#messages').children.length, count);
+    assert.equal(h.$('#scroll-to-latest'), null);
+  });
+  h.emit('done'); h.finishStream();
+});
+
+test('scrolling up preserves reading position and the latest button resumes following', async t => {
+  const h = await mount(t);
+  const scroll = mockTranscriptScroll(h);
+  h.submit('Hello'); await delay(0); h.send();
+  await waitFor(() => assert.equal(scroll.element.scrollTop, 800));
+  scroll.scroll(300);
+  await waitFor(() => assert.ok(h.$('#scroll-to-latest')));
+  scroll.grow(1400);
+  h.emit('delta', { text: 'More text' });
+  await waitFor(() => assert.match(h.$('#messages').textContent, /More text/));
+  assert.equal(scroll.element.scrollTop, 300);
+  h.click('#scroll-to-latest');
+  await waitFor(() => {
+    assert.equal(scroll.element.scrollTop, 1200);
+    assert.equal(h.$('#scroll-to-latest'), null);
+  });
+  scroll.grow(1800);
+  h.emit('delta', { text: ' and more' });
+  await waitFor(() => assert.equal(scroll.element.scrollTop, 1600));
+  scroll.scroll(1590);
+  await delay(0);
+  assert.equal(h.$('#scroll-to-latest'), null);
+  h.emit('done'); h.finishStream();
+});
+
+test('content resizing follows the bottom and resets when switching sessions', async t => {
+  const resizeObservers = [];
+  const h = await mount(t, { resizeObservers });
+  const scroll = mockTranscriptScroll(h);
+  await waitFor(() => assert.ok(resizeObservers.length));
+  scroll.scroll(800);
+  scroll.grow(1500);
+  resizeObservers.at(-1).callback();
+  assert.equal(scroll.element.scrollTop, 1300);
+  scroll.scroll(100);
+  await waitFor(() => assert.ok(h.$('#scroll-to-latest')));
+  scroll.grow(1700);
+  resizeObservers.at(-1).callback();
+  assert.equal(scroll.element.scrollTop, 100);
+  h.click('.session-row:nth-child(2) .session-item');
+  await waitFor(() => {
+    assert.equal(h.selected(), 'session-2');
+    assert.equal(scroll.element.scrollTop, 1500);
+    assert.equal(h.$('#scroll-to-latest'), null);
+  });
 });

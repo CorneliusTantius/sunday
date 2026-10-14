@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from './api.js';
 import Character from './components/Character.jsx';
 import Repositories from './components/Repositories.jsx';
@@ -7,6 +7,8 @@ import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
 import MessageBubble from './components/MessageBubble.js';
 import ToolCalls from './components/ToolCalls.jsx';
+import ComposerInput from './components/ComposerInput.jsx';
+import { chatCommands, fileReferences } from './composer.js';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
 const activityLabels = { waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
@@ -58,6 +60,9 @@ export default function App() {
   const [sessionModels, setSessionModels] = useState([]);
   const configPending = useRef(false);
   const [messages, setMessages] = useState([]);
+  const [showLatest, setShowLatest] = useState(false);
+  const followLatest = useRef(true);
+  const transcript = useRef(null);
   const [contextUsage, setContextUsage] = useState(null);
   const [ready, setReady] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
@@ -109,6 +114,7 @@ export default function App() {
   }, [toast]);
 
   function selectSession(session) {
+    if (activeSession.current !== session.id) { followLatest.current = true; setShowLatest(false); }
     activeSession.current = session.id; setSessionId(session.id); setActiveRunning(Boolean(session.running));
     localStorage.setItem('sunday-session-id', session.id);
     const nextMessages = (session.messages || []).filter(message => ['user', 'assistant'].includes(message.role));
@@ -157,17 +163,17 @@ export default function App() {
     if (resumeIndex !== null) void resumeChat(id, resumeIndex);
   }
   async function deleteSession(session) {
-    if (controller.current || sessionLock.current || !window.confirm(`Delete “${session.title}”? This cannot be undone.`)) return;
+    if (controller.current || sessionLock.current) throw new Error('Wait for the current operation to finish before deleting this agent');
     sessionLock.current = true; setLoadingSession(true);
     let remaining = [];
     try {
       await request(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' });
+      setConfiguredSession(null);
       if (session.id === activeSession.current) {
         activeSession.current = null; setSessionId(null); setReady(false); setMessages([]); localStorage.removeItem('sunday-session-id');
       }
       remaining = await loadSessions();
-    } catch (error) { toast(error.message); }
-    finally { sessionLock.current = false; setLoadingSession(false); }
+    } finally { sessionLock.current = false; setLoadingSession(false); }
     if (!activeSession.current) { if (remaining.length) await openSession(remaining[0].id, false); else await createSession(false); }
   }
   function togglePinnedAgent(session) {
@@ -241,7 +247,33 @@ export default function App() {
     const input = promptInput.current;
     if (input) { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }
   }, [prompt]);
-  useEffect(() => { messageList.current?.lastElementChild?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end' }); }, [messages.length]);
+  const updateScrollPosition = useCallback(() => {
+    const element = transcript.current;
+    if (!element) return;
+    const nearBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 48;
+    followLatest.current = nearBottom;
+    setShowLatest(!nearBottom);
+  }, []);
+  const scrollToLatest = useCallback(() => {
+    followLatest.current = true;
+    if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight;
+    setShowLatest(false);
+  }, []);
+  useLayoutEffect(() => {
+    if (page !== 'chat') return;
+    if (followLatest.current) scrollToLatest();
+    else updateScrollPosition();
+  }, [messages, sessionId, page, scrollToLatest, updateScrollPosition]);
+  useEffect(() => {
+    if (page !== 'chat' || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current) scrollToLatest();
+      else updateScrollPosition();
+    });
+    if (transcript.current) observer.observe(transcript.current);
+    if (messageList.current) observer.observe(messageList.current);
+    return () => observer.disconnect();
+  }, [page, scrollToLatest, updateScrollPosition]);
   useEffect(() => { if (!busy && ready && !activeRunning) promptInput.current?.focus(); }, [busy, ready, activeRunning]);
   useEffect(() => {
     if (!activeRunning || busy || !sessionId) return;
@@ -330,9 +362,9 @@ export default function App() {
     if (!finished && !serverError) throw new Error('Response stream ended unexpectedly. Check your connection and retry your message.');
     return true;
   }
-  async function connectChat(sessionId, index, resume = false, text = '') {
+  async function connectChat(sessionId, index, resume = false, text = '', references = []) {
     const abort = new AbortController(); controller.current = abort; setBusy(true); setActiveRunning(true); setActivity(activityLabels.waiting);
-    let finished = false, idleTimer;
+    let finished = false, accepted = false, idleTimer;
     function resetIdle() {
       clearTimeout(idleTimer);
       if (abort.signal.aborted) return;
@@ -349,7 +381,8 @@ export default function App() {
     try {
       const response = resume
         ? await request(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`, { signal: abort.signal, stream: true })
-        : await jsonRequest('/api/chat', 'POST', { sessionId, messages: [{ role: 'user', content: text }] }, { signal: abort.signal, stream: true });
+        : await jsonRequest('/api/chat', 'POST', { sessionId, messages: [{ role: 'user', content: text }], ...(references.length ? { fileReferences: references } : {}) }, { signal: abort.signal, stream: true });
+      accepted = true;
       if (abort.signal.aborted) return;
       finished = await readChatStream(response, sessionId, abort, index, resetIdle);
     } catch (error) {
@@ -360,6 +393,7 @@ export default function App() {
             if (activeSession.current === sessionId && data.session) selectSession(data.session);
           } catch {}
         } else if (activeSession.current === sessionId && controller.current === abort) {
+          if (!resume && !accepted) setPrompt(previous => previous || text);
           setMessages(previous => previous.map((message, position) => position === index
             ? { ...message, content: `${message.content ? `${message.content}\n\n` : ''}${error.message}`, error: true } : message));
           setActiveRunning(false);
@@ -383,11 +417,24 @@ export default function App() {
     if (!ready || !activeSession.current || sessionLock.current) { toast('Chat is still loading'); return; }
     const text = prompt;
     if (!text.trim()) return;
+    if (/^\/[a-z]*(?:\s|$)/i.test(text.trim())) {
+      const command = text.trim().slice(1).toLowerCase();
+      if (!chatCommands.some(item => item.name === command)) { toast('Unknown command. Use /help to see available commands.'); return; }
+      setPrompt('');
+      if (command === 'new') return createSession();
+      if (command === 'settings') { setSettingsOpen(true); return; }
+      toast(`${chatCommands.map(item => `/${item.name} — ${item.description}`).join(' · ')} · @ — reference a repository file (up to 5).`);
+      return;
+    }
+    let references;
+    try { references = fileReferences(text); } catch { toast('Invalid file reference. Choose a file from the @ suggestions.'); return; }
+    if (references.length > 5) { toast('Reference at most 5 files per message.'); return; }
     const requestSessionId = activeSession.current;
     const index = messages.length + 1;
+    followLatest.current = true;
     setMessages(previous => [...previous, { role: 'user', content: text }, { role: 'assistant', content: '', toolCalls: [] }]);
     setPrompt('');
-    return connectChat(requestSessionId, index, false, text);
+    return connectChat(requestSessionId, index, false, text, references);
   }
   async function updateSessionConfig(change) {
     const id = activeSession.current;
@@ -418,10 +465,10 @@ export default function App() {
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
     return <div class="session-row" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
-      <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span>{session.running && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}</button>
+      <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span></button>
+      {session.running && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
       <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} disabled={busy || loadingSession} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={busy || loadingSession} onClick={event => { if (controller.current || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
-      <button class="icon-button session-action delete-session" title="Delete agent" aria-label={`Delete agent: ${session.title}`} disabled={busy || loadingSession} onClick={() => deleteSession(session)}>×</button>
     </div>;
   };
 
@@ -451,7 +498,7 @@ export default function App() {
       <main class="main">
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
-        <section class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite">
+        <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="messages" id="messages">{messages.map((message, index) => <div key={index} class={`message ${message.role}`}>
@@ -460,8 +507,9 @@ export default function App() {
           </div>)}</div>
         </section>
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
+          {showLatest && <button class="scroll-to-latest" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
           {busy && activity && <div class="response-activity" id="response-activity" role="status">{activity}</div>}
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy || activeRunning} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
+          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
           </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}>{busy ? '■' : '>'}</button></div></form>
@@ -471,7 +519,7 @@ export default function App() {
       </main>
     </div>
     {settingsOpen && <Settings settings={settings} onReload={loadSettings} onClose={closeSettings} toast={toast} />}
-    {configuredSession && <SessionConfig key={configuredSession.id} session={configuredSession} onSaved={loadSessions} toast={toast} onClose={() => { setConfiguredSession(null); requestAnimationFrame(() => configOpener.current?.focus()); }} />}
+    {configuredSession && <SessionConfig key={configuredSession.id} session={configuredSession} onSaved={loadSessions} onDelete={deleteSession} toast={toast} onClose={() => { setConfiguredSession(null); requestAnimationFrame(() => configOpener.current?.focus()); }} />}
     <div class={`toast${toastText ? ' show' : ''}`} id="toast" role="status" aria-live="polite">{toastText}</div>
   </>;
 }

@@ -69,3 +69,12 @@ test('basic tools restrict paths and sensitive files to allowed repositories', a
     await assert.rejects(executeTool('bash', { command: 'true', timeout: 300001 }, [repo]));
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('agent discovery is a registered, whitelisted, server-only tool', async () => {
+  const tool = makeTools(['list_agents'])[0];
+  assert.equal(tool.name, 'list_agents');
+  assert.deepEqual(tool.parameters.properties, {});
+  assert.equal(tool.parameters.additionalProperties, false);
+  assert.deepEqual(validateTools(['list_agents']), ['list_agents']);
+  await assert.rejects(executeTool('list_agents', {}, [], ''), /Tool must be handled by the chat server/);
+});

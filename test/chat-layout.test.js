@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 
 test('viewport layout confines scrolling to chat history and repository content', t => {
   const dom = new JSDOM(`<div id="app"><div class="app-shell"><main class="main">
-    <section class="conversation"><div class="messages"></div></section>
+    <section class="conversation"><div class="messages"><div class="message assistant"><div class="assistant-content"><div class="message-bubble"></div></div></div></div></section>
     <div class="composer-wrap"></div><section class="repositories-page"></section>
   </main></div></div>`);
   t.after(() => dom.window.close());
@@ -25,7 +25,9 @@ test('viewport layout confines scrolling to chat history and repository content'
     assert.equal(css(selector).overflowY, 'auto');
     assert.equal(css(selector).getPropertyValue('overscroll-behavior-y'), 'contain');
   }
-  assert.equal(css('.conversation').width, '75%');
-  assert.equal(css('.composer-wrap').width, '75%');
+  assert.equal(css('.conversation').width, '80%');
+  assert.equal(css('.composer-wrap').width, css('.conversation').width);
+  assert.equal(css('.assistant .message-bubble').maxWidth, '100%');
+  assert.equal(css('.assistant-content').flexGrow, '1');
   assert.equal(css('.composer-wrap').flexShrink, '0');
 });

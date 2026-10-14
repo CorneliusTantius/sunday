@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import Character from './Character.jsx';
 
-const tools = ['read', 'edit', 'bash'];
-const emptyProfile = () => ({ name: '', specialty: '', instructions: '', color: 'cyan', allowedTools: [...tools] });
+const emptyProfile = () => ({ name: '', specialty: '', instructions: '', color: 'cyan', allowedTools: [] });
 
 export default function Personas({ hidden, toast, onReload }) {
   const [personas, setPersonas] = useState([]);
+  const [tools, setTools] = useState([]);
   const [id, setId] = useState('');
   const [profile, setProfile] = useState(emptyProfile);
   const [busy, setBusy] = useState(true);
@@ -14,10 +14,10 @@ export default function Personas({ hidden, toast, onReload }) {
   const nameInput = useRef(null);
   const alive = useRef(true);
 
-  function select(items, selected) {
+  function select(items, selected, availableTools = tools) {
     const persona = items.find(item => item.id === selected);
     setId(persona?.id || '');
-    setProfile(persona ? { ...emptyProfile(), ...persona, allowedTools: persona.allowedTools || [...tools] } : emptyProfile());
+    setProfile(persona ? { ...emptyProfile(), ...persona, allowedTools: persona.allowedTools ?? availableTools.map(tool => tool.name) } : { ...emptyProfile(), allowedTools: availableTools.map(tool => tool.name) });
     setError('');
   }
 
@@ -25,9 +25,10 @@ export default function Personas({ hidden, toast, onReload }) {
     alive.current = true;
     request('/api/personas').then(data => {
       if (!alive.current) return;
+      setTools(data.tools || []);
       const items = data.personas || [];
       setPersonas(items);
-      select(items, items[0]?.id);
+      select(items, items[0]?.id, data.tools || []);
     }).catch(error => { if (alive.current) setError(error.message); })
       .finally(() => { if (alive.current) setBusy(false); });
     return () => { alive.current = false; };
@@ -47,8 +48,9 @@ export default function Personas({ hidden, toast, onReload }) {
       });
       const loaded = await request('/api/personas');
       if (!alive.current) return;
+      setTools(loaded.tools || []);
       setPersonas(loaded.personas || []);
-      select(loaded.personas || [], data.persona.id);
+      select(loaded.personas || [], data.persona.id, loaded.tools || []);
       toast('Persona saved');
       await onReload?.();
     } catch (error) { if (alive.current) setError(error.message); }
@@ -63,9 +65,10 @@ export default function Personas({ hidden, toast, onReload }) {
       await request(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' });
       const data = await request('/api/personas');
       if (!alive.current) return;
+      setTools(data.tools || []);
       const items = data.personas || [];
       setPersonas(items);
-      select(items, items[0]?.id);
+      select(items, items[0]?.id, data.tools || []);
       await onReload?.();
     } catch (error) { if (alive.current) setError(error.message); }
     finally { if (alive.current) setBusy(false); }
@@ -92,10 +95,9 @@ export default function Personas({ hidden, toast, onReload }) {
       </div>
       <label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} />
       <label class="field-label" for="persona-instructions">Instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
-      <fieldset class="repository-options"><legend class="field-label">Repository tools</legend><div id="persona-tools">
-        {tools.map(tool => <label key={tool} class="repository-checkbox"><input type="checkbox" value={tool} disabled={busy} checked={profile.allowedTools.includes(tool)} onChange={event => change('allowedTools', event.currentTarget.checked ? [...profile.allowedTools, tool] : profile.allowedTools.filter(item => item !== tool))} /><span>{tool}</span></label>)}
+      <fieldset class="repository-options"><legend class="field-label">Tool permissions</legend><div id="persona-tools">
+        {tools.map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => change('allowedTools', event.currentTarget.checked ? [...profile.allowedTools, tool.name] : profile.allowedTools.filter(item => item !== tool.name))} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
       </div></fieldset>
-      <p class="field-note">Shared memory search and update are available to every agent.</p>
       <div class="code-row"><button class="primary-button" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="secondary-button" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
       <p id="persona-error" class="form-error" role="alert">{error}</p>
     </form>

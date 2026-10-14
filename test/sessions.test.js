@@ -8,12 +8,75 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { GREEK_DEITY_NAMES } from '../src/server/session-names.js';
+import { BASIC_TOOLS } from '../src/server/tools.js';
 
 function assertProfile(actual, expected) {
   const { name, specialty, instructions } = actual;
   assert.deepEqual({ name, specialty, instructions }, expected);
   assert.ok(actual.color); assert.ok(actual.emoji); assert.ok(actual.personaId);
 }
+
+test('file references are restricted to permitted repository text and validated before saving', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'sunday-file-refs-'));
+  const port = 32000 + Math.floor(Math.random() * 20000);
+  let child;
+  const start = async () => {
+    child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+    await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
+  };
+  const api = async (path, data, method = 'POST') => {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, { method, headers: { 'Content-Type': 'application/json' }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
+    return { status: response.status, body: await response.json() };
+  };
+  try {
+    const repo = join(home, 'sunday', 'workspace', 'repos', 'private-repo');
+    await mkdir(repo, { recursive: true });
+    await writeFile(join(repo, 'notes.txt'), 'private reference text');
+    await writeFile(join(repo, 'auth.json'), 'secret');
+    await writeFile(join(repo, 'binary.txt'), Buffer.from([0, 1, 2]));
+    await start();
+    const session = (await api('/api/sessions', { profile: { name: 'Reader', specialty: '', instructions: '', allowedTools: ['read'] } })).body.session;
+    const workspace = join(home, 'sunday', 'workspace-agents', session.workspaceName, 'private-repo');
+    await mkdir(workspace, { recursive: true });
+    await writeFile(join(workspace, 'notes.txt'), 'private reference text');
+    await writeFile(join(workspace, 'auth.json'), 'secret');
+    await writeFile(join(workspace, 'binary.txt'), Buffer.from([0, 1, 2]));
+    await writeFile(join(workspace, 'large.txt'), 'x'.repeat(50001));
+    await writeFile(join(workspace, 'part-a.txt'), 'a'.repeat(40000));
+    await writeFile(join(workspace, 'part-b.txt'), 'b'.repeat(40000));
+    await (await import('node:fs/promises')).symlink('/etc/passwd', join(workspace, 'link'));
+    const results = await api(`/api/sessions/${session.id}/files?q=notes`, undefined, 'GET');
+    assert.deepEqual(results.body.files, ['private-repo/notes.txt']);
+    const all = await api(`/api/sessions/${session.id}/files`, undefined, 'GET');
+    assert.ok(!all.body.files.includes('private-repo/auth.json'));
+    assert.ok(!all.body.files.includes('private-repo/link'));
+    assert.ok(!all.body.files.includes('private-repo/large.txt'));
+    assert.deepEqual((await api(`/api/sessions/${session.id}/files?q=private-repo/notes`, undefined, 'GET')).body.files, ['private-repo/notes.txt']);
+    const good = await api('/api/chat', { sessionId: session.id, messages: [{ role: 'user', content: 'Use this' }], fileReferences: ['private-repo/notes.txt'] });
+    assert.equal(good.status, 400); // Invalid/no-auth chat still saves only after references have validated.
+    let saved = JSON.parse(await readFile(join(home, 'sunday', 'data', 'sessions', `${session.id}.json`), 'utf8'));
+    assert.equal(saved.messages[0].fileReferences[0].content, 'private reference text');
+    for (const references of [['private-repo/auth.json'], ['private-repo/link'], ['private-repo/missing'], ['private-repo/binary.txt'], ['private-repo/large.txt'], ['private-repo/part-a.txt', 'private-repo/part-b.txt'], ['private-repo/../notes.txt'], Array(6).fill('private-repo/notes.txt')]) {
+      const before = saved.messages.length;
+      assert.ok((await api('/api/chat', { sessionId: session.id, messages: [{ role: 'user', content: 'reject me' }], fileReferences: references })).status >= 400);
+      saved = JSON.parse(await readFile(join(home, 'sunday', 'data', 'sessions', `${session.id}.json`), 'utf8'));
+      assert.equal(saved.messages.length, before, `invalid references were saved: ${references.join(', ')}`);
+    }
+    assert.equal((await api('/api/sessions', {}, 'POST')).status, 201);
+    const denied = (await api('/api/sessions', {})).body.session;
+    await api(`/api/sessions/${denied.id}`, { allowedRepositories: [] }, 'PATCH');
+    assert.deepEqual((await api(`/api/sessions/${denied.id}/files`, undefined, 'GET')).body.files, []);
+    const rejected = await api('/api/chat', { sessionId: denied.id, messages: [{ role: 'user', content: 'denied' }], fileReferences: ['private-repo/notes.txt'] });
+    assert.ok(rejected.status >= 400);
+    assert.match(rejected.body.error, /No repositories are allowed/i);
+    await api(`/api/sessions/${session.id}/profile`, { name: 'No reader', specialty: '', instructions: '', allowedTools: [] }, 'PATCH');
+    assert.match((await api('/api/chat', { sessionId: session.id, messages: [{ role: 'user', content: 'disabled' }], fileReferences: ['private-repo/notes.txt'] })).body.error, /not allowed/i);
+    assert.equal((await api(`/api/sessions/${session.id}/files`, undefined, 'GET')).status, 400);
+  } finally {
+    if (child && child.exitCode === null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited; }
+    await rm(home, { recursive: true, force: true });
+  }
+});
 
  test('sessions persist across restarts and workspace defaults to ~/sunday/workspace', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-test-'));
@@ -163,12 +226,20 @@ test('personas persist and copy into independent session profiles', async () => 
     });
     assert.equal(await requestWithHeaders({ host: 'app.tailnet.ts.net', origin: 'https://app.tailnet.ts.net' }), 200);
     assert.equal(await requestWithHeaders({ host: 'attacker.example.com', origin: 'https://attacker.example.com' }), 403);
+    assert.deepEqual(list.body.tools, BASIC_TOOLS.map(({ name, description }) => ({ name, description })));
     assert.equal(list.body.personas.length, 4);
     assert.ok(list.body.personas.every(persona => !['talent-scout', 'sales-outbound'].includes(persona.id)));
     assert.equal((await stat(join(home, 'sunday', 'data', 'personas.json'))).mode & 0o777, 0o600);
     const created = await api('/api/personas', { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' }, 'POST');
     assert.equal(created.status, 201);
+    const permitted = ['memory_search', 'memory_update', 'whisper_to_agent'];
+    assert.equal((await api(`/api/personas/${created.body.persona.id}`, { ...created.body.persona, allowedTools: permitted }, 'PATCH')).status, 200);
     const session = await api('/api/sessions', { personaId: created.body.persona.id }, 'POST');
+    assert.deepEqual(session.body.session.profile.allowedTools, permitted);
+    assert.equal((await api(`/api/personas/${created.body.persona.id}`, { ...created.body.persona, allowedTools: ['unregistered'] }, 'PATCH')).status, 400);
+    assert.equal((await api(`/api/personas/${created.body.persona.id}`, { ...created.body.persona, allowedTools: [] }, 'PATCH')).status, 200);
+    assert.deepEqual((await api('/api/personas')).body.personas.find(persona => persona.id === created.body.persona.id).allowedTools, []);
+    assert.deepEqual((await api(`/api/sessions/${session.body.session.id}`)).body.session.profile.allowedTools, permitted);
     await api(`/api/personas/${created.body.persona.id}`, { name: 'Changed', specialty: 'Other', instructions: 'New.' }, 'PATCH');
     assertProfile((await api(`/api/sessions/${session.body.session.id}`)).body.session.profile, { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' });
     assert.equal((await api(`/api/personas/${created.body.persona.id}`)).status, 404);

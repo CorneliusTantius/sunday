@@ -291,8 +291,11 @@ test('global reduced-motion CSS disables transitions and animations for sidebar,
   })), 'global !important reduced-motion rule also covers pseudo-elements');
 });
 
-test('session pin shares the action row without reserving space above agent details', async t => {
-  const app = await mount(t);
+test('session pin and running indicator have independent columns beside truncated agent names', async t => {
+  const app = await mount(t, false, [
+    { id: 'sidebar-test', title: 'Test chat', messages: [] },
+    { id: 'working-test', title: 'A very long running agent name that must not hide the indicator', messages: [], running: true },
+  ]);
   await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
   app.click('agents-toggle');
   const style = app.window.document.createElement('style');
@@ -302,8 +305,14 @@ test('session pin shares the action row without reserving space above agent deta
   const row = css('.session-row');
   assert.equal(row.paddingTop, '12px');
   assert.equal(row.paddingBottom, '12px');
-  assert.equal(row.gridTemplateColumns, '28px minmax(0, 1fr) repeat(3, 24px)');
-  for (const [selector, column] of [['.session-item', '2'], ['.pin-session', '3'], ['.configure-session', '4'], ['.delete-session', '5']]) {
+  assert.equal(row.gridTemplateColumns, '28px minmax(0, 1fr) 14px repeat(2, 24px)');
+  assert.equal(app.window.document.querySelector('.delete-session'), null);
+  const pill = app.window.document.querySelector('.session-running-pill');
+  assert.equal(pill.parentElement.className, 'session-row');
+  assert.ok(pill.nextElementSibling.classList.contains('pin-session'));
+  assert.equal(css('.session-running-pill').gridColumn, '3');
+  assert.equal(css('.session-running-pill').width, '14px');
+  for (const [selector, column] of [['.session-item', '2'], ['.pin-session', '4'], ['.configure-session', '5']]) {
     const control = css(`.session-row ${selector}`);
     assert.equal(control.gridRow, '1');
     assert.equal(control.gridColumn, column);
