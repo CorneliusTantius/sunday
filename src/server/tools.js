@@ -77,7 +77,8 @@ async function executeMemoryTool(name, args, memoryDir) {
   } catch (error) { await rm(temporary, { force: true }); throw error; }
   return `Shared note saved: ${title}`;
 }
-export async function executeTool(name, args, repositories, memoryDir) {
+export async function executeTool(name, args, repositories, memoryDir, signal) {
+  signal?.throwIfAborted();
   if (!BASIC_TOOL_NAMES.includes(name)) throw new Error('Unknown tool');
   if (name === 'whisper_to_agent') throw new Error('Tool must be handled by the chat server');
   args ||= {};
@@ -119,7 +120,7 @@ export async function executeTool(name, args, repositories, memoryDir) {
     const stat = await lstat(cwd);
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Invalid repository directory');
     try {
-      const { stdout, stderr } = await execFileAsync('bash', ['-c', args.command], { cwd, maxBuffer: 50000, timeout: args.timeout ?? 30000 });
+      const { stdout, stderr } = await execFileAsync('bash', ['-c', args.command], { cwd, maxBuffer: 50000, timeout: args.timeout ?? 30000, signal });
       return (stdout + stderr).slice(0, 50000);
     } catch (error) { return `${error.message}\n${error.stdout || ''}${error.stderr || ''}`.slice(0, 50000); }
   }
@@ -127,6 +128,7 @@ export async function executeTool(name, args, repositories, memoryDir) {
     const handle = await open(path, constants.O_NOFOLLOW);
     try { const stat = await handle.stat(); if (!stat.isFile() || stat.size > 50000) throw new Error('File is too large or not a regular file'); return await handle.readFile('utf8'); } finally { await handle.close(); }
   }
+  signal?.throwIfAborted();
   await mkdir(dirname(path), { recursive: true });
   // Revalidate parents created by mkdir before opening the target.
   let parent = root.base;

@@ -102,6 +102,7 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .avatar{width:27px;height:27px;flex:none;border-radius:9px;background:var(--panel2);color:var(--accent);display:grid;place-items:center;font-size:17px;margin-top:2px}
 .error-text{color:var(--danger)}
 .composer-wrap{flex:none;width:75%;margin:0 auto;padding:15px 0 19px}
+.response-activity{margin-bottom:8px;color:var(--muted);font-size:13px}
 .composer{border:1px solid var(--line);background:var(--panel);border-radius:15px;padding:13px 13px 9px;box-shadow:none}
 .composer:focus-within{border-color:color-mix(in srgb,var(--highlight) 40%,var(--line))}
 .composer textarea{width:100%;resize:none;max-height:180px;min-height:30px;background:transparent;border:0;outline:none;color:var(--text);font:500 18px/1.6 'DM Sans',sans-serif;padding:2px 3px}

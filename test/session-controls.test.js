@@ -42,7 +42,7 @@ async function waitFor(check) {
   }
 }
 
-async function mount(t) {
+async function mount(t, options = {}) {
   const dom = new JSDOM('<!doctype html><div id="app"></div>', {
     url: 'http://localhost:3000', runScripts: 'outside-only', pretendToBeVisual: true,
   });
@@ -53,6 +53,18 @@ async function mount(t) {
   window.TextDecoder = TextDecoder;
   window.TextEncoder = TextEncoder;
   window.AbortController = AbortController;
+  const realSetTimeout = window.setTimeout.bind(window);
+  const realClearTimeout = window.clearTimeout.bind(window);
+  const manualTimers = [];
+  window.setTimeout = (callback, ms, ...args) => {
+    if (options.manualTimers && [150000, 5000].includes(ms)) {
+      const timer = { callback: () => callback(...args), ms, cleared: false };
+      manualTimers.push(timer);
+      return timer;
+    }
+    return realSetTimeout(callback, ms, ...args);
+  };
+  window.clearTimeout = timer => { if (timer && typeof timer === 'object') timer.cleared = true; else realClearTimeout(timer); };
   window.confirm = () => true;
   window.localStorage.setItem('sunday-session-id', 'session-1');
 
@@ -63,25 +75,37 @@ async function mount(t) {
   let resumeStream;
   let resumeCount = 0;
   let streamAborted = false;
+  let cancellation;
+  let cancellationAborted = false;
   const response = (data, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => data });
-  window.fetch = async (url, options = {}) => {
-    const method = options.method || 'GET';
+  window.fetch = async (url, requestOptions = {}) => {
+    const method = requestOptions.method || 'GET';
     calls.push({ url, method });
     if (url === '/api/settings') return response({ models: [], providers: [] });
     if (url === '/api/sessions' && method === 'GET') return response({ sessions: [...sessions] });
-    if (url === '/api/chat/cancel') return response({ cancelled: true });
+    if (url === '/api/chat/cancel') {
+      if (options.cancelFailure) throw new Error('cancel failed');
+      if (options.hangCancel) return new Promise((resolve, reject) => {
+        cancellation = { resolve, reject };
+        requestOptions.signal?.addEventListener('abort', () => { cancellationAborted = true; reject(new DOMException('Aborted', 'AbortError')); });
+      });
+      return response({ cancelled: true });
+    }
     if (url.startsWith('/api/chat/stream?')) {
       resumeCount++;
       return { ok: true, body: new ReadableStream({ start(controller) {
         resumeStream = controller;
-        controller.enqueue(new TextEncoder().encode('data: {"type":"snapshot","answer":"replayed answer","toolCalls":[]}\n\n'));
-        options.signal.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')));
+        if (!options.emptyResume) controller.enqueue(new TextEncoder().encode('data: {"type":"snapshot","answer":"replayed answer","toolCalls":[]}\n\n'));
+        requestOptions.signal.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')));
       } }) };
     }
     if (url === '/api/chat') {
+      if (options.hangChat) return new Promise((resolve, reject) => {
+        requestOptions.signal.addEventListener('abort', () => { streamAborted = true; reject(new DOMException('Aborted', 'AbortError')); });
+      });
       return { ok: true, body: new ReadableStream({ start(controller) {
         stream = controller;
-        options.signal.addEventListener('abort', () => { streamAborted = true; controller.error(new DOMException('Aborted', 'AbortError')); });
+        requestOptions.signal.addEventListener('abort', () => { streamAborted = true; controller.error(new DOMException('Aborted', 'AbortError')); });
       } }) };
     }
     if (pending) return pending.promise;
@@ -124,6 +148,14 @@ async function mount(t) {
     },
     send() { $('#chat-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); },
     finishStream() { stream.close(); },
+    emit(type, data = {}, resumed = false) {
+      const target = resumed ? resumeStream : stream;
+      target.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type, ...data })}\n\n`));
+    },
+    timers: manualTimers,
+    fireTimer(ms) { const timer = manualTimers.find(item => item.ms === ms && !item.cleared); assert.ok(timer, `no active ${ms}ms timer`); timer.cleared = true; timer.callback(); },
+    cancellationPending: () => cancellation,
+    cancellationAborted: () => cancellationAborted,
     finishResume() { resumeStream.enqueue(new TextEncoder().encode('data: {"type":"done"}\n\n')); resumeStream.close(); },
   };
 }
@@ -179,17 +211,50 @@ for (const action of ['create', 'open']) {
   }
 }
 
-test('Stop asks the server to cancel the active chat before closing its stream', async t => {
-  const h = await mount(t);
+test('Stop aborts the local stream and unlocks immediately while server cancellation is pending', async t => {
+  const h = await mount(t, { hangCancel: true, manualTimers: true });
   h.submit('Hello');
   await delay(0);
   h.send();
   await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
   h.send();
+  await waitFor(() => assert.equal(h.cancelCalls().length, 1));
   await waitFor(() => {
-    assert.equal(h.cancelCalls().length, 1);
+    assert.equal(h.streamAborted(), true);
+    assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
   });
-  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message'));
+  h.fireTimer(5000);
+  await waitFor(() => assert.equal(h.cancellationAborted(), true));
+});
+
+test('stream progress is exposed as a safe response activity status', async t => {
+  const h = await mount(t);
+  h.submit('Hello'); await delay(0); h.send();
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
+  const status = () => h.$('#response-activity');
+  assert.equal(status()?.getAttribute('role'), 'status');
+  assert.equal(status()?.closest('#chat-composer'), h.$('#chat-composer'), 'activity stays visible outside scrolling history');
+  assert.equal(status()?.textContent, 'Waiting for response…');
+  h.emit('progress', { status: 'thinking', reasoning: 'private chain of thought' });
+  await waitFor(() => assert.equal(status()?.textContent, 'Thinking…'));
+  h.emit('progress', { status: 'preparing_tool' });
+  await waitFor(() => assert.equal(status()?.textContent, 'Preparing tool…'));
+  h.emit('progress', { status: 'waiting' });
+  await waitFor(() => assert.equal(status()?.textContent, 'Waiting for response…'));
+  h.emit('progress', { status: 'private reasoning' });
+  await waitFor(() => assert.equal(status()?.textContent, 'Waiting for response…'));
+  h.emit('progress', { status: 'toString' });
+  h.emit('delta', { text: 'Visible answer' });
+  await waitFor(() => {
+    assert.equal(status()?.textContent, 'Responding…');
+    assert.match(h.$('#messages').textContent, /Visible answer/);
+    assert.doesNotMatch(h.$('.main').textContent, /private reasoning|private chain of thought/);
+  });
+  h.emit('done');
+  await waitFor(() => {
+    assert.equal(status(), null);
+    assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
+  });
 });
 
 test('reopening a running session reconnects and restores the streamed snapshot', async t => {
@@ -212,19 +277,162 @@ test('reopening a running session reconnects and restores the streamed snapshot'
 });
 
 test('switching sessions detaches the client stream without cancelling the server chat', async t => {
-  const h = await mount(t);
+  const h = await mount(t, { manualTimers: true });
   h.submit('Hello');
   await delay(0);
   h.send();
   await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
+  h.emit('progress', { status: 'thinking' });
+  await waitFor(() => assert.equal(h.$('#response-activity')?.textContent, 'Thinking…'));
+  const oldTimer = h.timers.find(timer => timer.ms === 150000 && !timer.cleared);
   h.click('.session-row:nth-child(2) .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
+    assert.equal(h.$('#response-activity'), null);
     assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
     h.assertEnabled();
   });
   assert.equal(h.streamAborted(), true, 'client stream should detach');
+  assert.equal(oldTimer.cleared, true);
+  oldTimer.callback();
   assert.equal(h.cancelCalls().length, 0, 'navigation must not call server cancellation');
+  assert.doesNotMatch(h.$('#messages').textContent, /stalled/);
   h.click('#new-chat');
   await waitFor(() => assert.equal(h.selected(), 'session-3'));
+});
+
+async function startChat(h) {
+  h.submit('Hello');
+  await delay(0);
+  h.send();
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
+}
+
+test('early tool status is updated by id without duplicate calls or lost arguments', async t => {
+  const h = await mount(t);
+  await startChat(h);
+  h.emit('tool_status', { id: 'tool-1', name: 'bash', status: 'running' });
+  await waitFor(() => {
+    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+    assert.equal(h.$('#response-activity')?.textContent, 'Using tools…');
+  });
+  h.emit('tool_status', { id: 'tool-1', name: 'read', arguments: { path: '/tmp/example' }, status: 'running' });
+  await waitFor(() => {
+    assert.equal(h.$('.toolcall-heading strong')?.textContent, 'read');
+    assert.match(h.$('.toolcall-detail pre')?.textContent, /\/tmp\/example/);
+    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+  });
+  h.emit('tool_status', { id: 'tool-1', status: 'failed' });
+  await waitFor(() => assert.equal(h.$('.toolcall-status')?.textContent, 'Failed'));
+  h.emit('tool_complete', { id: 'tool-1', status: 'completed' });
+  await waitFor(() => {
+    assert.equal(h.$('.toolcall-status')?.textContent, 'Succeeded');
+    assert.equal(h.$('.toolcall-heading strong')?.textContent, 'read');
+    assert.match(h.$('.toolcall-detail pre')?.textContent, /\/tmp\/example/);
+    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+  });
+  h.emit('done');
+});
+
+test('resumed snapshot restores progress and tool updates reuse its existing call', async t => {
+  const h = await mount(t, { emptyResume: true });
+  h.sessions[1].running = true;
+  h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
+  h.click('.session-row:nth-child(2) .session-item');
+  await waitFor(() => assert.equal(h.resumeCalls(), 1));
+  h.emit('snapshot', { answer: 'Restored answer', progress: 'preparing_tool', toolCalls: [
+    { id: 'tool-1', name: 'bash', arguments: {}, status: 'running' },
+  ] }, true);
+  await waitFor(() => {
+    assert.equal(h.$('#response-activity')?.textContent, 'Preparing tool…');
+    assert.match(h.$('#messages').textContent, /Restored answer/);
+    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+  });
+  h.emit('tool_status', { id: 'tool-1', arguments: { command: 'pwd' }, status: 'running' }, true);
+  await waitFor(() => {
+    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+    assert.equal(h.$('.toolcall-heading strong')?.textContent, 'bash');
+    assert.match(h.$('.toolcall-detail pre')?.textContent, /pwd/);
+  });
+  h.emit('done', {}, true);
+  await waitFor(() => {
+    assert.equal(h.$('#response-activity'), null);
+    assert.equal(h.$('#prompt').disabled, false);
+  });
+});
+
+for (const partial of [false, true]) {
+  test(`server error clears activity and releases the composer${partial ? ' after partial text' : ''}`, async t => {
+    const h = await mount(t, { manualTimers: true });
+    await startChat(h);
+    if (partial) h.emit('delta', { text: 'Partial answer' });
+    h.emit('error', { error: 'Provider failed; retry your message.' });
+    // No EOF: the terminal event itself must release the UI.
+    await waitFor(() => {
+      assert.equal(h.$('#response-activity'), null);
+      assert.equal(h.$('#prompt').disabled, false);
+      assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
+      assert.match(h.$(partial ? '#toast' : '#messages').textContent, /Provider failed; retry/);
+      if (partial) assert.match(h.$('#messages').textContent, /Partial answer/);
+    });
+    assert.ok(h.timers.filter(timer => timer.ms === 150000).every(timer => timer.cleared));
+    assert.equal(h.cancelCalls().length, 0);
+  });
+}
+
+for (const hangChat of [false, true]) {
+  test(`idle guard aborts ${hangChat ? 'stalled response headers' : 'a silent stream'} and allows retry without awaiting cancellation`, async t => {
+    const h = await mount(t, { manualTimers: true, hangCancel: true, hangChat });
+    await startChat(h);
+    const firstTimer = h.timers.find(timer => timer.ms === 150000 && !timer.cleared);
+    if (!hangChat) {
+      h.emit('delta', { text: 'Partial answer' });
+      await waitFor(() => assert.equal(h.$('#response-activity')?.textContent, 'Responding…'));
+      assert.equal(firstTimer.cleared, true, 'stream chunks reset the idle deadline');
+      assert.equal(h.timers.filter(timer => timer.ms === 150000 && !timer.cleared).length, 1);
+    }
+    h.fireTimer(150000);
+    assert.equal(h.streamAborted(), true);
+    assert.equal(h.cancelCalls().length, 1);
+    await waitFor(() => {
+      assert.equal(h.$('#response-activity'), null);
+      assert.equal(h.$('#prompt').disabled, false);
+      assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
+      assert.match(h.$('#messages').textContent, /Response stalled\. Check your connection and retry/);
+      if (!hangChat) assert.match(h.$('#messages').textContent, /Partial answer/);
+    });
+    assert.equal(h.resumeCalls(), 0, 'timeout must not automatically reconnect and lock the composer');
+    assert.ok(h.timers.filter(timer => timer.ms === 150000).every(timer => timer.cleared));
+    assert.ok(h.cancellationPending());
+    h.fireTimer(5000);
+    await waitFor(() => assert.equal(h.cancellationAborted(), true));
+  });
+}
+
+test('Stop aborts locally even if server cancellation fails', async t => {
+  const h = await mount(t, { cancelFailure: true });
+  await startChat(h);
+  h.send();
+  assert.equal(h.streamAborted(), true, 'abort happens synchronously before cancellation settles');
+  await waitFor(() => {
+    assert.equal(h.$('#response-activity'), null);
+    assert.equal(h.$('#prompt').disabled, false);
+    assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
+  });
+  assert.equal(h.cancelCalls().length, 1);
+});
+
+test('unexpected stream EOF preserves partial text and releases the composer with retry guidance', async t => {
+  const h = await mount(t, { manualTimers: true });
+  await startChat(h);
+  h.emit('delta', { text: 'Partial answer' });
+  h.finishStream();
+  await waitFor(() => {
+    assert.equal(h.$('#response-activity'), null);
+    assert.equal(h.$('#prompt').disabled, false);
+    assert.match(h.$('#messages').textContent, /Partial answer/);
+    assert.match(h.$('#messages').textContent, /Response stream ended unexpectedly\. Check your connection and retry/);
+  });
+  assert.equal(h.resumeCalls(), 0);
+  assert.ok(h.timers.filter(timer => timer.ms === 150000).every(timer => timer.cleared));
 });

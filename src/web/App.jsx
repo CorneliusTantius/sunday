@@ -9,6 +9,19 @@ import MessageBubble from './components/MessageBubble.js';
 import ToolCalls from './components/ToolCalls.jsx';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
+const activityLabels = { waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
+const streamIdleTimeout = 150_000;
+
+function progressLabel(status) {
+  return Object.hasOwn(activityLabels, status) ? activityLabels[status] : activityLabels.waiting;
+}
+
+function cancelChat(sessionId) {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 5000);
+  void jsonRequest('/api/chat/cancel', 'POST', { sessionId }, { signal: abort.signal })
+    .catch(() => {}).finally(() => clearTimeout(timer));
+}
 function currentPage() {
   return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : 'chat';
 }
@@ -46,6 +59,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState('');
   const [activeRunning, setActiveRunning] = useState(false);
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -109,7 +123,7 @@ export default function App() {
     if (!active) return;
     controller.current = null;
     active.abort();
-    setBusy(false);
+    setBusy(false); setActivity('');
   }
   async function createSession(navigate = true) {
     if (sessionLock.current) return;
@@ -248,20 +262,32 @@ export default function App() {
     return () => clearInterval(timer);
   }, [sessions.some(session => session.running), loadSessions]);
 
-  async function stopResponse() {
-    const active = controller.current;
-    if (!active) return;
-    try { await jsonRequest('/api/chat/cancel', 'POST', { sessionId: activeSession.current }); } catch {}
-    active.abort();
+  function stopResponse() {
+    if (!controller.current) return;
+    const id = activeSession.current;
+    detachResponse(); setActiveRunning(false);
+    cancelChat(id);
   }
 
-  async function readChatStream(response, sessionId, abort, index) {
+  async function readChatStream(response, sessionId, abort, index, resetIdle) {
     if (!response.body) throw new Error('Streaming is unavailable.');
     const reader = response.body.getReader(), decoder = new TextDecoder();
     let buffer = '', content = '', serverError = '', finished = false;
     function updateMessages(update) { if (controller.current === abort && activeSession.current === sessionId) setMessages(update); }
     function updateAnswer(error = false) { updateMessages(previous => previous.map((message, position) => position === index ? { ...message, content, error } : message)); }
+    function updateActivity(label) { if (controller.current === abort && activeSession.current === sessionId) setActivity(label); }
+    function updateTool(data) {
+      const update = Object.fromEntries(['id', 'name', 'arguments', 'status'].filter(key => data[key] !== undefined).map(key => [key, data[key]]));
+      updateMessages(previous => previous.map((message, position) => {
+        if (position !== index) return message;
+        const calls = message.toolCalls || [];
+        return { ...message, toolCalls: calls.some(call => call.id === data.id)
+          ? calls.map(call => call.id === data.id ? { ...call, ...update } : call)
+          : [...calls, update] };
+      }));
+    }
     function consume(line) {
+      if (finished || serverError) return;
       if (!line.startsWith('data:')) return;
       const raw = line.slice(5).trim(); if (!raw || raw === '[DONE]') return;
       let data;
@@ -270,34 +296,57 @@ export default function App() {
         content = data.answer || '';
         if (data.error) serverError = data.error;
         updateMessages(previous => previous.map((message, position) => position === index ? { ...message, content, toolCalls: data.toolCalls || [] } : message));
-        if (data.contextUsage && activeSession.current === sessionId) setContextUsage(data.contextUsage);
-      } else if (data.type === 'delta') { content += data.text; updateAnswer(); }
+        if (data.contextUsage && controller.current === abort && activeSession.current === sessionId) setContextUsage(data.contextUsage);
+        updateActivity(serverError ? '' : progressLabel(data.progress));
+      } else if (data.type === 'progress') updateActivity(progressLabel(data.status));
+      else if (data.type === 'delta') { content += data.text; updateAnswer(); updateActivity('Responding…'); }
       else if (data.type === 'context_usage') { if (controller.current === abort && activeSession.current === sessionId) setContextUsage(data); }
-      else if (data.type === 'tool_status') updateMessages(previous => previous.map((message, position) => position === index ? { ...message, toolCalls: [...(message.toolCalls || []), { id: data.id, name: data.name, arguments: data.arguments, status: data.status }] } : message));
-      else if (data.type === 'tool_complete') updateMessages(previous => previous.map((message, position) => position === index ? { ...message, toolCalls: (message.toolCalls || []).map(call => call.id === data.id ? { ...call, status: data.status } : call) } : message));
-      else if (data.type === 'error') serverError = data.error || 'Something went wrong.';
-      else if (data.type === 'done') finished = true;
+      else if (data.type === 'tool_status') { updateTool(data); updateActivity('Using tools…'); }
+      else if (data.type === 'tool_complete') updateTool(data);
+      else if (data.type === 'error') { serverError = data.error || 'Something went wrong.'; updateActivity(''); }
+      else if (data.type === 'done') { finished = true; updateActivity(''); }
     }
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) { buffer += decoder.decode(); if (buffer) consume(buffer); break; }
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n'); buffer = lines.pop(); lines.forEach(consume);
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) { buffer += decoder.decode(); if (buffer) consume(buffer); break; }
+        resetIdle();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n'); buffer = lines.pop(); lines.forEach(consume);
+        if (finished || serverError) break;
+      }
+    } finally {
+      void reader.cancel().catch(() => {});
     }
     if (serverError) {
       if (content) toast(serverError);
       else { content = serverError; updateAnswer(true); }
     }
-    return finished;
+    if (!finished && !serverError) throw new Error('Response stream ended unexpectedly. Check your connection and retry your message.');
+    return true;
   }
   async function connectChat(sessionId, index, resume = false, text = '') {
-    const abort = new AbortController(); controller.current = abort; setBusy(true); setActiveRunning(true);
-    let finished = false;
+    const abort = new AbortController(); controller.current = abort; setBusy(true); setActiveRunning(true); setActivity(activityLabels.waiting);
+    let finished = false, idleTimer;
+    function resetIdle() {
+      clearTimeout(idleTimer);
+      if (abort.signal.aborted) return;
+      idleTimer = setTimeout(() => {
+        if (controller.current !== abort || activeSession.current !== sessionId) return;
+        detachResponse(); setActiveRunning(false);
+        setMessages(previous => previous.map((message, position) => position === index
+          ? { ...message, content: `${message.content ? `${message.content}\n\n` : ''}Response stalled. Check your connection and retry your message.`, error: true } : message));
+        cancelChat(sessionId);
+      }, streamIdleTimeout);
+    }
+    abort.signal.addEventListener('abort', () => clearTimeout(idleTimer), { once: true });
+    resetIdle();
     try {
       const response = resume
         ? await request(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`, { signal: abort.signal, stream: true })
         : await jsonRequest('/api/chat', 'POST', { sessionId, messages: [{ role: 'user', content: text }] }, { signal: abort.signal, stream: true });
-      finished = await readChatStream(response, sessionId, abort, index);
+      if (abort.signal.aborted) return;
+      finished = await readChatStream(response, sessionId, abort, index, resetIdle);
     } catch (error) {
       if (error.name !== 'AbortError') {
         if (resume && error.message === 'No active chat') {
@@ -306,12 +355,14 @@ export default function App() {
             if (activeSession.current === sessionId && data.session) selectSession(data.session);
           } catch {}
         } else if (activeSession.current === sessionId && controller.current === abort) {
-          setMessages(previous => previous.map((message, position) => position === index ? { ...message, content: error.message, error: true } : message));
-          if (!resume) setActiveRunning(false);
+          setMessages(previous => previous.map((message, position) => position === index
+            ? { ...message, content: `${message.content ? `${message.content}\n\n` : ''}${error.message}`, error: true } : message));
+          setActiveRunning(false);
         }
       }
     } finally {
-      if (controller.current === abort) { controller.current = null; setBusy(false); if (finished) setActiveRunning(false); }
+      clearTimeout(idleTimer);
+      if (controller.current === abort) { controller.current = null; setBusy(false); setActivity(''); if (finished) setActiveRunning(false); }
       await loadSessions();
     }
   }
@@ -400,6 +451,7 @@ export default function App() {
           </div>)}</div>
         </section>
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
+          {busy && activity && <div class="response-activity" id="response-activity" role="status">{activity}</div>}
           <form class="composer" id="chat-form" onSubmit={sendMessage}><textarea ref={promptInput} id="prompt" rows="1" placeholder="Message Sunday..." aria-label="Message Sunday" value={prompt} disabled={busy || activeRunning} onInput={event => setPrompt(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage">
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
