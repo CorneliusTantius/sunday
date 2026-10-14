@@ -513,11 +513,12 @@ button:enabled:active { transform: translateY(1px); }
 /* Compact phone layouts without changing desktop typography or input zoom. */
 @media (max-width: 700px) {
   .conversation, .composer-wrap, .repositories-page, .bot-profile-bar { width: calc(100% - 24px); }
-  .message { gap: 8px; font-size: 16px; line-height: 1.6; }
+  .conversation, .composer-wrap { width: calc(100% - 16px); }
+  .message { gap: 6px; font-size: 16px; line-height: 1.6; }
   .messages { padding-top: 64px; gap: 18px; }
   .message-bubble { max-width: 90%; }
   .assistant .message-bubble { max-width: 100%; }
-  .message > .avatar, .message .avatar-character { width: 28px; height: 28px; }
+  .message > .avatar, .message .avatar-character { width: 22px; height: 22px; }
   .user .message-bubble { padding: 9px 12px; }
   .welcome h1 { font-size: 28px; letter-spacing: -.8px; }
   .composer-wrap { padding-top: 10px; }

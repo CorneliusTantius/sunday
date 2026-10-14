@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 
 test('mobile styles reduce spacing and text size while keeping controls and long content contained', t => {
   const dom = new JSDOM(`<main>
-    <section class="conversation"><div class="message assistant"><div class="message-bubble"></div></div></section>
+    <section class="conversation"><div class="message assistant"><div class="avatar"><div class="avatar-character"></div></div><div class="message-bubble"></div></div></section>
     <div class="composer-wrap"><div class="composer"><textarea></textarea></div></div>
     <div class="settings-providers"><button class="settings-nav"></button></div>
     <div class="context-meter-label"></div><div class="code-row"></div>
@@ -29,9 +29,14 @@ test('mobile styles reduce spacing and text size while keeping controls and long
   style.remove();
   document.head.append(mobile);
   const css = selector => dom.window.getComputedStyle(document.querySelector(selector));
-  assert.equal(css('.conversation').width, 'calc(100% - 24px)');
-  assert.equal(css('.composer-wrap').width, 'calc(100% - 24px)');
+  assert.equal(css('.conversation').width, 'calc(100% - 16px)');
+  assert.equal(css('.composer-wrap').width, 'calc(100% - 16px)');
   assert.equal(css('.message').fontSize, '16px');
+  assert.equal(css('.message').gap, '6px');
+  for (const selector of ['.avatar', '.avatar-character']) {
+    assert.equal(css(selector).width, '22px');
+    assert.equal(css(selector).height, '22px');
+  }
   assert.equal(css('.assistant .message-bubble').maxWidth, '100%');
   for (const selector of ['textarea', '.chat-model', '.thinking-level']) {
     assert.equal(css(selector).fontSize, '16px', `${selector} must avoid mobile input zoom`);
