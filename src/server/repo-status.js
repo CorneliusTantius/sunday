@@ -19,10 +19,27 @@ export function parseGitStatus(output) {
   return counts;
 }
 
-export function repositoryStatus(cwd) {
+export function gitStatusError(error) {
+  const stderr = String(error.stderr ?? error.message ?? '');
+  if (stderr.includes('dubious ownership')) return 'Git rejected repository ownership. Check its owner and Git safe.directory configuration.';
+  if (stderr.includes('not a git repository')) return 'This folder is not a Git repository.';
+  if (error.code === 'ENOENT') return 'Git or the repository directory could not be found.';
+  if (error.killed) return 'Git status timed out. Try again after other Git operations finish.';
+  if (error.code === 'EACCES' || /permission denied/i.test(stderr)) return 'Permission denied while reading this repository.';
+  return 'Git status failed. Check server logs for details.';
+}
+
+export function repositoryStatusDetails(cwd) {
   return new Promise(resolve => {
-    execFile('git', ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], { cwd, timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
-      resolve(error ? null : parseGitStatus(stdout));
+    execFile('git', ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], { cwd, timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        console.warn('Repository Git status failed:', cwd, stderr || error.message);
+        resolve({ gitStatus: null, gitStatusError: gitStatusError({ ...error, message: error.message, stderr }) });
+      } else resolve({ gitStatus: parseGitStatus(stdout) });
     });
   });
+}
+
+export async function repositoryStatus(cwd) {
+  return (await repositoryStatusDetails(cwd)).gitStatus;
 }
