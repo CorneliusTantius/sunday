@@ -272,7 +272,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
   .composer-controls { gap: 8px; }
   .composer-model-label { display: none; }
   .mobile-menu { display: block; flex: none; }
-  .chat-model { font-size: 15px; }
+  .chat-model { font-size: 16px; }
   .hint { font-size: 12px; }
 }
 
@@ -311,7 +311,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .select:disabled { opacity: .6; cursor: not-allowed; }
 @media (max-width: 700px) {
   .thinking-label { display: none; }
-  .thinking-level { width: 115px; font-size: 15px; }
+  .thinking-level { width: 115px; font-size: 16px; }
 }
 
 .feature-heading { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; font-weight: 600; }
@@ -476,6 +476,48 @@ button:enabled:active { transform: translateY(1px); }
 }
 .sidebar-backdrop { transition: opacity 180ms ease, visibility 0s linear 180ms; transition-delay: 0s, 180ms; }
 .sidebar-backdrop.open { transition-delay: 0s; }
+
+/* Compact phone layouts without changing desktop typography or input zoom. */
+@media (max-width: 700px) {
+  .conversation, .composer-wrap, .repositories-page, .bot-profile-bar { width: calc(100% - 24px); }
+  .message { gap: 8px; font-size: 16px; line-height: 1.6; }
+  .messages { padding-top: 64px; gap: 18px; }
+  .message-bubble { max-width: 90%; }
+  .assistant .message-bubble { max-width: 100%; }
+  .message > .avatar, .message .avatar-character { width: 28px; height: 28px; }
+  .user .message-bubble { padding: 9px 12px; }
+  .welcome h1 { font-size: 28px; letter-spacing: -.8px; }
+  .composer-wrap { padding-top: 10px; }
+  .composer { padding: 10px; }
+  .composer textarea { font-size: 16px; line-height: 1.5; }
+  .composer-controls { margin-top: 8px; }
+  .chat-model { flex-basis: 150px; }
+  .context-meter-label { flex-wrap: wrap; gap: 3px 6px; }
+  .background-run-status { width: 100%; margin-top: 64px; }
+  .background-run-status + .messages { padding-top: 12px; }
+  .modal-backdrop { padding: 12px; }
+  .settings-layout { padding: 12px; gap: 12px; }
+  .settings-modal .modal-header, .settings-modal .modal-footer,
+  .modal-header, .modal-footer, .toolcalls-header { padding: 14px 16px; }
+  .modal-content { padding: 16px; }
+  .modal-header h2, .toolcalls-header h2 { font-size: 20px; }
+  .modal-header > div { min-width: 0; overflow-wrap: anywhere; }
+  .close-modal { flex: none; }
+  .modal-footer, .settings-page-heading, .repositories-header, .bot-profile-heading { flex-wrap: wrap; gap: 8px; }
+  .settings-nav { flex: 1; min-width: 0; width: auto; padding: 10px; font-size: 14px; overflow-wrap: anywhere; }
+  .settings-providers { padding-bottom: 12px; }
+  .settings-page-heading, .bot-profile-heading { overflow-wrap: anywhere; }
+  .repositories-header { margin-bottom: 20px; }
+  .repositories-header h1 { font-size: 26px; }
+  .repository-clone, .repositories-page .repos-list li, .bot-profile-bar { padding: 14px; }
+  .code-row { flex-wrap: wrap; }
+  .code-row .text-input { flex-basis: 160px; }
+  .toolcalls-list { padding: 8px 16px 16px; }
+  .toolcalls-row { max-width: 100%; flex-wrap: wrap; overflow-wrap: anywhere; }
+  .toolcall-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
+  .form-error, .oauth-state { overflow-wrap: anywhere; }
+  .toast { width: max-content; max-width: calc(100% - 24px); overflow-wrap: anywhere; }
+}
 
 /* Keep the sidebar rendered until its exit finishes; inert blocks interaction. */
 @media (min-width: 701px) {
