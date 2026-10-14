@@ -50,3 +50,10 @@ test('sidebar omits provider status but retains Settings', () => {
   assert.doesNotMatch(app, /id="connection-label"|Provider connected|class=\{`status-dot/);
   assert.match(app, /id="open-settings"/);
 });
+
+test('compact sidebar artwork retains the character beside it', () => {
+  const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /aria-label="Sunday home"><Character brand \/><span class="brand-ascii"/);
+  assert.match(css, /\.sidebar-brand \.brand-ascii \{[^}]*font-size: 7px;/);
+  assert.match(css, /\.sidebar-brand \.brand-character \{ width: 28px; height: 28px; flex-shrink: 0;/);
+});

@@ -490,7 +490,7 @@ export default function App() {
   return <>
     <div class="app-shell" ref={shell}>
       <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
-        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><span class="brand-ascii" aria-hidden="true">{`                     ██
+        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><Character brand /><span class="brand-ascii" aria-hidden="true">{`                     ██
 ▄█▀▀▀ ██ ▄▄ ██▀█▄ ▄█▀██ ▄█▀█▄ ▄█ █▄
  ▀▀█▄ ██ ██ ██ ██ ██ ██ ██▀██ ██ ██
 ▀▀▀▀   ▀▀▀  ▀▀ ▀▀  ▀▀▀▀ ▀▀ ▀▀  ▀▀██

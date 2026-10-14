@@ -776,5 +776,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 /* Preserve the block-art logo without terminal escape sequences. */
 .sidebar-brand { gap: 8px; }
 .sidebar-brand .brand { min-width: 0; padding: 0; }
-.sidebar-brand .brand-ascii { display: block; white-space: pre; font-family: monospace; font-size: 9px; font-weight: 400; line-height: 1.1; letter-spacing: 0; }
+.sidebar-brand .brand { gap: 8px; }
+.sidebar-brand .brand-character { width: 28px; height: 28px; flex-shrink: 0; }
+.sidebar-brand .brand-ascii { display: block; white-space: pre; font-family: monospace; font-size: 7px; font-weight: 400; line-height: 1.1; letter-spacing: 0; }
 .sidebar-brand > .icon-button { flex-shrink: 0; }
