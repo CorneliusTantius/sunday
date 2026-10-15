@@ -16,6 +16,31 @@ import { chatCommands, fileReferences } from './composer.js';
 const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
 const activityLabels = { compacting: 'Compacting context…', waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
 const streamIdleTimeout = 150_000;
+const galaxyStarColors = [
+  ['rgba(231,237,255,.98)', 'rgba(231,237,255,.72)'],
+  ['rgba(180,135,255,.98)', 'rgba(157,92,255,.76)'],
+  ['rgba(118,235,255,.98)', 'rgba(66,232,255,.72)'],
+];
+const galaxyStars = Array.from({ length: 64 }, (_, index) => {
+  const prominent = index % 7 === 0;
+  const [color, glow] = galaxyStarColors[Math.floor(Math.random() * galaxyStarColors.length)];
+  const range = (min, max) => min + Math.random() * (max - min);
+  return {
+    id: index,
+    style: {
+      left: `${range(1, 99)}%`,
+      top: `${range(1, 99)}%`,
+      '--star-size': `${range(prominent ? 2.4 : 1.3, prominent ? 3.8 : 2.6)}px`,
+      '--star-color': color,
+      '--star-glow-color': glow,
+      '--star-glow-size': `${range(prominent ? 5 : 2, prominent ? 10 : 5)}px`,
+      '--star-duration': `${range(4, 9)}s`,
+      '--star-delay': `${-range(0, 9)}s`,
+      '--star-drift-x': `${range(-17, 17)}px`,
+      '--star-drift-y': `${range(-13, 13)}px`,
+    },
+  };
+});
 
 function progressLabel(status) {
   return Object.hasOwn(activityLabels, status) ? activityLabels[status] : activityLabels.waiting;
@@ -502,6 +527,7 @@ export default function App() {
 
   return <>
     <div class="app-shell" ref={shell}>
+      <div class="galaxy-stars" aria-hidden="true">{galaxyStars.map(star => <span class="galaxy-star" key={star.id} style={star.style} />)}</div>
       <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
         <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><span class="brand-card-heading"><Character brand /><span class="brand-ascii" aria-hidden="true">{`                     ██
 ▄█▀▀▀ ██ █▄ ██▀█▄ ▄█▀██ ▄█▀█▄ ▄█ █▄
