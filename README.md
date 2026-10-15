@@ -102,3 +102,17 @@ a server crash. Delete children before deleting their parent.
 The local API also provides `GET /api/sessions/:id/subagents` and
 `POST /api/sessions/:id/subagents` (empty object to create, optional `prompt`, or
 `sessionId` plus `prompt` to assign an existing child), subject to profile permissions.
+
+## Install as an app
+
+Build and run Sunday in production (`npm run build`, then `npm start`). Open it
+at `http://localhost:3000` or through an HTTPS address. In supported desktop
+browsers, use the address-bar install button or the browser menu's **Install app**
+option. On iPhone/iPad, open Safari and choose **Share → Add to Home Screen**.
+Browser installation UI and availability vary; plain HTTP on a remote IP is not a
+secure context and will not support service-worker registration.
+
+The installed app opens in its own window and still connects to the same Sunday
+server. The minimal service worker does not cache chats, credentials, API responses,
+or an offline shell: an active server connection is required. Development mode
+does not register a service worker. No additional server or public hosting is needed.

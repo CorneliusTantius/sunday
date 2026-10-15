@@ -23,6 +23,11 @@ test('production serves module-relative dist after changing to the workspace', a
       ['assets/main.js', 'text/javascript', 'console.log("Sunday");'],
       ['assets/main.css', 'text/css', 'body { color: cyan; }'],
       ['assets/logo.svg', 'image/svg+xml', '<svg></svg>'],
+      ['manifest.webmanifest', 'application/manifest+json', '{"name":"Sunday"}'],
+      ['sw.js', 'text/javascript', '// service worker'],
+      ['icon-180.png', 'image/png', 'icon180'],
+      ['icon-192.png', 'image/png', 'icon192'],
+      ['icon-512.png', 'image/png', 'icon512'],
     ];
     for (const [path, , content] of fixtures) await writeFile(join(app, 'dist', path), content);
     child = spawn(process.execPath, [join(app, 'src', 'server', 'index.js'), '--production'], {
@@ -41,6 +46,9 @@ test('production serves module-relative dist after changing to the workspace', a
     for (const [path, type, content] of fixtures) {
       const response = await fetch(`http://127.0.0.1:${port}/${path}`);
       assert.equal(response.status, 200);
+      if (['index.html', 'manifest.webmanifest', 'sw.js'].includes(path)) {
+        assert.equal(response.headers.get('cache-control'), 'no-cache');
+      }
       assert.equal(response.headers.get('content-type'), type);
       assert.equal(await response.text(), content);
     }

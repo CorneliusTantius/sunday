@@ -859,11 +859,12 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
     if (!url.pathname.startsWith('/api/')) {
       if (vite) return vite.middlewares(req, res);
-      const files = { '/': 'index.html', '/index.html': 'index.html' };
+      const files = { '/': 'index.html', '/index.html': 'index.html', '/manifest.webmanifest': 'manifest.webmanifest', '/sw.js': 'sw.js', '/icon-180.png': 'icon-180.png', '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png' };
       const relative = files[url.pathname] || ( /^\/assets\/[\w.-]+$/.test(url.pathname) ? url.pathname.slice(1) : null );
       if (!relative) return json(res, 404, { error: 'Not found' });
       const content = await readFile(new URL(`../../dist/${relative}`, import.meta.url));
-      res.setHeader('Content-Type', relative.endsWith('.js') ? 'text/javascript' : relative.endsWith('.css') ? 'text/css' : relative.endsWith('.svg') ? 'image/svg+xml' : 'text/html');
+      if (relative === 'sw.js' || relative === 'manifest.webmanifest' || relative === 'index.html') res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Content-Type', relative.endsWith('.js') ? 'text/javascript' : relative.endsWith('.css') ? 'text/css' : relative.endsWith('.svg') ? 'image/svg+xml' : relative.endsWith('.png') ? 'image/png' : relative.endsWith('.webmanifest') ? 'application/manifest+json' : 'text/html');
       return res.end(content);
     }
     if (req.headers.host !== `127.0.0.1:${port}` && req.headers.host !== `localhost:${port}` && !isTailnetHost(req.headers.host)) return json(res, 403, { error: 'Invalid host' });
