@@ -24,10 +24,10 @@ test('settings crossfade respects reduced motion', () => {
 });
 
 
-test('page changes explicitly start an incoming animation before paint', () => {
-  assert.match(settings, /useLayoutEffect\(\(\) =>/);
-  assert.match(settings, /active\?\.animate\?\.\(/);
-  assert.match(settings, /return \(\) => animation\?\.cancel\(\);/);
+test('visible pages restart a CSS entry animation without competing JS animations', () => {
+  assert.match(css, /section:not\(\.hidden\)\s*\{[^}]*animation: settings-content-arrive 360ms[^}]*transition: none;/);
+  assert.match(css, /@keyframes settings-content-arrive/);
+  assert.doesNotMatch(settings, /active\?\.animate/);
 });
 
 test('all close actions wait for the exit animation before unmounting', () => {

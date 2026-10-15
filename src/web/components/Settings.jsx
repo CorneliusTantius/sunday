@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import Personas from './Personas.jsx';
 
@@ -40,15 +40,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const closeButton = useRef(null);
   const contentViewport = useRef(null);
   const contentLayout = useRef(null);
-  useLayoutEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const active = contentLayout.current?.querySelector('.settings-detail > section:not(.hidden)');
-    const animation = active?.animate?.([
-      { opacity: 0, transform: 'translateY(8px)' },
-      { opacity: 1, transform: 'translateY(0)' },
-    ], { duration: 240, easing: 'ease-out' });
-    return () => animation?.cancel();
-  }, [page]);
   const generation = useRef(0);
   const alive = useRef(true);
   const authGeneration = useRef(0);

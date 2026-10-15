@@ -883,6 +883,16 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   visibility: visible;
   transition: opacity 240ms ease, transform 240ms ease, visibility 0s;
 }
+/* One owner for incoming opacity: do not combine CSS transitions with
+   Element.animate(), which can hand off to an in-flight transition. */
+.settings-detail > section:not(.hidden) {
+  animation: settings-content-arrive 360ms cubic-bezier(.2,.8,.2,1) both;
+  transition: none;
+}
+@keyframes settings-content-arrive {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .settings-detail > section.hidden {
   display: block !important;
   position: absolute;
