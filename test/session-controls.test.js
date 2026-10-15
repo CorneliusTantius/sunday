@@ -76,6 +76,7 @@ async function mount(t, options = {}) {
   const models = [{ id: 'model-a', name: 'Model A', thinkingLevels: ['off', 'high'] }, { id: 'model-b', name: 'Model B', thinkingLevels: ['off', 'high'] }];
   const defaults = { provider: 'openai', mode: 'api_key', model: 'model-a', thinkingLevel: 'off', models, providers: [] };
   const sessions = [1, 2].map(id => ({ id: `session-${id}`, title: `Chat ${id}`, messages: [], config: { provider: 'openai', mode: 'api_key', model: id === 1 ? 'model-a' : 'model-b', thinkingLevel: id === 1 ? 'off' : 'high' }, models }));
+  if (options.history) sessions[0].messages = options.history;
   if (options.withSubagent) sessions.push({ ...sessions[1], id: 'child-1', title: 'Finch', parentSessionId: 'session-1' });
   const calls = [];
   let pending = null;
@@ -634,4 +635,18 @@ test('subagents have an independent native disclosure and remain navigable', asy
   h.click('.subagent-row .session-item');
   await waitFor(() => assert.equal(h.$('.session-item.active')?.textContent, 'Finch'));
   assert.equal(group.open, true);
+});
+
+
+test('long histories initially render recent messages and reveal older pages on demand', async t => {
+  const history = Array.from({ length: 95 }, (_, index) => ({ role: 'user', content: `Message ${index}` }));
+  const h = await mount(t, { history });
+  assert.equal(h.$('#messages').querySelectorAll('.message').length, 40);
+  assert.equal(h.$('#messages .message').textContent, 'Message 55');
+  h.click('.show-older-messages');
+  await waitFor(() => assert.equal(h.$('#messages').querySelectorAll('.message').length, 80));
+  h.click('.show-older-messages');
+  await waitFor(() => assert.equal(h.$('#messages').querySelectorAll('.message').length, 95));
+  assert.equal(h.$('.show-older-messages'), null);
+  assert.equal(history.length, 95);
 });

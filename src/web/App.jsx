@@ -9,6 +9,7 @@ import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
 import MessageBubble from './components/MessageBubble.js';
 import ToolCalls from './components/ToolCalls.jsx';
+import MessageHistory from './components/MessageHistory.jsx';
 import ComposerInput from './components/ComposerInput.jsx';
 import { chatCommands, fileReferences } from './composer.js';
 
@@ -208,10 +209,12 @@ export default function App() {
   useEffect(() => {
     loadSettings();
     (async () => {
-      const items = await loadSessions();
+      const listing = loadSessions();
       const saved = localStorage.getItem('sunday-session-id');
-      if (saved && items.some(session => session.id === saved)) await openSession(saved, false);
-      else await createSession(false);
+      // Restore the conversation without waiting for every sidebar summary.
+      if (saved) await openSession(saved, false);
+      await listing;
+      if (!activeSession.current) await createSession(false);
     })();
     const timer = setInterval(() => setGreetingText(greeting()), 60_000);
     const visibility = () => { if (!document.hidden) setGreetingText(greeting()); };
@@ -534,10 +537,10 @@ export default function App() {
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
-          <div ref={messageList} class="messages" id="messages">{messages.map((message, index) => <div key={index} class={`message ${message.role}`}>
+          <div ref={messageList} class="messages" id="messages"><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
             {message.role === 'subagent' ? <div class="assistant-content subagent-response"><div class="subagent-response-label">Subagent · {message.subagentName || 'Child agent'}</div><MessageBubble content={message.content} error={message.error} /></div> : message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
-          </div>)}</div>
+          </div>}</MessageHistory></div>
         </section>
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
           {showLatest && <button class="scroll-to-latest" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
