@@ -284,7 +284,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
         <div class={`settings-detail${page === 'personas' ? ' settings-detail-personas' : ''}`}>
-          <section id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
+          <section inert={page !== 'providers'} id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
             <div class="settings-page-heading"><h3>Connected providers</h3><button class="secondary-button" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div>
             <p class="field-note">Manage the providers you have connected.</p>
             <div id="provider-list" class="provider-list">
@@ -294,7 +294,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
               {!available.length && <p class="field-note">No providers connected yet. Add a provider to start chatting.</p>}
             </div>
           </section>
-          <section id="settings-connect-page" class={`settings-section${page === 'connect' ? '' : ' hidden'}`}>
+          <section inert={page !== 'connect'} id="settings-connect-page" class={`settings-section${page === 'connect' ? '' : ' hidden'}`}>
             <button class="text-button" id="provider-back" onClick={() => navigate('providers')}>← Providers</button><h3>Connect provider</h3>
             <div class="settings-select-row"><label class="field-label" for="provider">Provider</label>
             <select id="provider" class="select" value={provider} disabled={saving || authBusy} onChange={event => chooseProvider(event.currentTarget.value)}>
@@ -316,14 +316,14 @@ export default function Settings({ settings, onReload, onClose, toast }) {
               <button class={`text-button${auth?.status === 'pending' ? '' : ' hidden'}`} id="oauth-cancel" disabled={authBusy} onClick={() => authAction('/api/auth/cancel')}>Cancel sign-in</button>
             </div>
           </section>
-          <section id="settings-config-page" class={`settings-section${page === 'config' ? '' : ' hidden'}`}><h3>Chat defaults</h3>
+          <section inert={page !== 'config'} id="settings-config-page" class={`settings-section${page === 'config' ? '' : ' hidden'}`}><h3>Chat defaults</h3>
             <div class="settings-select-row"><label class="field-label" for="config-provider">Connected provider</label><select id="config-provider" class="select" value={available.length ? provider : ''} disabled={saving || !available.length} onChange={event => { const id = event.currentTarget.value; const modes = modesFor(providers.find(item => item.id === id)); chooseProvider(id, modes.some(([value]) => value === defaults.current.mode) ? defaults.current.mode : modes[0][0]); }}>{available.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></div>
             <div class="settings-select-row"><label class="field-label" for="config-mode">Authorization</label><select id="config-mode" class="select" value={mode} disabled={saving || !available.length} onChange={event => chooseProvider(provider, event.currentTarget.value)}>{configModes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
             <div class="settings-select-row"><label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={model} disabled={loading || saving || !models.length} onChange={event => setModel(event.currentTarget.value)}>{models.length ? models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
             <div class="settings-select-row"><label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
             <p class="field-note">Only connected providers have available models. Save an API key first, then choose a default model. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
           </section>
-          <section id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
+          <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
             <h3>Update Sunday</h3>
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
             <button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>

@@ -874,14 +874,26 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   white-space: nowrap;
 }
 
-/* Hidden sections retain their form state; revealing one restarts its entrance. */
-.settings-detail > section:not(.hidden) {
-  animation: settings-page-arrive 200ms cubic-bezier(.2,.8,.2,1) both;
+/* Keep both pages paintable during navigation instead of toggling display.
+   Inactive pages are out of flow and cannot receive focus or pointer input. */
+.settings-detail { position: relative; }
+.settings-detail > section {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition: opacity 240ms ease, transform 240ms ease, visibility 0s;
 }
-@keyframes settings-page-arrive {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+.settings-detail > section.hidden {
+  display: block !important;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(8px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease, visibility 0s 240ms;
 }
 @media (prefers-reduced-motion: reduce) {
-  .settings-detail > section:not(.hidden) { animation: none; }
+  .settings-detail > section,
+  .settings-detail > section.hidden { transition: none; }
 }

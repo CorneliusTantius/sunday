@@ -74,7 +74,7 @@ export default function Personas({ hidden, toast, onReload }) {
     finally { if (alive.current) setBusy(false); }
   }
 
-  return <section id="settings-personas-page" class={`settings-section${hidden ? ' hidden' : ''}`}>
+  return <section inert={hidden} id="settings-personas-page" class={`settings-section${hidden ? ' hidden' : ''}`}>
     <h3>Profiles &amp; personas</h3><p class="field-note">Reusable starting profiles. Changes here do not change existing sessions.</p>
     <select id="persona-select" class="select persona-select" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
       if (event.currentTarget.value === '__new__') { select(personas, ''); nameInput.current?.focus(); }

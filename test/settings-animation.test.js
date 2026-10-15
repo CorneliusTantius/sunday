@@ -3,12 +3,22 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
+const settings = readFileSync(new URL('../src/web/components/Settings.jsx', import.meta.url), 'utf8');
+const personas = readFileSync(new URL('../src/web/components/Personas.jsx', import.meta.url), 'utf8');
 
-test('visible settings pages animate without remounting their forms', () => {
-  assert.match(css, /\.settings-detail > section:not\(\.hidden\)\s*\{\s*animation: settings-page-arrive 200ms/);
-  assert.match(css, /@keyframes settings-page-arrive\s*\{\s*from \{ opacity: 0; transform: translateY\(6px\); \}\s*to \{ opacity: 1; transform: translateY\(0\); \}/);
+test('settings crossfade keeps outgoing pages paintable but out of flow', () => {
+  assert.match(css, /\.settings-detail > section\.hidden\s*\{[^}]*display: block !important;[^}]*position: absolute;[^}]*opacity: 0;[^}]*visibility: hidden;[^}]*pointer-events: none;[^}]*visibility 0s 240ms;/);
+  assert.match(css, /\.settings-detail > section\s*\{[^}]*opacity: 1;[^}]*transition: opacity 240ms/);
+  assert.doesNotMatch(css, /animation: settings-page-arrive/);
 });
 
-test('settings page animation respects reduced motion', () => {
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.settings-detail > section:not\(\.hidden\) \{ animation: none; \}/);
+test('inactive forms are inert throughout the outgoing transition', () => {
+  for (const page of ['providers', 'connect', 'config', 'update']) {
+    assert.ok(settings.includes(`inert={page !== '${page}'}`));
+  }
+  assert.match(personas, /<section inert=\{hidden\}/);
+});
+
+test('settings crossfade respects reduced motion', () => {
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.settings-detail > section,\s*\.settings-detail > section\.hidden \{ transition: none; \}/);
 });
