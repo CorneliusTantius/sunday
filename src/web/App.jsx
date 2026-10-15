@@ -514,7 +514,6 @@ export default function App() {
           <div id="agents-sessions" class={`agents-sessions${expanded ? ' expanded' : ''}`} inert={!expanded} aria-hidden={!expanded}>
             <div class="agents-sessions-content"><button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
-              {pinnedSessions.length > 0 && <div class="agent-list-heading">PINNED</div>}
               {pinnedSessions.map(renderSessionTree)}
               {unpinnedSessions.map(renderSessionTree)}
             </nav>
