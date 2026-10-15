@@ -24,7 +24,7 @@
   font-weight: 500;
 }
 
-html, body, .app-shell, .main, .conversation, .composer-wrap {
+html, body, .app-shell, .main {
   background-color: var(--bg);
 }
 
@@ -50,8 +50,32 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .status-dot{width:7px;height:7px;border-radius:50%;background:var(--panel2)}
 .status-dot.ready{background:var(--accent);box-shadow:0 0 9px var(--highlight)}
 .settings-shortcut{margin-left:auto!important}
-.main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.conversation,.composer-wrap{width:80%}
+.main{position:relative;isolation:isolate;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.main::before,.main::after{position:absolute;inset:0;z-index:0;content:"";pointer-events:none}
+.main::before{
+  background:
+    radial-gradient(ellipse at 48% 42%,rgb(157 92 255 / 8%),transparent 46%),
+    radial-gradient(ellipse at 84% 18%,rgb(66 232 255 / 4%),transparent 36%),
+    radial-gradient(ellipse at 8% 82%,rgb(157 92 255 / 5%),transparent 40%);
+  animation:nebula-drift 36s ease-in-out infinite alternate;
+}
+.main::after{
+  background-image:
+    radial-gradient(circle at 8% 17%,rgb(231 237 255 / 62%) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 19% 73%,rgb(231 237 255 / 42%) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 27% 31%,rgb(157 92 255 / 65%) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 38% 88%,rgb(231 237 255 / 48%) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 46% 13%,rgb(231 237 255 / 55%) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 57% 62%,rgb(66 232 255 / 52%) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 68% 24%,rgb(231 237 255 / 58%) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 77% 81%,rgb(157 92 255 / 54%) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 89% 43%,rgb(231 237 255 / 50%) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 96% 12%,rgb(66 232 255 / 46%) 0 1px,transparent 1.8px);
+  opacity:.6;
+  animation:starfield-twinkle 7s ease-in-out infinite alternate;
+}
+.main>:not(.sidebar-reopen){position:relative;z-index:1}
+.conversation,.composer-wrap{width:80%;background-color:transparent}
 .conversation{margin:0 auto;flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior-y:contain}
 .conversation { scrollbar-width: none; }
 .conversation::-webkit-scrollbar { display: none; }
@@ -234,6 +258,14 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .composer:focus-within { box-shadow: none; }
 .message { animation: packet-arrive 220ms cubic-bezier(.2,.8,.2,1) both; }
 .settings-modal { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes nebula-drift {
+  from { transform: scale(1.02) translate3d(-.5%, .3%, 0); }
+  to { transform: scale(1.06) translate3d(.5%, -.3%, 0); }
+}
+@keyframes starfield-twinkle {
+  from { opacity: .3; }
+  to { opacity: .75; }
+}
 @keyframes streaming-signal {
   0%, 100% { opacity: .45; }
   50% { opacity: 1; }
