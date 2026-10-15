@@ -179,12 +179,12 @@ for (const action of ['create', 'open']) {
     test(`${action} ${outcome} re-enables session controls and releases the loading guard`, async t => {
       const h = await mount(t);
       const pending = h.hold();
-      const selector = action === 'create' ? '#new-chat' : '.session-row:nth-child(2) .session-item';
+      const selector = action === 'create' ? '#new-chat' : '.sessions-list > div:nth-child(2) .session-row .session-item';
       const before = h.actionCalls().length;
       h.click(selector);
       // Attempt competing actions in the same turn, before disabled props can render.
       h.click('#new-chat');
-      h.click('.session-row:nth-child(2) .session-item');
+      h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
       h.click('.configure-session');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.actionCalls().at(-1).method, action === 'create' ? 'POST' : 'GET');
@@ -193,7 +193,7 @@ for (const action of ['create', 'open']) {
         for (const control of h.controls()) assert.equal(control.disabled, true);
       });
       h.click('#new-chat');
-      h.click('.session-row:nth-child(2) .session-item');
+      h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.$('#session-config-dialog'), null);
       assert.equal(h.selected(), 'session-1');
@@ -274,15 +274,15 @@ test('reopening a running session reconnects and restores the streamed snapshot'
   const h = await mount(t);
   h.sessions[1].running = true;
   h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
-  h.click('.session-row:nth-child(2) .session-item');
+  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.resumeCalls(), 1);
-    const pill = h.$('.session-row:nth-child(2) .session-running-pill');
+    const pill = h.$('.sessions-list > div:nth-child(2) .session-row .session-running-pill');
     assert.ok(pill, 'running session has an activity pill');
     assert.equal(pill.getAttribute('aria-label'), 'Running');
     assert.equal(pill.textContent, '');
-    assert.equal(h.$('.session-row:first-child .session-running-pill'), null);
+    assert.equal(h.$('.sessions-list > div:first-child .session-row .session-running-pill'), null);
     assert.match(h.$('#messages').textContent, /replayed answer/);
   });
   h.finishResume();
@@ -298,7 +298,7 @@ test('switching sessions detaches the client stream without cancelling the serve
   h.emit('progress', { status: 'thinking' });
   await waitFor(() => assert.equal(h.$('#response-activity')?.textContent, 'Thinking…'));
   const oldTimer = h.timers.find(timer => timer.ms === 150000 && !timer.cleared);
-  h.click('.session-row:nth-child(2) .session-item');
+  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.$('#response-activity'), null);
@@ -351,7 +351,7 @@ test('resumed snapshot restores progress and tool updates reuse its existing cal
   const h = await mount(t, { emptyResume: true });
   h.sessions[1].running = true;
   h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
-  h.click('.session-row:nth-child(2) .session-item');
+  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
   await waitFor(() => assert.equal(h.resumeCalls(), 1));
   h.emit('snapshot', { answer: 'Restored answer', progress: 'preparing_tool', toolCalls: [
     { id: 'tool-1', name: 'bash', arguments: {}, status: 'running' },
@@ -464,7 +464,7 @@ test('model and thinking controls save only the active session and restore each 
   assert.equal(h.defaults.model, 'model-a');
   assert.equal(h.defaults.thinkingLevel, 'off');
   assert.equal(h.calls.filter(call => call.url === '/api/settings' && call.method !== 'GET').length, 0);
-  h.click('.session-row:nth-child(2) .session-item');
+  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
   await waitFor(() => assert.equal(h.selected(), 'session-2'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
@@ -473,7 +473,7 @@ test('model and thinking controls save only the active session and restore each 
   await waitFor(() => assert.equal(h.selected(), 'session-3'));
   assert.equal(h.$('#chat-model').value, 'model-a');
   assert.equal(h.$('#thinking-level').value, 'off');
-  h.click('.session-row:nth-child(1) .session-item');
+  h.click('.sessions-list > div:nth-child(1) .session-row .session-item');
   await waitFor(() => assert.equal(h.selected(), 'session-1'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
@@ -609,7 +609,7 @@ test('content resizing follows the bottom and resets when switching sessions', a
   scroll.grow(1700);
   resizeObservers.at(-1).callback();
   assert.equal(scroll.element.scrollTop, 100);
-  h.click('.session-row:nth-child(2) .session-item');
+  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(scroll.element.scrollTop, 1500);

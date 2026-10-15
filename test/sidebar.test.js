@@ -191,6 +191,7 @@ function cssFixture(t, mobile, reduced = false) {
       if (/max-width:\s*700px/.test(query)) return mobile;
       if (/min-width:\s*701px/.test(query)) return !mobile;
       if (/prefers-reduced-motion:\s*reduce/.test(query)) return reduced;
+      if (/forced-colors:\s*active/.test(query)) return false;
       if (/hover:\s*hover/.test(query)) return false;
       throw new Error(`Unhandled CSS media query: ${query}`);
     });
@@ -303,9 +304,9 @@ test('session pin and running indicator have independent columns beside truncate
   app.window.document.head.append(style);
   const css = selector => app.window.getComputedStyle(app.window.document.querySelector(selector));
   const row = css('.session-row');
-  assert.equal(row.paddingTop, '12px');
-  assert.equal(row.paddingBottom, '12px');
-  assert.equal(row.gridTemplateColumns, '28px minmax(0, 1fr) 14px repeat(2, 24px)');
+  assert.equal(row.paddingTop, '8px');
+  assert.equal(row.paddingBottom, '8px');
+  assert.equal(row.gridTemplateColumns, '22px minmax(0, 1fr) 14px repeat(2, 24px)');
   assert.equal(app.window.document.querySelector('.delete-session'), null);
   const pill = app.window.document.querySelector('.session-running-pill');
   assert.equal(pill.parentElement.className, 'session-row');

@@ -36,7 +36,7 @@ test('opening the current session navigates before skipping the session reload',
 
 test('settings dismiss action is labeled Close', () => {
   const settings = readFileSync(new URL('../src/web/components/Settings.jsx', import.meta.url), 'utf8');
-  assert.match(settings, /id="cancel-settings" onClick=\{onClose\}>Close<\/button>/);
+  assert.match(settings, /id="cancel-settings" onClick=\{requestClose\}>Close<\/button>/);
 });
 
 test('sidebar header omits Features and uses a left chevron to collapse', () => {
@@ -56,7 +56,7 @@ test('compact sidebar artwork retains the character beside it', () => {
   assert.match(app, /aria-label="Sunday home"><span class="brand-card-heading"><Character brand \/><span class="brand-ascii"/);
   assert.doesNotMatch(app, /brand-tagline|your sunday butler/);
   assert.match(css, /\.brand-card-heading \{[^}]*gap: 14px;/);
-  assert.match(css, /padding: 14px 14px 16px;/);
+  assert.match(css, /padding: 14px;/);
   assert.match(css, /\.sidebar-brand \.brand-ascii \{[^}]*font-size: 7px;/);
   assert.match(css, /\.sidebar-brand \.brand-character \{ width: 28px; height: 28px; flex-shrink: 0;/);
 });

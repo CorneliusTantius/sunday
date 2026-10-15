@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +17,7 @@ test('production serves module-relative dist after changing to the workspace', a
     await mkdir(join(app, 'dist', 'assets'), { recursive: true });
     await writeFile(join(app, 'package.json'), '{"type":"module"}');
     await symlink(fileURLToPath(new URL('../node_modules', import.meta.url)), join(app, 'node_modules'), 'dir');
-    for (const name of ['index.js', 'tools.js', 'session-names.js', 'thinking.js']) {
-      await copyFile(new URL(`../src/server/${name}`, import.meta.url), join(app, 'src', 'server', name));
-    }
+    await cp(new URL('../src/server/', import.meta.url), join(app, 'src', 'server'), { recursive: true });
     const fixtures = [
       ['index.html', 'text/html', '<html>Sunday static fixture</html>'],
       ['assets/main.js', 'text/javascript', 'console.log("Sunday");'],

@@ -39,8 +39,8 @@ test('Files is a top-level navigation item matching Repositories', t => {
   const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   const repos = source.match(/<a class="([^"]+)" id="repos-link"/)[1];
   const files = source.match(/<a class="([^"]+)" id="editor-link" href="#files"/)[1];
-  assert.match(source, /href="#files"[^>]*>Files<\/a>/);
-  const dom = new JSDOM(`<aside class="sidebar"><a id="repos" class="${repos}">Repositories</a><a id="files" class="${files}">Files</a></aside>
+  assert.match(source, /href="#files"[^>]*><MenuIcon name="files" \/><span>Files<\/span><\/a>/);
+  const dom = new JSDOM(`<aside class="sidebar"><section class="agents-feature"></section><a id="repos" class="${repos}">Repositories</a><a id="files" class="${files}">Files</a></aside>
     <section class="code-editor-page"><div class="code-editor-layout"><aside class="code-editor-sidebar"></aside><div class="code-editor-main"><div class="code-editor-host"></div></div></div></section>`);
   t.after(() => dom.window.close());
   const style = dom.window.document.createElement('style');

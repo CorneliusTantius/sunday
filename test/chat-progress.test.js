@@ -4,13 +4,15 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
 
+import { estimateContext, shouldCompact, measuredInput } from '../src/server/context.js';
+
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
 function harness(streams, idle = 100, total = 1000, agents = []) {
   const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [];
   let calls = 0;
   const model = { id: 'test', api: 'test', provider: 'test', contextWindow: 10000 };
   const context = vm.createContext({
-    AbortController, AbortSignal, Error, setInterval, clearInterval,
+    AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput,
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,
     settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' },
     modelsByMode: { api_key: { getModel: () => model, getAuth: async () => true,
