@@ -232,7 +232,7 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.equal((await stat(join(home, 'sunday', 'data', 'personas.json'))).mode & 0o777, 0o600);
     const created = await api('/api/personas', { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' }, 'POST');
     assert.equal(created.status, 201);
-    const permitted = ['memory_search', 'memory_update', 'whisper_to_agent'];
+    const permitted = ['memory_search', 'memory_update', 'agent_whisper'];
     assert.equal((await api(`/api/personas/${created.body.persona.id}`, { ...created.body.persona, allowedTools: permitted }, 'PATCH')).status, 200);
     const session = await api('/api/sessions', { personaId: created.body.persona.id }, 'POST');
     assert.deepEqual(session.body.session.profile.allowedTools, permitted);

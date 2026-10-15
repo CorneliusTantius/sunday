@@ -264,6 +264,10 @@ test('persona permissions use the tool registry and preserve explicit whitelists
   assert.deepEqual(Array.from(h.view.profile.allowedTools), []);
   h.view.select(personas, 'reader'); h.render();
   assert.deepEqual(Array.from(h.view.profile.allowedTools), ['read']);
+  h.view.setToolAllowed('edit', true); h.render();
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), ['read', 'edit']);
+  h.view.setToolAllowed('read', false); h.render();
+  assert.deepEqual(Array.from(h.view.profile.allowedTools), ['edit']);
   h.view.select(personas, 'default'); h.render();
   assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));
   h.view.select(personas, ''); h.render();
@@ -271,8 +275,21 @@ test('persona permissions use the tool registry and preserve explicit whitelists
   h.unmount();
 });
 
+test('persona tool whitelist groups related tools into compact dropdowns', () => {
+  const source = readFileSync(new URL('../src/web/components/Personas.jsx', import.meta.url), 'utf8');
+  for (const names of [
+    "tools: ['read', 'edit']",
+    "tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list']",
+    "tools: ['memory_search', 'memory_update']",
+    "tools: ['agent_list', 'agent_whisper']",
+  ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
+  assert.match(source, /<details class="persona-tool-group"/);
+  assert.match(source, /persona-tool-count/);
+  assert.match(source, /tools\.filter\(tool => !toolGroups\.some/);
+});
+
 test('persona initial load defaults to the loaded registry, not stale state', async () => {
-  const tools = [{ name: 'memory_search', description: 'Search notes' }, { name: 'whisper_to_agent', description: 'Delegate' }];
+  const tools = [{ name: 'memory_search', description: 'Search notes' }, { name: 'agent_whisper', description: 'Delegate' }];
   const h = mount('Personas', { toast() {} }, async () => ({ tools, personas: [{ id: 'default', name: 'Default' }] }));
   await h.settle();
   assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));

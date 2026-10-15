@@ -13,12 +13,12 @@ test('file access policy protects authentication files and temporary copies', ()
 });
 
 test('whisper tool schema requires an existing session ID and message and is server-only', async () => {
-  const tool = makeTools(['whisper_to_agent'])[0];
-  assert.equal(tool.name, 'whisper_to_agent');
+  const tool = makeTools(['agent_whisper'])[0];
+  assert.equal(tool.name, 'agent_whisper');
   assert.deepEqual(tool.parameters.required, ['agentSessionId', 'message']);
   assert.equal(tool.parameters.additionalProperties, false);
   assert.match(tool.parameters.properties.agentSessionId.pattern, /36/);
-  await assert.rejects(executeTool('whisper_to_agent', { agentSessionId: '00000000-0000-0000-0000-000000000000', message: 'hello' }, [], ''));
+  await assert.rejects(executeTool('agent_whisper', { agentSessionId: '00000000-0000-0000-0000-000000000000', message: 'hello' }, [], ''));
 });
 
 test('shared memory tools read and update notes without repository access', async () => {
@@ -52,6 +52,7 @@ test('basic tools restrict paths and sensitive files to allowed repositories', a
     await symlink(dir, join(repo, 'escape'));
     assert.deepEqual(validateTools(), BASIC_TOOL_NAMES);
     assert.deepEqual(validateTools(['read_file', 'list_files', 'search_files', 'write_file']), ['read', 'edit']);
+    assert.deepEqual(validateTools(['list_agents', 'whisper_to_agent']), ['agent_list', 'agent_whisper']);
     assert.throws(() => validateTools(['shell']));
     assert.equal(await executeTool('read', { path: 'repo/a.txt' }, [repo]), 'hello');
     assert.equal(await executeTool('edit', { path: 'repo/a.txt', oldText: 'hello', newText: 'world' }, [repo]), 'File edited');
@@ -71,10 +72,10 @@ test('basic tools restrict paths and sensitive files to allowed repositories', a
 });
 
 test('agent discovery is a registered, whitelisted, server-only tool', async () => {
-  const tool = makeTools(['list_agents'])[0];
-  assert.equal(tool.name, 'list_agents');
+  const tool = makeTools(['agent_list'])[0];
+  assert.equal(tool.name, 'agent_list');
   assert.deepEqual(tool.parameters.properties, {});
   assert.equal(tool.parameters.additionalProperties, false);
-  assert.deepEqual(validateTools(['list_agents']), ['list_agents']);
-  await assert.rejects(executeTool('list_agents', {}, [], ''), /Tool must be handled by the chat server/);
+  assert.deepEqual(validateTools(['agent_list']), ['agent_list']);
+  await assert.rejects(executeTool('agent_list', {}, [], ''), /Tool must be handled by the chat server/);
 });

@@ -15,8 +15,8 @@ export const BASIC_TOOLS = [
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
   { name: 'memory_search', description: 'Search shared notes for relevant saved knowledge. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
   { name: 'memory_update', description: 'Create or replace a shared note by title. Save durable, useful knowledge for other agents; never save credentials or secrets.', parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['title', 'content'], additionalProperties: false } },
-  { name: 'list_agents', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'whisper_to_agent', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or list_agents; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
+  { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
 export const REPOSITORY_TOOL_NAMES = ['read', 'edit', 'bash'];
 export const MEMORY_TOOL_NAMES = ['memory_search', 'memory_update'];
@@ -25,7 +25,7 @@ export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
   if (!Array.isArray(value)) throw new Error('Invalid allowed tools');
   // Migrate permissions persisted under the previous file-tool names.
-  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
+  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list', list_agents: 'agent_list', whisper_to_agent: 'agent_whisper' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
   // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
   const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
@@ -89,7 +89,7 @@ async function executeMemoryTool(name, args, memoryDir) {
 export async function executeTool(name, args, repositories, memoryDir, signal) {
   signal?.throwIfAborted();
   if (!BASIC_TOOL_NAMES.includes(name)) throw new Error('Unknown tool');
-  if (name === 'whisper_to_agent' || name === 'list_agents') throw new Error('Tool must be handled by the chat server');
+  if (name === 'agent_whisper' || name === 'agent_list') throw new Error('Tool must be handled by the chat server');
   args ||= {};
   if (MEMORY_TOOL_NAMES.includes(name)) return executeMemoryTool(name, args, memoryDir);
   if (!Array.isArray(repositories) || !repositories.length) throw new Error('No repositories are allowed for this session');

@@ -164,17 +164,17 @@ test('referenced file contents reach model history without changing displayed us
 
 const specialist = { id: '00000000-0000-0000-0000-000000000001', title: 'Reviewer', profile: { specialty: 'Code review' } };
 
-for (const name of ['memory_search', 'memory_update', 'whisper_to_agent', 'list_agents']) {
+for (const name of ['memory_search', 'memory_update', 'agent_whisper', 'agent_list']) {
   for (const permitted of [false, true]) {
     test(`${name} is advertised and executed only when the profile permits it (${permitted})`, async () => {
-      const args = name === 'whisper_to_agent' ? { agentSessionId: specialist.id, message: 'Review this' } : name === 'memory_search' ? { query: 'note' } : name === 'list_agents' ? {} : { title: 'Note', content: 'Useful information' };
+      const args = name === 'agent_whisper' ? { agentSessionId: specialist.id, message: 'Review this' } : name === 'memory_search' ? { query: 'note' } : name === 'agent_list' ? {} : { title: 'Note', content: 'Useful information' };
       const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'test-call', name, arguments: args }]) : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist]);
       h.session.profile = { name: 'Test', instructions: '', allowedTools: permitted ? [name] : [] };
       await h.run();
       assert.deepEqual((h.inputs[0].tools || []).map(tool => tool.name), permitted ? [name] : []);
       assert.equal(h.session.messages[0].toolCalls[0].status, permitted ? 'completed' : 'failed');
-      assert.equal(h.executions.length + h.whispers.length, permitted && name !== 'list_agents' ? 1 : 0);
-      assert.equal(h.prompts[0].includes('Other available agents'), permitted && name === 'whisper_to_agent');
+      assert.equal(h.executions.length + h.whispers.length, permitted && name !== 'agent_list' ? 1 : 0);
+      assert.equal(h.prompts[0].includes('Other available agents'), permitted && name === 'agent_whisper');
       assert.equal(h.prompts[0].includes('Shared memory tools available'), permitted && MEMORY_TOOL_NAMES.includes(name));
     });
   }
@@ -182,7 +182,7 @@ for (const name of ['memory_search', 'memory_update', 'whisper_to_agent', 'list_
 
 test('whisper permission cannot enable recursive delegation', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist]);
-  h.session.profile = { name: 'Test', allowedTools: ['whisper_to_agent'] };
+  h.session.profile = { name: 'Test', allowedTools: ['agent_whisper'] };
   await h.run(false);
   assert.equal(h.inputs[0].tools, undefined);
   assert.equal(h.prompts[0].includes('Other available agents'), false);
@@ -196,33 +196,33 @@ test('no repositories disables repository tools but not explicitly permitted mem
   assert.deepEqual(h.inputs[0].tools.map(tool => tool.name), ['memory_search']);
 });
 
-test('list_agents discovers current targets, excludes itself, and returns only public metadata', async () => {
+test('agent_list discovers current targets, excludes itself, and returns only public metadata', async () => {
   const agents = [];
   const h = harness(round => {
     if (round === 0) {
       agents.push({ id: '00000000-0000-0000-0000-000000000002', title: 'Self' }, { ...specialist, messages: [{ content: 'Private message' }], allowedRepositories: ['private-repo'] });
-      return stream([], [{ type: 'toolCall', id: 'list', name: 'list_agents', arguments: {} }]);
+      return stream([], [{ type: 'toolCall', id: 'list', name: 'agent_list', arguments: {} }]);
     }
     return stream([{ type: 'text_delta', delta: 'Done' }]);
   }, 100, 1000, agents);
   h.session.id = '00000000-0000-0000-0000-000000000002';
-  h.session.profile = { name: 'Test', allowedTools: ['list_agents'] };
+  h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
   await h.run();
   const result = h.inputs[1].messages.find(message => message.role === 'toolResult');
   assert.deepEqual(JSON.parse(result.content[0].text), [{ id: specialist.id, title: 'Reviewer', responsibility: 'Code review' }]);
 });
 
-test('list_agents returns an empty list when there are no other agents', async () => {
-  const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'list', name: 'list_agents', arguments: {} }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
-  h.session.profile = { name: 'Test', allowedTools: ['list_agents'] };
+test('agent_list returns an empty list when there are no other agents', async () => {
+  const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'list', name: 'agent_list', arguments: {} }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
+  h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
   await h.run();
   const result = h.inputs[1].messages.find(message => message.role === 'toolResult');
   assert.equal(result.content[0].text, '[]');
 });
 
-test('list_agents rejects unexpected arguments', async () => {
-  const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'list', name: 'list_agents', arguments: { sourceId: specialist.id } }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
-  h.session.profile = { name: 'Test', allowedTools: ['list_agents'] };
+test('agent_list rejects unexpected arguments', async () => {
+  const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'list', name: 'agent_list', arguments: { sourceId: specialist.id } }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
+  h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
   await h.run();
   assert.equal(h.session.messages[0].toolCalls[0].status, 'failed');
 });

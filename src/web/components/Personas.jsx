@@ -3,6 +3,12 @@ import { request, jsonRequest } from '../api.js';
 import Character from './Character.jsx';
 
 const emptyProfile = () => ({ name: '', specialty: '', instructions: '', color: 'cyan', allowedTools: [] });
+const toolGroups = [
+  { name: 'Repository files', tools: ['read', 'edit'] },
+  { name: 'Subagents', tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list'] },
+  { name: 'Shared memory', tools: ['memory_search', 'memory_update'] },
+  { name: 'Agents', tools: ['agent_list', 'agent_whisper'] },
+];
 
 export default function Personas({ hidden, toast, onReload }) {
   const [personas, setPersonas] = useState([]);
@@ -35,6 +41,9 @@ export default function Personas({ hidden, toast, onReload }) {
   }, []);
 
   function change(field, value) { setProfile(previous => ({ ...previous, [field]: value })); }
+  function setToolAllowed(name, allowed) {
+    change('allowedTools', allowed ? [...new Set([...profile.allowedTools, name])] : profile.allowedTools.filter(item => item !== name));
+  }
 
   async function save(event) {
     event.preventDefault();
@@ -95,7 +104,15 @@ export default function Personas({ hidden, toast, onReload }) {
       <div class="settings-select-row"><label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
       <label class="field-label" for="persona-instructions">Instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
       <details class="persona-tools-card" open><summary>Tool permissions</summary><fieldset class="repository-options"><legend class="sr-only">Tool permissions</legend><div id="persona-tools">
-        {tools.map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => change('allowedTools', event.currentTarget.checked ? [...profile.allowedTools, tool.name] : profile.allowedTools.filter(item => item !== tool.name))} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
+        {toolGroups.map(group => {
+          const groupedTools = tools.filter(tool => group.tools.includes(tool.name));
+          if (!groupedTools.length) return null;
+          const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
+          return <details class="persona-tool-group" key={group.name}><summary><span>{group.name}</span><span class="persona-tool-count">{enabled} of {groupedTools.length} enabled</span></summary><div class="persona-tool-group-content">
+            {groupedTools.map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
+          </div></details>;
+        })}
+        {tools.filter(tool => !toolGroups.some(group => group.tools.includes(tool.name))).map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
       </div></fieldset></details>
       <div class="code-row"><button class="primary-button" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="secondary-button" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
       <p id="persona-error" class="form-error" role="alert">{error}</p>
