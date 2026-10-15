@@ -1012,11 +1012,23 @@ const server = http.createServer(async (req, res) => {
         }
         if (input.config !== undefined) session.config = configureSession(session, input.config);
         if (input.title !== undefined) { session.title = input.title.trim(); session.titleEdited = true; }
+        const childrenToSync = !session.parentSessionId && input.allowedRepositories !== undefined ? await childSessions(id) : [];
+        if (childrenToSync.some(child => activeChats.has(child.id))) throw new Error('Cannot change repositories while a subagent is busy');
         await syncAgentWorkspace(session, input.allowedRepositories ?? session.allowedRepositories ?? []);
         if (persona) session.profile = { ...validateProfile(persona), personaId: persona.id };
         if (input.allowedRepositories !== undefined) session.allowedRepositories = [...new Set(input.allowedRepositories)];
         session.updatedAt = Date.now();
         await saveSession(session);
+        // Keep existing subagents' repository access aligned with their parent's whitelist.
+        // Child workspaces are private copies, so reconcile each copy as well as its ACL.
+        if (childrenToSync.length) {
+          for (const child of childrenToSync) {
+            await syncAgentWorkspace(child, session.allowedRepositories);
+            child.allowedRepositories = [...session.allowedRepositories];
+            child.updatedAt = Date.now();
+            await saveSession(child);
+          }
+        }
         return json(res, 200, { session: { ...session, models: await sessionModels(session.config) } });
       });
     }
