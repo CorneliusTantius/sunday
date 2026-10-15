@@ -17,7 +17,7 @@ test('production serves module-relative dist after changing to the workspace', a
     await mkdir(join(app, 'dist', 'assets'), { recursive: true });
     await writeFile(join(app, 'package.json'), '{"type":"module"}');
     await symlink(fileURLToPath(new URL('../node_modules', import.meta.url)), join(app, 'node_modules'), 'dir');
-    for (const name of ['index.js', 'tools.js', 'session-names.js']) {
+    for (const name of ['index.js', 'tools.js', 'session-names.js', 'thinking.js']) {
       await copyFile(new URL(`../src/server/${name}`, import.meta.url), join(app, 'src', 'server', name));
     }
     const fixtures = [
