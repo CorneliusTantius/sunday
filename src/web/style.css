@@ -873,3 +873,15 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Hidden sections retain their form state; revealing one restarts its entrance. */
+.settings-detail > section:not(.hidden) {
+  animation: settings-page-arrive 200ms cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes settings-page-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-detail > section:not(.hidden) { animation: none; }
+}
