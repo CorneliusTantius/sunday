@@ -167,7 +167,7 @@ async function publicSettings(provider = settings.provider, mode) {
   const modelId = provider === settings.provider && mode === settings.mode ? settings.model : defaultModel(provider, mode, available);
   const model = available.find(m => m.id === modelId) || available.find(m => m.id === defaultModel(provider, mode, available));
   const status = statuses.find(p => p.id === provider);
-  return { subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), dataDir, workspaceDir };
+  return { subagentPersonas: personas.map(({ id, name }) => ({ id, name })), subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), dataDir, workspaceDir };
 }
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 let login = { status: 'idle', events: [] }, loginAttempt;
@@ -628,6 +628,13 @@ async function manageSubagents(parent, tool, args) {
       const children = await childSessions(parent.id);
       if (children.length >= (settings.subagents?.maxChildren ?? 3)) throw new Error(`A session can have at most ${settings.subagents?.maxChildren ?? 3} subagents`);
       const child = { id: randomUUID(), parentSessionId: parent.id, title: uniqueSessionName(children.map(item => item.title), BIRD_NAMES), titleEdited: false, updatedAt: Date.now(), messages: [], profile: structuredClone(parent.profile), config: structuredClone(parent.config), allowedRepositories: [...(parent.allowedRepositories || [])] };
+      const defaults = settings.subagents || {};
+      if (defaults.model) Object.assign(child.config, { provider: defaults.provider, mode: defaults.mode, model: defaults.model });
+      if (defaults.thinkingLevel) child.config.thinkingLevel = defaults.thinkingLevel;
+      const selectedModel = modelsByMode[child.config.mode].getModel(child.config.provider, child.config.model);
+      child.config.thinkingLevel = clampThinkingLevel(selectedModel, child.config.thinkingLevel);
+      const persona = personas.find(item => item.id === defaults.personaId);
+      if (persona) child.profile = { ...validateProfile(persona), personaId: persona.id };
       await syncAgentWorkspace(child);
       await persistSession(child);
       return child;
@@ -1072,9 +1079,26 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/settings/subagents' && req.method === 'PUT') {
       const input = await body(req);
-      if (!input || Object.keys(input).some(key => !['enabled', 'maxChildren'].includes(key)) || typeof input.enabled !== 'boolean' || !Number.isInteger(input.maxChildren) || input.maxChildren < 1 || input.maxChildren > 3) throw new Error('Choose enabled status and a subagent limit from 1 to 3');
+      if (!input || Object.keys(input).some(key => !['enabled', 'maxChildren', 'model', 'provider', 'mode', 'thinkingLevel', 'personaId'].includes(key)) || typeof input.enabled !== 'boolean' || !Number.isInteger(input.maxChildren) || input.maxChildren < 1 || input.maxChildren > 3) throw new Error('Choose enabled status and a subagent limit from 1 to 3');
+      const overrides = {};
+      if (input.personaId) {
+        if (!personas.some(persona => persona.id === input.personaId)) throw new Error('Persona not found');
+        overrides.personaId = input.personaId;
+      }
+      if (input.model) {
+        const { provider, mode } = selection(input.provider ?? settings.provider, input.mode ?? settings.mode);
+        const available = await modelsByMode[mode].getAvailable(provider);
+        const model = available.find(model => model.id === input.model);
+        if (!model) throw new Error('Invalid model or provider not connected');
+        if (input.thinkingLevel && !getSupportedThinkingLevels(model).includes(input.thinkingLevel)) throw new Error('Unsupported thinking level for this model');
+        Object.assign(overrides, { provider, mode, model: model.id });
+      }
+      if (input.thinkingLevel) {
+        if (!['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(input.thinkingLevel)) throw new Error('Invalid thinking level');
+        overrides.thinkingLevel = input.thinkingLevel;
+      }
       await serialize(async () => {
-        const next = { ...settings, subagents: { enabled: input.enabled, maxChildren: input.maxChildren } };
+        const next = { ...settings, subagents: { enabled: input.enabled, maxChildren: input.maxChildren, ...overrides } };
         await save('settings.json', next); settings = next;
       });
       return json(res, 200, await publicSettings());
