@@ -642,7 +642,7 @@ test('long histories initially render recent messages and reveal older pages on 
   const history = Array.from({ length: 95 }, (_, index) => ({ role: 'user', content: `Message ${index}` }));
   const h = await mount(t, { history });
   assert.equal(h.$('#messages').querySelectorAll('.message').length, 40);
-  assert.equal(h.$('#messages .message').textContent, 'Message 55');
+  assert.equal(h.$('#messages .message').textContent.trim(), 'Message 55');
   h.click('.show-older-messages');
   await waitFor(() => assert.equal(h.$('#messages').querySelectorAll('.message').length, 80));
   h.click('.show-older-messages');
