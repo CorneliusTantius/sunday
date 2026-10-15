@@ -11,6 +11,7 @@ import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
 import MessageBubble from './components/MessageBubble.js';
 import ToolCalls from './components/ToolCalls.jsx';
+import CompactionSummary from './components/CompactionSummary.jsx';
 import MessageHistory from './components/MessageHistory.jsx';
 import ComposerInput from './components/ComposerInput.jsx';
 import { chatCommands, fileReferences } from './composer.js';
@@ -103,6 +104,7 @@ export default function App() {
   const [sessionModels, setSessionModels] = useState([]);
   const configPending = useRef(false);
   const [messages, setMessages] = useState([]);
+  const [compaction, setCompaction] = useState(null);
   const [showLatest, setShowLatest] = useState(false);
   const followLatest = useRef(true);
   const transcript = useRef(null);
@@ -163,6 +165,7 @@ export default function App() {
     const nextMessages = (session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role));
     if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
     setMessages(nextMessages);
+    setCompaction(session.compaction?.summary ? session.compaction : null);
     setContextUsage(session.contextUsage || null);
     setSessionConfig(session.config || null);
     setSessionModels(session.models || []);
@@ -214,7 +217,7 @@ export default function App() {
       await request(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' });
       setConfiguredSession(null);
       if (session.id === activeSession.current) {
-        activeSession.current = null; setSessionId(null); setReady(false); setMessages([]); localStorage.removeItem('sunday-session-id');
+        activeSession.current = null; setSessionId(null); setReady(false); setMessages([]); setCompaction(null); localStorage.removeItem('sunday-session-id');
       }
       remaining = await loadSessions();
     } finally { sessionLock.current = false; setLoadingSession(false); }
@@ -382,11 +385,15 @@ export default function App() {
         content = data.answer || '';
         if (data.error) serverError = data.error;
         updateMessages(previous => previous.map((message, position) => position === index ? { ...message, content, toolCalls: data.toolCalls || [] } : message));
-        if (data.contextUsage && controller.current === abort && activeSession.current === sessionId) setContextUsage(data.contextUsage);
+        if (controller.current === abort && activeSession.current === sessionId) {
+          if (data.contextUsage) setContextUsage(data.contextUsage);
+          setCompaction(data.compaction?.summary ? data.compaction : null);
+        }
         updateActivity(serverError ? '' : progressLabel(data.progress));
       } else if (data.type === 'progress') updateActivity(progressLabel(data.status));
       else if (data.type === 'delta') { content += data.text; updateAnswer(); updateActivity('Responding…'); }
       else if (data.type === 'context_usage') { if (controller.current === abort && activeSession.current === sessionId) setContextUsage(data); }
+      else if (data.type === 'compaction') { if (controller.current === abort && activeSession.current === sessionId) setCompaction(data.compaction?.summary ? data.compaction : null); }
       else if (data.type === 'tool_status') { updateTool(data); updateActivity('Using tools…'); }
       else if (data.type === 'tool_complete') updateTool(data);
       else if (data.type === 'error') { serverError = data.error || 'Something went wrong.'; updateActivity(''); }
@@ -571,7 +578,7 @@ export default function App() {
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
-          <div ref={messageList} class="messages" id="messages"><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
+          <div ref={messageList} class="messages" id="messages"><CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
             {message.role === 'subagent' ? <div class="assistant-content subagent-response"><div class="subagent-response-label">Subagent · {message.subagentName || 'Child agent'}</div><MessageBubble content={message.content} error={message.error} /></div> : message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>

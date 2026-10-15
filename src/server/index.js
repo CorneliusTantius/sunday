@@ -233,6 +233,7 @@ const activeChats = new Map();
 function publishChat(job, data) {
   if (data.type === 'delta') job.answer += data.text;
   else if (data.type === 'context_usage') job.contextUsage = data;
+  else if (data.type === 'compaction') job.compaction = data.compaction;
   else if (data.type === 'error') job.error = data.error;
   else if (data.type === 'progress') job.progress = data.status;
   else if (data.type === 'tool_status') {
@@ -252,7 +253,7 @@ function subscribeChat(res, job) {
     if (data.type === 'done') { job.subscribers.delete(send); res.end(); }
   };
   job.subscribers.add(send);
-  send({ type: 'snapshot', sequence: job.sequence, answer: job.answer, error: job.error, toolCalls: job.toolCalls, contextUsage: job.contextUsage, progress: job.progress });
+  send({ type: 'snapshot', sequence: job.sequence, answer: job.answer, error: job.error, toolCalls: job.toolCalls, contextUsage: job.contextUsage, compaction: job.compaction, progress: job.progress });
   res.on('close', () => job.subscribers.delete(send));
 }
 function safeRepoUrl(value) {
@@ -501,6 +502,7 @@ async function runChatTurn(session, job, allowWhisper = true) {
     if (!toolCalls.length) {
       session.compaction = { summary, through: session.messages.length - 1, updatedAt: Date.now() };
       await saveSession(session);
+      publishChat(job, { type: 'compaction', compaction: session.compaction });
     }
     reportContext(estimateContext(prompt, history, tools));
   }
@@ -1215,7 +1217,7 @@ const server = http.createServer(async (req, res) => {
         if (!model) throw new Error('Choose a valid model in settings');
         if (!await waitForChat(models.getAuth(model), AbortSignal.timeout(CHAT_IDLE_TIMEOUT_MS))) throw new Error(`Connect ${providers.find(p => p.id === selected.provider).name} in settings first`);
         if (activeChats.has(input.sessionId)) throw new Error('Agent is busy');
-        const job = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null };
+        const job = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null, compaction: session.compaction || null };
         activeChats.set(input.sessionId, job);
         subscribeChat(res, job);
         try { await executeChatTurn(session, job); }

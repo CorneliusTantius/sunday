@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 
 test('mobile styles reduce spacing and text size while keeping controls and long content contained', t => {
   const dom = new JSDOM(`<main>
-    <section class="conversation"><div class="message assistant"><div class="avatar"><div class="avatar-character"></div></div><div class="message-bubble"></div></div></section>
+    <section class="conversation"><div class="messages"><div class="message assistant"><div class="avatar"><div class="avatar-character"></div></div><div class="message-bubble"></div></div></div></section>
     <div class="composer-wrap"><div class="composer"><textarea></textarea></div></div>
     <div class="settings-providers"><button class="settings-nav"></button></div>
     <div class="context-meter-label"></div><div class="code-row"></div>
@@ -29,8 +29,10 @@ test('mobile styles reduce spacing and text size while keeping controls and long
   style.remove();
   document.head.append(mobile);
   const css = selector => dom.window.getComputedStyle(document.querySelector(selector));
-  assert.equal(css('.conversation').width, 'calc(100% - 16px)');
-  assert.equal(css('.composer-wrap').width, 'calc(100% - 16px)');
+  assert.equal(css('.conversation').width, 'calc(100% - 32px)');
+  assert.equal(css('.composer-wrap').width, 'calc(100% - 32px)');
+  assert.equal(css('.messages').paddingTop, '72px');
+  assert.equal(css('.messages').paddingBottom, '24px');
   assert.equal(css('.message').fontSize, '16px');
   assert.equal(css('.message').gap, '6px');
   for (const selector of ['.avatar', '.avatar-character']) {
