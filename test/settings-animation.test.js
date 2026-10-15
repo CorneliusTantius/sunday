@@ -22,3 +22,16 @@ test('inactive forms are inert throughout the outgoing transition', () => {
 test('settings crossfade respects reduced motion', () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.settings-detail > section,\s*\.settings-detail > section\.hidden \{ transition: none; \}/);
 });
+
+
+test('page changes explicitly start an incoming animation before paint', () => {
+  assert.match(settings, /useLayoutEffect\(\(\) =>/);
+  assert.match(settings, /active\?\.animate\?\.\(/);
+  assert.match(settings, /return \(\) => animation\?\.cancel\(\);/);
+});
+
+test('all close actions wait for the exit animation before unmounting', () => {
+  assert.match(settings, /setTimeout\(onClose, reduced \? 0 : 240\)/);
+  assert.doesNotMatch(settings, /onClick=\{onClose\}|onClose\(\)/);
+  assert.match(css, /\.settings-closing \.settings-modal \{ animation: settings-dialog-depart 240ms/);
+});

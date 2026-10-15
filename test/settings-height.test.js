@@ -26,6 +26,7 @@ function mount({ observer = true, height = 280, viewportHeight = 800, visualHeig
     useState: value => [value, () => {}],
     useRef: value => ({ current: value }),
     useEffect: effect => effects.push(effect),
+    useLayoutEffect: effect => effects.push(effect),
     getComputedStyle: element => element.computed,
     window: {
       visualViewport,
@@ -52,7 +53,7 @@ function mount({ observer = true, height = 280, viewportHeight = 800, visualHeig
     style, dataset: {}, parentElement: frame,
     get offsetHeight() { flushes.push({ height: style.height, transition: style.transition }); return parseFloat(style.height); },
   };
-  refs.contentLayout.current = { offsetHeight: height };
+  refs.contentLayout.current = { offsetHeight: height, querySelector: () => null };
   for (const effect of effects) cleanups.push(effect());
   return {
     style, refs, observed, writes, flushes, header, footer, frame, container, listeners, visualListeners,

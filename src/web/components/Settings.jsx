@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import Personas from './Personas.jsx';
 
@@ -7,6 +7,15 @@ const connected = provider => provider.hasApiKey || provider.oauthConnected;
 const modesFor = provider => [provider?.hasApiKey && ['api_key', 'API key'], provider?.oauthConnected && ['oauth', 'ChatGPT sign-in']].filter(Boolean);
 
 export default function Settings({ settings, onReload, onClose, toast }) {
+  const closeTimer = useRef(null);
+  const [closing, setClosing] = useState(false);
+  function requestClose() {
+    if (closeTimer.current !== null) return;
+    setClosing(true);
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    closeTimer.current = setTimeout(onClose, reduced ? 0 : 240);
+  }
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
   const initial = settings || {};
   const [page, setPage] = useState('providers');
   const [providers, setProviders] = useState(initial.providers || []);
@@ -31,6 +40,15 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const closeButton = useRef(null);
   const contentViewport = useRef(null);
   const contentLayout = useRef(null);
+  useLayoutEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const active = contentLayout.current?.querySelector('.settings-detail > section:not(.hidden)');
+    const animation = active?.animate?.([
+      { opacity: 0, transform: 'translateY(8px)' },
+      { opacity: 1, transform: 'translateY(0)' },
+    ], { duration: 240, easing: 'ease-out' });
+    return () => animation?.cancel();
+  }, [page]);
   const generation = useRef(0);
   const alive = useRef(true);
   const authGeneration = useRef(0);
@@ -100,7 +118,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     alive.current = true;
     closeButton.current?.focus();
     function keydown(event) {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key === 'Escape') { event.preventDefault(); requestClose(); return; }
       if (event.key !== 'Tab') return;
       const controls = [...backdrop.current.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
         .filter(element => !element.disabled && element.getClientRects().length);
@@ -255,7 +273,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         if (model) { payload.model = model; payload.thinkingLevel = thinkingLevel; }
         await jsonRequest('/api/settings', 'PUT', payload);
         await reload();
-        if (alive.current) { onClose(); toast('Settings saved'); }
+        if (alive.current) { requestClose(); toast('Settings saved'); }
       }
     } catch (error) { if (alive.current) setError(error.message); }
     finally { if (alive.current) setSaving(false); }
@@ -272,9 +290,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { updatePending.current = false; if (alive.current) setUpdating(false); }
   }
 
-  return <div ref={backdrop} class="modal-backdrop" id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+  return <div ref={backdrop} class={`modal-backdrop${closing ? ' settings-closing' : ''}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <header class="modal-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="icon-button close-modal" id="close-settings" aria-label="Close settings" onClick={onClose}>×</button></header>
+      <header class="modal-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="icon-button close-modal" id="close-settings" aria-label="Close settings" onClick={requestClose}>×</button></header>
       <div ref={contentViewport} class="settings-content">
       <div ref={contentLayout} class="modal-content settings-layout">
         <nav class="settings-providers" aria-label="Settings sections">
@@ -334,7 +352,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={onClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }

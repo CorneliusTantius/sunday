@@ -897,3 +897,12 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   .settings-detail > section,
   .settings-detail > section.hidden { transition: none; }
 }
+
+/* Keep Settings mounted until its exit has finished. */
+.settings-closing { animation: settings-backdrop-depart 240ms ease both; pointer-events: none; }
+.settings-closing .settings-modal { animation: settings-dialog-depart 240ms ease both; }
+@keyframes settings-backdrop-depart { to { opacity: 0; } }
+@keyframes settings-dialog-depart { from { transform: translateY(0) scale(1); } to { transform: translateY(10px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) {
+  .settings-closing, .settings-closing .settings-modal { animation: none; }
+}
