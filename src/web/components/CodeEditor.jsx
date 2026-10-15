@@ -1,24 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { basicSetup } from 'codemirror';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { javascript } from '@codemirror/lang-javascript';
-import { json } from '@codemirror/lang-json';
-import { python } from '@codemirror/lang-python';
-import { html } from '@codemirror/lang-html';
-import { css } from '@codemirror/lang-css';
 import { request, jsonRequest } from '../api.js';
-
-function language(path) {
-  const extension = path.split('.').pop().toLowerCase();
-  if (['js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx'].includes(extension)) return javascript({ jsx: /jsx|tsx/.test(extension), typescript: /ts|tsx/.test(extension) });
-  if (extension === 'json') return json();
-  if (extension === 'py') return python();
-  if (['html', 'htm'].includes(extension)) return html();
-  if (extension === 'css') return css();
-  return [];
-}
+import { loadLanguage } from './editor-language.js';
 
 const darkTheme = EditorView.theme({
   '&': { backgroundColor: 'var(--bg, #090b10)', color: 'var(--text, #e7edf5)', height: '100%' },
@@ -63,6 +49,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const languageSupport = useRef(new Compartment());
   const host = useRef(null);
   const view = useRef(null);
   const live = useRef(false);
@@ -75,7 +62,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
 
   function editorState(content, path) {
     return EditorState.create({ doc: content, extensions: [
-      basicSetup, darkTheme, syntaxHighlighting(defaultHighlightStyle), language(path),
+      basicSetup, darkTheme, syntaxHighlighting(defaultHighlightStyle), languageSupport.current.of([]),
       EditorState.lineSeparator.of(content.includes('\r\n') ? '\r\n' : '\n'),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ 'aria-label': path ? `Editing ${path}` : 'File editor' }),
@@ -239,6 +226,15 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
       if (current.current.dirty && view.current.state.sliceDoc() !== snapshot && !mayDiscard()) return;
       current.current.file = path; current.current.baseline = data.content; current.current.dirty = false;
       view.current.setState(editorState(data.content, path));
+      // Highlighting must not delay displaying the file or replace edits made while loading.
+      loadLanguage(path).then(extension => {
+        if (!live.current || generation !== fileGeneration.current) return;
+        view.current.dispatch({ effects: languageSupport.current.reconfigure(extension) });
+      }).catch(() => {
+        if (live.current && generation === fileGeneration.current) {
+          setStatus('Syntax highlighting unavailable; plain-text editing is still available.');
+        }
+      });
       setFile(path); setDirty(false); onDirtyChange?.(false);
       if (restoring) remember({ file: path });
       else {

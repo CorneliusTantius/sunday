@@ -10,7 +10,7 @@ const deferred = () => {
 };
 
 // Run the actual component logic, omitting JSX and mocking only hooks/CodeMirror.
-function mount({ request, localStorage = storage(), jsonRequest = async () => ({}), onDirtyChange = () => {}, onSavingChange = () => {} }) {
+function mount({ request, loadLanguage = async () => [], localStorage = storage(), jsonRequest = async () => ({}), onDirtyChange = () => {}, onSavingChange = () => {} }) {
   const source = readFileSync(new URL('../src/web/components/CodeEditor.jsx', import.meta.url), 'utf8');
   const body = source.slice(0, source.indexOf('  function fileButton('))
     .replace(/^import .*;\n/gm, '').replace('export default function', 'function');
@@ -24,6 +24,7 @@ function mount({ request, localStorage = storage(), jsonRequest = async () => ({
     static updateListener = { of: listener => ({ listener }) };
     constructor({ state }) { this.state = state; }
     setState(state) { this.state = state; }
+    dispatch(transaction) { this.lastTransaction = transaction; }
     focus() {}
     destroy() { this.destroyed = true; }
     edit(content) {
@@ -35,6 +36,8 @@ function mount({ request, localStorage = storage(), jsonRequest = async () => ({
   }
   const context = vm.createContext({
     URLSearchParams, EditorView,
+    Compartment: class { of(value) { return value; } reconfigure(value) { return { language: value }; } },
+    loadLanguage,
     EditorState: { create: config => ({ ...config, doc: { toString: () => config.doc }, sliceDoc: () => config.doc }), readOnly: facet, lineSeparator: facet },
     basicSetup: {}, defaultHighlightStyle: {}, syntaxHighlighting: () => ({}),
     javascript: () => [], json: () => [], python: () => [], html: () => [], css: () => [],
@@ -806,4 +809,34 @@ test('file tree renders root contents directly while child folders remain expand
   assert.match(tree, /\{directoryContents\(''\)\}/);
   assert.doesNotMatch(tree, /toggleDirectory|expanded\.has|code-editor-root/);
   assert.match(source, /onClick=\{\(\) => toggleDirectory\(childPath\)\}/);
+});
+
+
+test('delayed syntax support preserves edits and ignores an obsolete file', async () => {
+  const first = deferred(), second = deferred();
+  const h = await loaded({ loadLanguage: path => path === 'a.js' ? first.promise : second.promise });
+  await h.state.openFile('a.js');
+  h.edit('edited while language loads');
+  first.resolve(['javascript']);
+  await h.settle();
+  assert.equal(h.state.view.current.state.sliceDoc(), 'edited while language loads');
+  assert.deepEqual(Array.from(h.state.view.current.lastTransaction.effects.language), ['javascript']);
+  h.allowDiscard = true;
+  await h.state.openFile('b.py');
+  await h.state.openFile('a.js');
+  await h.settle();
+  second.resolve(['python']);
+  await h.settle();
+  assert.deepEqual(Array.from(h.state.view.current.lastTransaction.effects.language), ['javascript']);
+  h.unmount();
+});
+
+test('syntax download failure keeps the opened file editable', async () => {
+  const h = await loaded({ loadLanguage: async () => { throw new Error('offline'); } });
+  await h.state.openFile('a.js');
+  await h.settle();
+  assert.match(h.state.status, /plain-text editing/);
+  h.edit('still editable');
+  assert.equal(h.state.dirty, true);
+  h.unmount();
 });
