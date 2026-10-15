@@ -76,6 +76,7 @@ async function mount(t, options = {}) {
   const models = [{ id: 'model-a', name: 'Model A', thinkingLevels: ['off', 'high'] }, { id: 'model-b', name: 'Model B', thinkingLevels: ['off', 'high'] }];
   const defaults = { provider: 'openai', mode: 'api_key', model: 'model-a', thinkingLevel: 'off', models, providers: [] };
   const sessions = [1, 2].map(id => ({ id: `session-${id}`, title: `Chat ${id}`, messages: [], config: { provider: 'openai', mode: 'api_key', model: id === 1 ? 'model-a' : 'model-b', thinkingLevel: id === 1 ? 'off' : 'high' }, models }));
+  if (options.withSubagent) sessions.push({ ...sessions[1], id: 'child-1', title: 'Finch', parentSessionId: 'session-1' });
   const calls = [];
   let pending = null;
   let stream;
@@ -615,4 +616,22 @@ test('content resizing follows the bottom and resets when switching sessions', a
     assert.equal(scroll.element.scrollTop, 1500);
     assert.equal(h.$('#scroll-to-latest'), null);
   });
+});
+
+
+test('subagents have an independent native disclosure and remain navigable', async t => {
+  const h = await mount(t, { withSubagent: true });
+  const group = h.$('.session-tree .subagent-group');
+  assert.ok(group);
+  assert.equal(group.open, true);
+  assert.equal(group.querySelector('summary').textContent, 'Subagents 1');
+  assert.equal(group.querySelector('.subagent-row .session-title').textContent, 'Finch');
+  h.click('.subagent-toggle');
+  assert.equal(group.open, false);
+  assert.equal(h.$('#agents-toggle').getAttribute('aria-expanded'), 'true');
+  h.click('.subagent-toggle');
+  assert.equal(group.open, true);
+  h.click('.subagent-row .session-item');
+  await waitFor(() => assert.equal(h.$('.session-item.active')?.textContent, 'Finch'));
+  assert.equal(group.open, true);
 });

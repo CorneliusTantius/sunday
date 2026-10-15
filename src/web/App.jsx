@@ -486,7 +486,16 @@ export default function App() {
     </div>;
   };
 
-  const renderSessionTree = session => <div key={session.id}>{renderSession(session)}{sessions.filter(child => child.parentSessionId === session.id).map(renderSession)}</div>;
+  const renderSessionTree = session => {
+    const children = sessions.filter(child => child.parentSessionId === session.id);
+    return <div class="session-tree" key={session.id}>
+      {renderSession(session)}
+      {children.length > 0 && <details class="subagent-group" open>
+        <summary class="subagent-toggle">Subagents <span class="subagent-count">{children.length}</span></summary>
+        <div class="subagent-list">{children.map(renderSession)}</div>
+      </details>}
+    </div>;
+  };
 
   return <>
     <div class="app-shell" ref={shell}>

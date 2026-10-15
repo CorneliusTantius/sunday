@@ -231,7 +231,7 @@ test('desktop CSS animates layout without display:none or discrete display trans
   for (const open of [true, false, true]) {
     const style = css('.sidebar', open ? 'sidebar' : 'sidebar collapsed');
     assert.equal(style.display, 'flex');
-    assert.equal(style.width, open ? '280px' : '0px');
+    assert.equal(style.width, open ? '320px' : '0px');
     assert.equal(style.paddingLeft, open ? '18px' : '0px');
     assert.equal(style.paddingRight, open ? '18px' : '0px');
     assert.equal(style.marginRight, open ? '0px' : '-1px');
