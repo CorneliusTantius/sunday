@@ -4,6 +4,7 @@ import Character from './components/Character.jsx';
 import Repositories from './components/Repositories.jsx';
 import Socials from './components/Socials.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import ScheduledJobs from './components/ScheduledJobs.jsx';
 import { lazy, Suspense } from 'preact/compat';
 import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
@@ -34,8 +35,8 @@ const galaxyStars = Array.from({ length: 64 }, (_, index) => {
       '--star-color': color,
       '--star-glow-color': glow,
       '--star-glow-size': `${range(prominent ? 5 : 2, prominent ? 10 : 5)}px`,
-      '--star-duration': `${range(4, 9)}s`,
-      '--star-delay': `${-range(0, 9)}s`,
+      '--star-duration': `${range(9, 16)}s`,
+      '--star-delay': `${-range(0, 16)}s`,
       '--star-drift-x': `${range(-17, 17)}px`,
       '--star-drift-y': `${range(-13, 13)}px`,
     },
@@ -53,7 +54,7 @@ function cancelChat(sessionId) {
     .catch(() => {}).finally(() => clearTimeout(timer));
 }
 function currentPage() {
-  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#dashboard' ? 'dashboard' : 'chat';
+  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#dashboard' ? 'dashboard' : location.hash === '#scheduled-job' ? 'scheduled-job' : 'chat';
 }
 
 function formatTokens(value) {
@@ -79,6 +80,7 @@ function MenuIcon({ name }) {
     repositories: 'M6 3v12a4 4 0 0 0 4 4h7 M17 5v14 M3 3h6 M14 5h6 M14 19h6',
     files: 'M4 6h6l2 2h8v12H4V6Z',
     socials: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z M4 21v-2a8 8 0 0 1 16 0v2',
+    schedule: 'M8 3v3 M16 3v3 M4 9h16 M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z M8 13h3 M8 16h6',
   };
   return <svg class="menu-icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d={paths[name]} stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>;
 }
@@ -264,13 +266,14 @@ export default function App() {
     return () => { clearInterval(timer); clearTimeout(toastTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'dashboard' ? 'Dashboard' : 'Chat'}`;
+    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'dashboard' ? 'Dashboard' : page === 'scheduled-job' ? 'Scheduled job' : 'Chat'}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
     if (page === 'editor') shell.current?.querySelector('#code-editor-title')?.focus();
     else if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
     else if (page === 'dashboard') shell.current?.querySelector('#dashboard-title')?.focus();
     else if (page === 'socials') shell.current?.querySelector('#socials-title')?.focus();
+    else if (page === 'scheduled-job') shell.current?.querySelector('#scheduled-job-title')?.focus();
     else promptInput.current?.focus();
   }, [page]);
   useEffect(() => {
@@ -545,6 +548,7 @@ export default function App() {
             </nav>
             </div>
           </div>
+          <a class={`scheduled-job-link${page === 'scheduled-job' ? ' active' : ''}`} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" /><span>Scheduled job</span></a>
         </section>
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
         <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
@@ -557,6 +561,7 @@ export default function App() {
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'dashboard' && <Dashboard />}
         {page === 'socials' && <Socials />}
+        {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>

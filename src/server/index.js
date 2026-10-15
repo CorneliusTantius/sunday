@@ -1,5 +1,5 @@
 import { estimateContext, shouldCompact, measuredInput } from './context.js';
-import { repositoryStatusDetails } from './repo-status.js';
+import { repositoryStatusDetails, pullRepository } from './repo-status.js';
 import http from 'node:http';
 import { open, opendir, readFile, readlink, mkdir, writeFile, rename, chmod, readdir, rm, cp, lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -19,6 +19,7 @@ import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
 let updateRunning = false;
+const repoPulls = new Set();
 function pullUpdate() {
   return new Promise((resolve, reject) => {
     execFile('git', ['pull'], { cwd: appDir, timeout: 120000, maxBuffer: 64 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, stdout, stderr) => {
@@ -916,6 +917,23 @@ const server = http.createServer(async (req, res) => {
       for (const name of await readdir(reposDir, { withFileTypes: true })) if (name.isDirectory()) repos.push({ name: name.name, ...await repositoryStatusDetails(join(reposDir, name.name)) });
       repos.sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, { repos });
+    }
+    const repoPullMatch = url.pathname.match(/^\/api\/repos\/([^/]+)\/pull$/);
+    if (repoPullMatch) {
+      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      const name = decodeURIComponent(repoPullMatch[1]);
+      if (!/^[A-Za-z0-9_.-]+$/.test(name) || name === '.' || name === '..') return json(res, 400, { error: 'Invalid repository name' });
+      const destination = join(reposDir, name);
+      let info;
+      try { info = await lstat(destination); } catch (error) { if (error.code === 'ENOENT') return json(res, 404, { error: 'Repository not found' }); throw error; }
+      if (!info.isDirectory() || info.isSymbolicLink()) return json(res, 404, { error: 'Repository not found' });
+      if (repoPulls.has(name)) return json(res, 409, { error: 'A pull is already running for this repository' });
+      repoPulls.add(name);
+      try {
+        await pullRepository(destination);
+        return json(res, 200, { repo: { name, ...await repositoryStatusDetails(destination) } });
+      } catch (error) { return json(res, 400, { error: error.message }); }
+      finally { repoPulls.delete(name); }
     }
     if (url.pathname === '/api/repos' && req.method === 'POST') {
       const input = await body(req), repo = safeRepoUrl(input.url);

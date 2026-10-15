@@ -14,3 +14,12 @@ test('explorer has rounded rows and visible keyboard focus', () => {
   assert.match(css, /\.code-editor-file-button:focus-visible/);
   assert.match(component, /code-editor-entry-icon/);
 });
+test('Files page enters with a smooth staggered animation', () => {
+  assert.match(css, /\.code-editor-header \{[^}]*animation: files-heading-arrive 520ms/);
+  assert.match(css, /\.code-editor-layout \{[^}]*animation: files-workspace-arrive 640ms[^}]*80ms both/);
+  assert.match(css, /@keyframes files-heading-arrive/);
+  assert.match(css, /@keyframes files-workspace-arrive/);
+});
+test('subagent cards use an opaque dark background to cover the galaxy layer', () => {
+  assert.match(css, /\.agents-sessions \.session-row\.subagent-row \{[^}]*background: var\(--bg\)/);
+});
