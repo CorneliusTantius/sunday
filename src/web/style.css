@@ -473,6 +473,10 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 #session-config-repos { height: auto; }
 .session-config-dialog .modal-content > .field-label:not(:first-child), .settings-detail .settings-section > .field-label:not(:first-child), #persona-form > .field-label:not(:first-child) { margin-top: 22px; }
 .session-config-dialog .modal-header h2 { margin: 0; }
+.session-config-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr); align-items: center; gap: 16px; margin-top: 16px; }
+.session-config-row .field-label { margin: 0; }
+.session-config-row .select, .session-config-row .text-input { width: 100%; min-width: 0; }
+@media (max-width: 480px) { .session-config-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; } }
 .workspace-save-progress { display: grid; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 13px; }
 .workspace-progress { position: relative; height: 6px; overflow: hidden; border-radius: 999px; background: var(--panel2); }
 .workspace-progress::before { content: ''; position: absolute; inset: 0 auto 0 -35%; width: 35%; border-radius: inherit; background: var(--highlight); animation: workspace-copy-progress 1.2s ease-in-out infinite; }
