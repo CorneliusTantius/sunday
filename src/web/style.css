@@ -807,7 +807,15 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 /* Separate the update action from its explanatory text. */
 #settings-update-page > .field-note { margin-bottom: 20px; }
 
-.dashboard-page { flex: 1; min-height: 0; display: grid; place-items: center; padding: 64px 24px; overflow-y: auto; text-align: center; }
+.dashboard-page { flex: 1; min-height: 0; display: grid; place-items: center; padding: 64px 24px; overflow-y: auto; text-align: center; animation: dashboard-arrive 420ms cubic-bezier(.2,.8,.2,1) both; }
+.dashboard-page.dashboard-exiting { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: dashboard-depart 320ms cubic-bezier(.4,0,.8,.2) both; }
+@keyframes dashboard-arrive {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes dashboard-depart {
+  to { opacity: 0; transform: translateY(-12px) scale(.99); }
+}
 .dashboard-clock h1 { font-size: clamp(28px, 5vw, 48px); margin: 0 0 16px; }
 .dashboard-clock time { font-size: clamp(24px, 4vw, 36px); color: var(--muted); font-variant-numeric: tabular-nums; }
 

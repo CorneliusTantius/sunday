@@ -117,6 +117,10 @@ export default function App() {
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [page, setPage] = useState(currentPage);
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const [dashboardExiting, setDashboardExiting] = useState(false);
+  const dashboardExitTimer = useRef(null);
   const editorDirty = useRef(false);
   const editorSaving = useRef(false);
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 700px)').matches);
@@ -262,13 +266,21 @@ export default function App() {
         return;
       }
       if (next !== 'editor') editorDirty.current = false;
+      clearTimeout(dashboardExitTimer.current);
+      if (pageRef.current === 'dashboard' && next !== 'dashboard') {
+        setDashboardExiting(true);
+        dashboardExitTimer.current = setTimeout(() => setDashboardExiting(false), 380);
+      } else {
+        setDashboardExiting(false);
+      }
+      pageRef.current = next;
       setPage(next);
     };
     const layout = matchMedia('(max-width: 700px)');
     const resize = () => { setMobile(layout.matches); setSidebarOpen(!layout.matches); };
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('hashchange', route); layout.addEventListener('change', resize);
-    return () => { clearInterval(timer); clearTimeout(toastTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
+    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(dashboardExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
     document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'financial-tracker' ? 'Financial tracker' : page === 'dashboard' ? 'Dashboard' : page === 'scheduled-job' ? 'Scheduled job' : 'Chat'}`;
@@ -570,7 +582,11 @@ export default function App() {
       <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
       <main class="main">
         {page === 'repositories' && <Repositories toast={toast} />}
-        {page === 'dashboard' && <Dashboard />}
+        {(page === 'dashboard' || dashboardExiting) && <Dashboard exiting={dashboardExiting} onExitAnimationEnd={event => {
+          if (event.target !== event.currentTarget) return;
+          clearTimeout(dashboardExitTimer.current);
+          setDashboardExiting(false);
+        }} />}
         {page === 'socials' && <Socials />}
         {page === 'financial-tracker' && <FinancialTracker />}
         {page === 'scheduled-job' && <ScheduledJobs />}

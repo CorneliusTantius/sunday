@@ -8,10 +8,15 @@ test('Files route aliases preserve dirty and saving guards', () => {
   const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function formatTokens'));
   const route = source.slice(source.indexOf('const route = () =>'), source.indexOf('const layout = matchMedia'));
-  let page = 'editor', confirmations = 0, alerts = 0, discard = false;
+  let page = 'editor', confirmations = 0, alerts = 0, discard = false, dashboardExiting = false;
+  let nextTimer = 0;
+  const timers = new Map(), timerDelays = [];
   const context = {
     location: { hash: '#editor' }, editorDirty: { current: true }, editorSaving: { current: false },
-    setPage: next => { page = next; },
+    pageRef: { current: 'editor' }, dashboardExitTimer: { current: null },
+    setPage: next => { page = next; }, setDashboardExiting: value => { dashboardExiting = value; },
+    setTimeout: (callback, delay) => { const id = ++nextTimer; timers.set(id, callback); timerDelays.push(delay); return id; },
+    clearTimeout: id => timers.delete(id),
     window: { confirm: () => { confirmations++; return discard; }, alert: () => { alerts++; } },
     history: { replaceState: (_state, _title, hash) => { context.location.hash = hash; } },
   };
@@ -33,6 +38,16 @@ test('Files route aliases preserve dirty and saving guards', () => {
   context.location.hash = '#repositories'; navigate();
   assert.equal(page, 'repositories');
   assert.equal(context.editorDirty.current, false);
+
+  context.pageRef.current = 'dashboard';
+  context.location.hash = '#socials'; navigate();
+  assert.equal(page, 'socials');
+  assert.equal(dashboardExiting, true);
+  assert.deepEqual(timerDelays, [380]);
+  assert.equal(timers.size, 1);
+  context.location.hash = '#dashboard'; navigate();
+  assert.equal(dashboardExiting, false);
+  assert.equal(timers.size, 0, 'a subsequent route cancels the pending exit cleanup');
 });
 
 test('Files is a top-level navigation item matching Repositories', t => {
