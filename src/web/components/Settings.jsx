@@ -17,6 +17,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   }
   useEffect(() => () => clearTimeout(closeTimer.current), []);
   const initial = settings || {};
+  const [subagents, setSubagents] = useState(initial.subagents || { enabled: true, maxChildren: 3 });
   const [page, setPage] = useState('providers');
   const [providers, setProviders] = useState(initial.providers || []);
   const [provider, setProvider] = useState(initial.provider || 'openai');
@@ -290,6 +291,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`settings-nav${page === 'providers' || page === 'connect' ? ' active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
           <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
           <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
+          <button class={`settings-nav${page === 'subagents' ? ' active' : ''}`} id="settings-subagents-nav" onClick={() => navigate('subagents')}>Subagents</button>
           <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
         <div class={`settings-detail${page === 'personas' ? ' settings-detail-personas' : ''}`}>
@@ -332,6 +334,13 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <div class="settings-select-row"><label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
             <p class="field-note">Only connected providers have available models. Save an API key first, then choose a default model. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
           </section>
+          <section inert={page !== 'subagents'} id="settings-subagents-page" class={`settings-section${page === 'subagents' ? '' : ' hidden'}`}>
+            <h3>Subagents</h3>
+            <label class="field-label"><input type="checkbox" checked={subagents.enabled} disabled={saving} onChange={event => setSubagents({ ...subagents, enabled: event.currentTarget.checked })} /> Enable subagent delegation</label>
+            <div class="settings-select-row"><label class="field-label" for="subagent-limit">Maximum children per agent</label><select id="subagent-limit" class="select" value={subagents.maxChildren} disabled={saving} onChange={event => setSubagents({ ...subagents, maxChildren: Number(event.currentTarget.value) })}>{[1, 2, 3].map(limit => <option key={limit} value={limit}>{limit}</option>)}</select></div>
+            <p class="field-note">Children inherit the parent's initial model and persona and use isolated workspaces. Lowering the limit does not delete existing children. Disabling delegation blocks new children and assignments, but does not stop running work or hide existing sessions.</p>
+            <button class="primary-button" disabled={saving} onClick={async () => { setSaving(true); setError(''); try { await jsonRequest('/api/settings/subagents', 'PUT', subagents); await onReload?.(); toast('Subagent settings saved'); } catch (error) { setError(error.message); } finally { setSaving(false); } }}>Save subagent settings</button>
+          </section>
           <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
             <h3>Update Sunday</h3>
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
@@ -343,7 +352,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'subagents' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }

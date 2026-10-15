@@ -44,6 +44,17 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal(deletion.status, 400);
     const listed = (await api('/sessions')).sessions;
     assert.equal(listed.find(item => item.id === first.id).parentSessionId, parent.id);
+    const configure = async value => {
+      const response = await fetch(`http://127.0.0.1:${port}/api/settings/subagents`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, ...await response.json() };
+    };
+    assert.equal((await configure({ enabled: true, maxChildren: 4 })).status, 400);
+    assert.equal((await configure({ enabled: false, maxChildren: 1 })).subagents.enabled, false);
+    assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 400);
+    assert.equal((await api(path)).result.length, 3);
+    assert.equal((await configure({ enabled: true, maxChildren: 1 })).subagents.maxChildren, 1);
+    assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 201);
+    assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 400);
     // Inject a durable completion, emulating recovery after a process restart.
     const filename = join(home, 'sunday/data/sessions', `${first.id}.json`);
     const saved = JSON.parse(await readFile(filename, 'utf8'));

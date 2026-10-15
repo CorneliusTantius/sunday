@@ -167,7 +167,7 @@ async function publicSettings(provider = settings.provider, mode) {
   const modelId = provider === settings.provider && mode === settings.mode ? settings.model : defaultModel(provider, mode, available);
   const model = available.find(m => m.id === modelId) || available.find(m => m.id === defaultModel(provider, mode, available));
   const status = statuses.find(p => p.id === provider);
-  return { provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), dataDir, workspaceDir };
+  return { subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), dataDir, workspaceDir };
 }
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 let login = { status: 'idle', events: [] }, loginAttempt;
@@ -460,7 +460,7 @@ async function runChatTurn(session, job, allowWhisper = true) {
   const agentWorkspace = await syncAgentWorkspace(session);
   job.controller.signal.throwIfAborted();
   const profile = session.profile || defaultProfile();
-  const granted = validateTools(profile.allowedTools).filter(name => !session.parentSessionId || !['create_subagent', 'send_subagent_prompt', 'list_subagents', 'whisper_to_agent'].includes(name));
+  const granted = validateTools(profile.allowedTools).filter(name => !session.parentSessionId || !['subagent_create', 'subagent_send_prompt', 'subagent_list', 'whisper_to_agent'].includes(name));
   const repositoryTools = session.allowedRepositories?.length ? granted.filter(name => REPOSITORY_TOOL_NAMES.includes(name)) : [];
   const memoryTools = granted.filter(name => MEMORY_TOOL_NAMES.includes(name));
   const canWhisper = allowWhisper && granted.includes('whisper_to_agent');
@@ -578,7 +578,7 @@ async function runChatTurn(session, job, allowWhisper = true) {
       publishChat(job, { type: 'progress', status: 'using_tools' });
       try {
         if (!allowed.includes(call.name) || !call.arguments || typeof call.arguments !== 'object' || Array.isArray(call.arguments)) throw new Error('Tool is not allowed or arguments are invalid');
-        if (['create_subagent', 'send_subagent_prompt', 'list_subagents'].includes(call.name)) result = await manageSubagents(session, call.name, call.arguments);
+        if (['subagent_create', 'subagent_send_prompt', 'subagent_list'].includes(call.name)) result = await manageSubagents(session, call.name, call.arguments);
         else if (call.name === 'whisper_to_agent') result = await waitForChat(whisperToAgent(session.id, call.arguments, job.controller.signal), job.controller.signal);
         else if (call.name === 'list_agents') {
           if (Object.keys(call.arguments).length) throw new Error('list_agents takes no arguments');
@@ -617,15 +617,16 @@ async function childSessions(parentId) {
 }
 async function manageSubagents(parent, tool, args) {
   if (parent.parentSessionId) throw new Error('Subagents cannot create or manage children');
-  const keys = tool === 'create_subagent' ? ['prompt'] : tool === 'send_subagent_prompt' ? ['sessionId', 'prompt'] : [];
+  const keys = tool === 'subagent_create' ? ['prompt'] : tool === 'subagent_send_prompt' ? ['sessionId', 'prompt'] : [];
   if (Object.keys(args).some(key => !keys.includes(key))) throw new Error('Invalid subagent arguments');
-  if ((tool === 'send_subagent_prompt' || args.prompt !== undefined) && (typeof args.prompt !== 'string' || !args.prompt.trim() || args.prompt.length > 20000)) throw new Error('Prompt must contain 1–20000 characters');
-  if (tool === 'list_subagents') return JSON.stringify((await childSessions(parent.id)).map(child => ({ id: child.id, title: child.title, running: activeChats.has(child.id), lastMessage: child.messages.findLast(message => message.role === 'assistant')?.content || '' })));
+  if ((tool === 'subagent_send_prompt' || args.prompt !== undefined) && (typeof args.prompt !== 'string' || !args.prompt.trim() || args.prompt.length > 20000)) throw new Error('Prompt must contain 1–20000 characters');
+  if (tool === 'subagent_list') return JSON.stringify((await childSessions(parent.id)).map(child => ({ id: child.id, title: child.title, running: activeChats.has(child.id), lastMessage: child.messages.findLast(message => message.role === 'assistant')?.content || '' })));
+  if (settings.subagents?.enabled === false) throw new Error('Subagent delegation is disabled in Settings');
   let child;
-  if (tool === 'create_subagent') {
+  if (tool === 'subagent_create') {
     child = await serialize(async () => {
       const children = await childSessions(parent.id);
-      if (children.length >= 3) throw new Error('A session can have at most three subagents');
+      if (children.length >= (settings.subagents?.maxChildren ?? 3)) throw new Error(`A session can have at most ${settings.subagents?.maxChildren ?? 3} subagents`);
       const child = { id: randomUUID(), parentSessionId: parent.id, title: uniqueSessionName(children.map(item => item.title), BIRD_NAMES), titleEdited: false, updatedAt: Date.now(), messages: [], profile: structuredClone(parent.profile), config: structuredClone(parent.config), allowedRepositories: [...(parent.allowedRepositories || [])] };
       await syncAgentWorkspace(child);
       await persistSession(child);
@@ -955,7 +956,7 @@ const server = http.createServer(async (req, res) => {
       return await withSessionLock(id, async () => {
         const parent = await readSession(id);
         if (!parent) return json(res, 404, { error: 'Session not found' });
-        const tool = req.method === 'GET' ? 'list_subagents' : input.sessionId ? 'send_subagent_prompt' : 'create_subagent';
+        const tool = req.method === 'GET' ? 'subagent_list' : input.sessionId ? 'subagent_send_prompt' : 'subagent_create';
         if (!validateTools(parent.profile?.allowedTools).includes(tool)) throw new Error('Subagent tool is not allowed for this profile');
         return json(res, req.method === 'GET' ? 200 : 201, { result: JSON.parse(await manageSubagents(parent, tool, input)) });
       });
@@ -1067,6 +1068,15 @@ const server = http.createServer(async (req, res) => {
       const { provider } = selection(input.provider, 'api_key');
       if (typeof input.apiKey !== 'string' || !input.apiKey.trim() || input.apiKey.length > 4096) throw new Error('Enter a valid API key');
       await credentials.modify(provider, async () => ({ type: 'api_key', key: input.apiKey.trim() }));
+      return json(res, 200, await publicSettings());
+    }
+    if (url.pathname === '/api/settings/subagents' && req.method === 'PUT') {
+      const input = await body(req);
+      if (!input || Object.keys(input).some(key => !['enabled', 'maxChildren'].includes(key)) || typeof input.enabled !== 'boolean' || !Number.isInteger(input.maxChildren) || input.maxChildren < 1 || input.maxChildren > 3) throw new Error('Choose enabled status and a subagent limit from 1 to 3');
+      await serialize(async () => {
+        const next = { ...settings, subagents: { enabled: input.enabled, maxChildren: input.maxChildren } };
+        await save('settings.json', next); settings = next;
+      });
       return json(res, 200, await publicSettings());
     }
     if (url.pathname === '/api/settings' && req.method === 'PUT') {

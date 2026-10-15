@@ -7,9 +7,9 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 export const BASIC_TOOLS = [
-  { name: 'create_subagent', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt. Returns immediately; completion is delivered automatically. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
-  { name: 'send_subagent_prompt', description: 'Send work to an idle child session and return immediately. Its completion automatically notifies you.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
-  { name: 'list_subagents', description: 'List your child sessions, running state, and latest assistant message.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt. Returns immediately; completion is delivered automatically. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
+  { name: 'subagent_send_prompt', description: 'Send work to an idle child session and return immediately. Its completion automatically notifies you.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
+  { name: 'subagent_list', description: 'List your child sessions, running state, and latest assistant message.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'read', description: "Read a text file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
   { name: 'edit', description: "Replace exact text in a file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
@@ -25,10 +25,10 @@ export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
   if (!Array.isArray(value)) throw new Error('Invalid allowed tools');
   // Migrate permissions persisted under the previous file-tool names.
-  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
+  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
   // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
-  const orchestration = ['create_subagent', 'send_subagent_prompt', 'list_subagents'];
+  const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
   if (BASIC_TOOL_NAMES.filter(name => !orchestration.includes(name)).every(name => migrated.includes(name))) {
     for (const name of orchestration) if (!migrated.includes(name)) migrated.push(name);
   }
