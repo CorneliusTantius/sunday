@@ -87,7 +87,7 @@ test('new agent label and pinning keep at most three agents at the top', async t
   for (const session of sessions.slice(0, 3)) act(() => pinButton(session.id).click());
   const rows = () => [...app.window.document.querySelectorAll('.session-row')].map(row => row.querySelector('.session-item').textContent);
   assert.deepEqual(rows(), ['Agent 1', 'Agent 2', 'Agent 3', 'Agent 4']);
-  assert.equal(app.window.document.querySelector('.agent-list-heading').textContent, 'PINNED');
+  assert.deepEqual([...app.window.document.querySelectorAll('.agent-list-heading')].map(heading => heading.textContent), ['PINNED']);
   assert.deepEqual(JSON.parse(app.window.localStorage.getItem('sunday-pinned-agent-ids')), ['agent-1', 'agent-2', 'agent-3']);
   act(() => pinButton('agent-4').click());
   assert.equal(app.get('toast').textContent, 'You can pin up to 3 agents. Unpin one first.');

@@ -516,7 +516,6 @@ export default function App() {
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
               {pinnedSessions.length > 0 && <div class="agent-list-heading">PINNED</div>}
               {pinnedSessions.map(renderSessionTree)}
-              {pinnedSessions.length > 0 && unpinnedSessions.length > 0 && <div class="agent-list-heading">AGENTS</div>}
               {unpinnedSessions.map(renderSessionTree)}
             </nav>
             </div>
