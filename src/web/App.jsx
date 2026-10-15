@@ -548,8 +548,8 @@ export default function App() {
             </nav>
             </div>
           </div>
-          <a class={`scheduled-job-link${page === 'scheduled-job' ? ' active' : ''}`} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" /><span>Scheduled job</span></a>
         </section>
+        <a class={`feature-heading feature-link scheduled-job-link${page === 'scheduled-job' ? ' active' : ''}`} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" /><span>Scheduled job</span></a>
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
         <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
         <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" /><span>Socials</span></a>

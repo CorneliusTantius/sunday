@@ -16,6 +16,12 @@ test('standalone menu links group icons and labels like the agents link', () => 
   assert.match(css, /\.feature-heading \{[^}]*justify-content: space-between;/);
 });
 
+test('scheduled jobs are a top-level sidebar destination below Sunday Agents', () => {
+  const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /<section class="agents-feature"[\s\S]*?<\/section>\s*<a class=\{`feature-heading feature-link scheduled-job-link/);
+  assert.match(css, /\.scheduled-job-link\[aria-current="page"\]/);
+});
+
 test('nested agents use smaller text, avatars and spacing than parent navigation', () => {
   assert.match(css, /\.agents-sessions \.new-chat \{ height: 32px; padding: 0 10px; font-size: 13px;/);
   assert.match(css, /\.agents-sessions \.sessions-list \{ gap: 6px; \}/);

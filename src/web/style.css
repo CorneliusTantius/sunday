@@ -987,23 +987,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .subagent-response { border-left: 2px solid var(--accent, #67cbd3); padding-left: 12px; }
 .subagent-response-label { font-size: 12px; font-weight: 600; opacity: .7; margin-bottom: 6px; }
 
-/* The agent tools are nested beneath Sunday Agents without hiding alongside its session list. */
-.scheduled-job-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 38px;
-  margin: 4px 0 0 14px;
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.scheduled-job-link .menu-icon { width: 18px; height: 18px; }
-.scheduled-job-link:hover { color: var(--text); background: var(--panel2); }
+/* Scheduled jobs are a top-level destination alongside the other sidebar pages. */
 .scheduled-job-link[aria-current="page"] { border-color: color-mix(in srgb, var(--violet) 45%, transparent); background: color-mix(in srgb, var(--violet) 11%, var(--panel)); color: var(--text); }
 .subagent-group { margin-top: 4px; }
 
