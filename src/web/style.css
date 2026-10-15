@@ -916,3 +916,6 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 @media (prefers-reduced-motion: reduce) {
   .settings-closing, .settings-closing .settings-modal { animation: none; }
 }
+
+/* Child sessions remain ordinary navigable sessions, visually nested under their parent. */
+.session-row.subagent-row { margin-left: 18px; border-left: 2px solid var(--border, #394150); padding-left: 8px; }

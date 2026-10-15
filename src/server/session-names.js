@@ -17,11 +17,13 @@ export const GREEK_DEITY_NAMES = Object.freeze([
   'Thalia', 'Urania', 'Aglaea', 'Euphrosyne',
 ]);
 
-export function uniqueSessionName(titles) {
+export const BIRD_NAMES = Object.freeze(['Finch', 'Wren', 'Swift', 'Robin', 'Lark', 'Sparrow', 'Kestrel', 'Heron', 'Starling', 'Owl', 'Raven', 'Dove']);
+
+export function uniqueSessionName(titles, pool = GREEK_DEITY_NAMES) {
   const used = new Set(titles);
-  const unused = GREEK_DEITY_NAMES.filter(name => !used.has(name));
+  const unused = pool.filter(name => !used.has(name));
   if (unused.length) return unused[randomInt(unused.length)];
-  const base = GREEK_DEITY_NAMES[randomInt(GREEK_DEITY_NAMES.length)];
+  const base = pool[randomInt(pool.length)];
   let suffix = 2;
   while (used.has(`${base} ${suffix}`)) suffix++;
   return `${base} ${suffix}`;

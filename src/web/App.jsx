@@ -310,7 +310,6 @@ export default function App() {
     return () => clearInterval(timer);
   }, [activeRunning, busy, sessionId, loadSessions]);
   useEffect(() => {
-    if (!sessions.some(session => session.running)) return;
     const timer = setInterval(() => loadSessions(), 5000);
     return () => clearInterval(timer);
   }, [sessions.some(session => session.running), loadSessions]);
@@ -474,18 +473,20 @@ export default function App() {
   const contextTokens = measuredUsage ? contextUsage.tokens + Math.ceil(prompt.length / 3) : Math.ceil(estimatedCharacters / 3);
   const contextPercent = contextWindow ? Math.min(100, Math.round(contextTokens / contextWindow * 100)) : 0;
   const closeSidebar = () => { setSidebarOpen(false); menu.current?.focus(); };
-  const pinnedSessions = pinnedAgentIds.map(id => sessions.find(session => session.id === id)).filter(Boolean);
+  const pinnedSessions = pinnedAgentIds.map(id => sessions.find(session => session.id === id)).filter(session => session && !session.parentSessionId);
   const pinnedIds = new Set(pinnedSessions.map(session => session.id));
-  const unpinnedSessions = sessions.filter(session => !pinnedIds.has(session.id));
+  const unpinnedSessions = sessions.filter(session => !session.parentSessionId && !pinnedIds.has(session.id));
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
-    return <div class="session-row" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
+    return <div class={`session-row${session.parentSessionId ? ' subagent-row' : ''}`} key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
       <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span></button>
       {session.running && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
       <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} disabled={busy || loadingSession} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={busy || loadingSession} onClick={event => { if (controller.current || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
     </div>;
   };
+
+  const renderSessionTree = session => <div key={session.id}>{renderSession(session)}{sessions.filter(child => child.parentSessionId === session.id).map(renderSession)}</div>;
 
   return <>
     <div class="app-shell" ref={shell}>
@@ -502,9 +503,9 @@ export default function App() {
             <div class="agents-sessions-content"><button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
               {pinnedSessions.length > 0 && <div class="agent-list-heading">PINNED</div>}
-              {pinnedSessions.map(renderSession)}
+              {pinnedSessions.map(renderSessionTree)}
               {pinnedSessions.length > 0 && unpinnedSessions.length > 0 && <div class="agent-list-heading">AGENTS</div>}
-              {unpinnedSessions.map(renderSession)}
+              {unpinnedSessions.map(renderSessionTree)}
             </nav>
             </div>
           </div>

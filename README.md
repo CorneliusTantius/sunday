@@ -80,3 +80,25 @@ File access is restricted to the selected directory and the server user's filesy
 ## Checks
 
 `npm test` checks session persistence, independent provider credentials, connected-only model catalogs, stable installation identity, and that OAuth mode cannot fall back to an API key. `npm run build` checks the Vite production build. Live OpenAI requests and OAuth require your credentials and account access.
+
+### Persistent subagents
+
+A top-level agent can manage up to three reusable child sessions using
+`create_subagent` (optional `prompt`), `send_subagent_prompt` (`sessionId`,
+`prompt`), and `list_subagents`. Assignment returns immediately; busy children
+reject another assignment. Children use a separate bird-name pool and appear
+beneath their parent in the sidebar, where they can be opened like ordinary chats.
+They inherit initial profile/model/repository access but have independent history
+and isolated repository copies. Children cannot manage children or whisper to
+other agents. Existing unrestricted tool profiles gain these tools automatically;
+custom restricted profiles must explicitly enable them.
+
+Each completed child turn saves a durable notification (including failures and
+cancellations). The server delivers it when the parent is idle and starts a parent
+turn to review it. Notification IDs prevent duplicate transcript delivery during
+recovery. An interrupted model generation itself is not automatically resumed after
+a server crash. Delete children before deleting their parent.
+
+The local API also provides `GET /api/sessions/:id/subagents` and
+`POST /api/sessions/:id/subagents` (empty object to create, optional `prompt`, or
+`sessionId` plus `prompt` to assign an existing child), subject to profile permissions.
