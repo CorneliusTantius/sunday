@@ -19,17 +19,28 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [models, setModels] = useState([]);
+  const [model, setModel] = useState('');
+  const [thinking, setThinking] = useState('off');
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef(null);
+  const animateClose = () => {
+    if (closing) return;
+    setClosing(true);
+    dialog.current?.classList.add('closing');
+    closeTimer.current = setTimeout(() => { dialog.current?.close(); onClose(); }, 180);
+  };
   useEffect(() => {
     let active = true;
     alive.current = true;
     dialog.current.showModal();
-    Promise.all([request('/api/personas'), request('/api/repos')]).then(([profiles, repositories]) => {
+    Promise.all([request('/api/personas'), request('/api/repos'), request('/api/settings')]).then(([profiles, repositories, settings]) => {
       if (!active) return;
-      setPersonas(profiles.personas); setRepos(repositories.repos);
+      setPersonas(profiles.personas); setRepos(repositories.repos); setModels(settings.models || []); setModel(settings.model || ''); setThinking(settings.thinkingLevel || 'off');
       setAllowed(previous => previous.filter(name => repositories.repos.some(repo => repo.name === name)));
       setBusy(false); titleInput.current?.focus();
     }).catch(error => { if (active) setError(error.message); });
-    return () => { active = false; alive.current = false; clearTimeout(deleteTimer.current); };
+    return () => { active = false; alive.current = false; clearTimeout(deleteTimer.current); clearTimeout(closeTimer.current); };
   }, []);
   function clearDeleteArm() {
     clearTimeout(deleteTimer.current); deleteTimer.current = null;
@@ -67,18 +78,23 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
     setBusy(true); setSaving(true); setError('');
     try {
       await jsonRequest(`/api/sessions/${encodeURIComponent(session.id)}`, 'PATCH', { title: title.trim(), personaId, allowedRepositories: allowed });
+      await jsonRequest('/api/settings', 'PUT', { model, thinkingLevel: thinking });
       await onSaved();
-      if (alive.current) { onClose(); toast('Session settings saved'); }
+      if (alive.current) { close(); toast('Session settings saved'); }
     } catch (error) { if (alive.current) setError(error.message); }
     finally { if (alive.current) { setBusy(false); setSaving(false); } }
   }
-  return <dialog ref={dialog} id="session-config-dialog" class="session-config-dialog" aria-labelledby="session-config-heading" onCancel={close} onClose={close}>
-    <header class="modal-header"><h2 id="session-config-heading">Agent settings</h2><button class="icon-button" id="close-session-config" type="button" aria-label="Close session settings" onClick={close}>×</button></header>
+  const levels = models.find(item => item.id === model)?.thinkingLevels || ['off'];
+  const selectedThinking = levels.includes(thinking) ? thinking : levels[0];
+  return <dialog ref={dialog} id="session-config-dialog" class={`session-config-dialog${closing ? ' closing' : ''}`} aria-labelledby="session-config-heading" onClick={event => { if (event.target === dialog.current) animateClose(); }} onCancel={event => { event.preventDefault(); animateClose(); }} onClose={() => { if (alive.current && !closing) close(); }}>
+    <header class="modal-header"><h2 id="session-config-heading">Agent settings</h2><button class="icon-button" id="close-session-config" type="button" aria-label="Close session settings" onClick={animateClose}>×</button></header>
     <form id="session-config-form" onSubmit={save}><div class="modal-content">
       <label class="field-label" for="session-config-title">Agent name</label><input ref={titleInput} class="text-input" id="session-config-title" required maxLength="120" value={title} onInput={event => setTitle(event.currentTarget.value)} />
       <label class="field-label" for="session-config-persona">Persona</label><select class="select" id="session-config-persona" required value={personaId} disabled={busy} onChange={event => setPersonaId(event.currentTarget.value)}>{personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}</select>
+      <label class="field-label" for="session-config-model">Model</label><select class="select" id="session-config-model" value={model} disabled={busy || !models.length} onChange={event => { setModel(event.currentTarget.value); const nextLevels = models.find(item => item.id === event.currentTarget.value)?.thinkingLevels || ['off']; if (!nextLevels.includes(thinking)) setThinking(nextLevels[0]); }}>{models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select>
+      <label class="field-label" for="session-config-thinking">Thinking level</label><select class="select" id="session-config-thinking" value={selectedThinking} disabled={busy || levels.length === 1} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select>
       <fieldset class="repository-options"><legend class="field-label">Allowed repositories</legend><div id="session-config-repos">{repos.map(repo => <label key={repo.name} class="repository-checkbox"><input type="checkbox" value={repo.name} checked={allowed.includes(repo.name)} disabled={busy} onChange={event => setAllowed(event.currentTarget.checked ? [...allowed, repo.name] : allowed.filter(name => name !== repo.name))} /><span>{repo.name}</span></label>)}{!busy && !repos.length && <p class="field-note">No repositories yet. Clone one on the Repositories page.</p>}</div></fieldset>
       <p class="field-note">Checked repositories are copied into this agent’s private workspace; unchecking one removes its copy. All repositories are enabled by default for new agents. Available tools are controlled by the selected persona.</p>{saving && <div class="workspace-save-progress"><span>Updating workspace copies…</span><div class="workspace-progress" role="progressbar" aria-label="Updating agent workspace" aria-valuetext="Copying selected repositories" /></div>}<p class="form-error" id="session-config-error" role="alert">{error}</p>{deleteArmed && <p class="field-note" role="status">Deleting this agent permanently removes it and its data.</p>}
-    </div><footer class="modal-footer"><button class="secondary-button danger-button" id="delete-session-config" type="button" onClick={armDelete} disabled={busy || saving || deleting || (deleteArmed && !deleteReady)}>{deleting ? 'Deleting…' : deleteReady ? 'Confirm delete' : deleteArmed ? `Wait ${deleteCountdown}s…` : 'Delete agent'}</button><button class="secondary-button" id="cancel-session-config" type="button" onClick={close}>Cancel</button><button class="primary-button" id="save-session-config" type="submit" disabled={busy || deleting}>{saving ? 'Saving…' : 'Save agent'}</button></footer></form>
+    </div><footer class="modal-footer"><button class="secondary-button danger-button" id="delete-session-config" type="button" onClick={armDelete} disabled={busy || saving || deleting || (deleteArmed && !deleteReady)}>{deleting ? 'Deleting…' : deleteReady ? 'Confirm delete' : deleteArmed ? `Wait ${deleteCountdown}s…` : 'Delete agent'}</button><button class="secondary-button" id="cancel-session-config" type="button" onClick={animateClose}>Cancel</button><button class="primary-button" id="save-session-config" type="submit" disabled={busy || deleting}>{saving ? 'Saving…' : 'Save agent'}</button></footer></form>
   </dialog>;
 }

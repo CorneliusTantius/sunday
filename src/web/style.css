@@ -459,6 +459,10 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .session-config-dialog { width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 40px); padding: 0; overflow: auto; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .session-config-dialog::backdrop { background: rgb(9 11 16 / 85%); }
 .session-config-dialog[open] { animation: dialog-arrive 240ms cubic-bezier(.2,.8,.2,1) both; }
+.session-config-dialog[open].closing { animation: dialog-depart 180ms ease-in both; }
+.session-config-dialog[open].closing::backdrop { animation: surface-depart 180ms ease-in both; }
+@keyframes dialog-depart { to { opacity: 0; transform: translateY(8px) scale(.985); } }
+@keyframes surface-depart { to { opacity: 0; } }
 .session-row .session-item { grid-column: 2; }
 .session-row .pin-session { grid-row: 1; grid-column: 4; }
 .session-row .pin-session svg { width: 12px; height: 12px; }
