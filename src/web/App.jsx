@@ -130,7 +130,7 @@ export default function App() {
     if (activeSession.current !== session.id) { followLatest.current = true; setShowLatest(false); }
     activeSession.current = session.id; setSessionId(session.id); setActiveRunning(Boolean(session.running));
     localStorage.setItem('sunday-session-id', session.id);
-    const nextMessages = (session.messages || []).filter(message => ['user', 'assistant'].includes(message.role));
+    const nextMessages = (session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role));
     if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
     setMessages(nextMessages);
     setContextUsage(session.contextUsage || null);
@@ -171,7 +171,7 @@ export default function App() {
       const data = await request(`/api/sessions/${encodeURIComponent(id)}`);
       if (!data.session) throw new Error('Session not found');
       selectSession(data.session); navigateChat(navigate);
-      if (data.session.running) resumeIndex = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
+      if (data.session.running) resumeIndex = (data.session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role)).length;
     } catch (error) { setReady(!!activeSession.current); toast(`Could not open chat: ${error.message}`); }
     finally { sessionLock.current = false; setLoadingSession(false); }
     if (resumeIndex !== null) void resumeChat(id, resumeIndex);
@@ -299,7 +299,7 @@ export default function App() {
         const data = await request(`/api/sessions/${encodeURIComponent(id)}`);
         if (activeSession.current !== id || !data.session) return;
         if (data.session.running) {
-          const index = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
+          const index = (data.session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role)).length;
           if (!controller.current) void resumeChat(id, index);
           return;
         }
@@ -536,7 +536,7 @@ export default function App() {
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="messages" id="messages">{messages.map((message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
-            {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
+            {message.role === 'subagent' ? <div class="assistant-content subagent-response"><div class="subagent-response-label">Subagent · {message.subagentName || 'Child agent'}</div><MessageBubble content={message.content} error={message.error} /></div> : message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
           </div>)}</div>
         </section>
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">

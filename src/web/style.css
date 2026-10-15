@@ -931,3 +931,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .agents-sessions .subagent-row .session-item { font-size: 12px; }
 .agents-sessions .subagent-row:hover { background: var(--panel2); }
 .agents-sessions .subagent-row:has(.session-item.active) { background: color-mix(in srgb, var(--highlight) 6%, var(--panel)); }
+
+.message.subagent { justify-content: flex-start; }
+.subagent-response { border-left: 2px solid var(--accent, #67cbd3); padding-left: 12px; }
+.subagent-response-label { font-size: 12px; font-weight: 600; opacity: .7; margin-bottom: 6px; }

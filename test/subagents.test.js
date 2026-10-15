@@ -63,6 +63,11 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     await new Promise(resolve => setTimeout(resolve, 2500));
     const updated = (await api(`/sessions/${parent.id}`)).session;
     assert.equal(updated.messages.filter(message => message.content === 'Child finished its assignment.').length, 1);
+    const response = updated.messages.find(message => message.content === 'Child finished its assignment.');
+    assert.equal(response.role, 'subagent');
+    assert.equal(response.subagentId, first.id);
+    assert.ok(response.subagentName);
+    assert.equal(updated.messages.some(message => message.content === 'Review the newly delivered subagent completion and continue the task as appropriate.'), false);
     assert.equal(updated.deliveredCompletions.filter(id => id === 'test-completion').length, 1);
     assert.equal(JSON.parse(await readFile(filename, 'utf8')).pendingCompletion, undefined);
   } finally {
