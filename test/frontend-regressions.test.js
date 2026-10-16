@@ -282,7 +282,7 @@ test('persona permissions use the tool registry and preserve explicit whitelists
 test('persona tool whitelist gives each related tool group a single checkbox', () => {
   const source = readFileSync(new URL('../src/web/components/Personas.jsx', import.meta.url), 'utf8');
   for (const names of [
-    "tools: ['read', 'edit']",
+    "tools: ['read', 'find', 'edit']",
     "tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list']",
     "tools: ['memory_search', 'memory_update']",
     "tools: ['agent_list', 'agent_whisper']",

@@ -1181,7 +1181,7 @@ const server = http.createServer(async (req, res) => {
         for (const path of references) {
           const content = await executeTool('read', { path }, (session.allowedRepositories || []).map(name => join(workspace, name)), sharedMemoryDir);
           const bytes = Buffer.byteLength(content, 'utf8');
-          if (bytes > 65536 || referenceBytes + bytes > 65536 || /[\x00-\x08\x0b\x0c\x0e-\x1f\ufffd]/.test(content)) throw new Error('Referenced files exceed limits or contain binary data');
+          if (bytes > 50000 || referenceBytes + bytes > 65536 || /[\x00-\x08\x0b\x0c\x0e-\x1f\ufffd]/.test(content)) throw new Error('Referenced files exceed limits or contain binary data');
           referenceBytes += bytes;
           loadedReferences.push({ path, content });
         }

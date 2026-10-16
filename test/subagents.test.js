@@ -49,7 +49,10 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 400);
     assert.equal((await api(path)).result.length, 3);
     assert.equal((await configure({ enabled: true, maxChildren: 1 })).subagents.maxChildren, 1);
-    const otherChild = (await api(`/sessions/${other.id}/subagents`, {})).result[0];
+    const created = await api(`/sessions/${other.id}/subagents`, {});
+    assert.equal(created.status, 201);
+    const otherChild = created.result;
+    assert.ok(otherChild.id);
     assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 400);
     const prompted = await api(`/sessions/${other.id}/subagents`, { sessionId: otherChild.id, prompt: 'Run synchronous prompt' });
     assert.equal(prompted.status, 400);
