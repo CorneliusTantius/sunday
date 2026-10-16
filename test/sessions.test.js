@@ -100,6 +100,16 @@ test('file references are restricted to permitted repository text and validated 
     const settings = await api('/api/settings');
     assert.equal(settings.body.workspaceDir, join(home, 'sunday', 'workspace'));
     assert.ok((await stat(settings.body.workspaceDir)).isDirectory());
+    const memoryDir = join(settings.body.workspaceDir, 'shared-memory');
+    await writeFile(join(memoryDir, 'architecture.md'), '# Architecture\n\nSee [[Deployment]] for rollout details.');
+    await writeFile(join(memoryDir, 'deployment.md'), '# Deployment\n\nRoll back through the previous release.');
+    const graph = await api('/api/memory/graph');
+    assert.equal(graph.status, 200);
+    assert.deepEqual(graph.body.nodes.map(node => node.title).sort(), ['Architecture', 'Deployment']);
+    assert.deepEqual(graph.body.edges, [{ source: 'architecture', target: 'deployment' }]);
+    const architecture = await api('/api/memory/notes/architecture');
+    assert.deepEqual(architecture.body.note, { id: 'architecture', title: 'Architecture', content: 'See [[Deployment]] for rollout details.' });
+    assert.equal((await api('/api/memory/notes/missing')).status, 404);
     const sourceRepo = join(home, 'sunday', 'workspace', 'repos', 'demo-repo');
     await mkdir(sourceRepo, { recursive: true });
     await writeFile(join(sourceRepo, 'readme.txt'), 'source version');
@@ -228,6 +238,10 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.deepEqual(list.body.tools, BASIC_TOOLS.map(({ name, description }) => ({ name, description })));
     assert.equal(list.body.personas.length, 4);
     assert.ok(list.body.personas.every(persona => !['talent-scout', 'sales-outbound'].includes(persona.id)));
+    assert.ok(list.body.personas.every(persona => !persona.instructions.includes('medieval-peasant')));
+    const generatedPersonas = JSON.parse(await readFile(join(home, 'sunday', 'data', 'personas.json'), 'utf8'));
+    assert.equal(generatedPersonas.find(persona => persona.id === 'sunday').name, 'Sunday');
+    assert.ok(generatedPersonas.every(persona => !persona.instructions.includes('medieval-peasant')));
     assert.equal((await stat(join(home, 'sunday', 'data', 'personas.json'))).mode & 0o777, 0o600);
     const created = await api('/api/personas', { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' }, 'POST');
     assert.equal(created.status, 201);

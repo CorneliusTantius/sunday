@@ -14,7 +14,7 @@ export const BASIC_TOOLS = [
   { name: 'edit', description: "Replace exact text in a file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
   { name: 'memory_search', description: 'Search shared notes for relevant saved knowledge. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
-  { name: 'memory_update', description: 'Create or replace a shared note by title. Save durable, useful knowledge for other agents; never save credentials or secrets.', parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['title', 'content'], additionalProperties: false } },
+  { name: 'memory_update', description: 'Create or replace a shared Markdown note by title. Link related notes with [[Exact note title]]. Save durable, useful knowledge for other agents; never save credentials or secrets.', parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['title', 'content'], additionalProperties: false } },
   { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
@@ -50,30 +50,87 @@ async function memoryRootInfo(memoryDir, create = false) {
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid shared memory directory');
   return resolve(memoryDir);
 }
+function noteTitle(content, fallback) {
+  return content.split(/\r?\n/, 1)[0].replace(/^#\s*/, '').trim() || fallback;
+}
+function noteBody(content) {
+  return content.replace(/^#\s+[^\r\n]*(?:\r?\n)?/, '').trim();
+}
+function wikiTargets(content) {
+  return [...content.matchAll(/\[\[([^\]]+)\]\]/g)].map(([, raw]) => raw.split('|', 1)[0].split('#', 1)[0].trim()).filter(Boolean);
+}
+function titleKey(value) { return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase(); }
+async function memoryNotes(memoryDir) {
+  const root = await memoryRootInfo(memoryDir), notes = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    if (!entry.isFile() || !/^[a-z0-9-]{1,100}\.md$/.test(entry.name)) continue;
+    const handle = await open(join(root, entry.name), constants.O_NOFOLLOW);
+    let content;
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size > 20000) continue;
+      content = await handle.readFile('utf8');
+    } finally { await handle.close(); }
+    notes.push({ id: entry.name.slice(0, -3), title: noteTitle(content, entry.name.slice(0, -3)), content });
+  }
+  return notes;
+}
+export async function readMemoryGraph(memoryDir) {
+  const nodes = await memoryNotes(memoryDir), byTitle = new Map();
+  for (const node of nodes) {
+    byTitle.set(titleKey(node.title), node);
+    byTitle.set(titleKey(node.id), node);
+  }
+  nodes.sort((a, b) => a.id.localeCompare(b.id));
+  const edges = [], unresolved = [], seen = new Set();
+  for (const node of nodes) for (const target of wikiTargets(node.content)) {
+    const linked = byTitle.get(titleKey(target));
+    if (!linked) { unresolved.push({ source: node.id, target }); continue; }
+    if (linked.id === node.id) continue;
+    const key = `${node.id}\0${linked.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key); edges.push({ source: node.id, target: linked.id });
+  }
+  return { nodes, edges, unresolved };
+}
+export async function readMemoryNote(memoryDir, id) {
+  if (typeof id !== 'string' || !/^[a-z0-9-]{1,100}$/.test(id)) return null;
+  const root = await memoryRootInfo(memoryDir), path = join(root, `${id}.md`);
+  let handle;
+  try { handle = await open(path, constants.O_NOFOLLOW); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > 20000) return null;
+    const content = await handle.readFile('utf8');
+    return { id, title: noteTitle(content, id), content: noteBody(content) };
+  } finally { await handle.close(); }
+}
 async function executeMemoryTool(name, args, memoryDir) {
   if (name === 'memory_search') {
     if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 300) throw new Error('Invalid memory search query');
-    const root = await memoryRootInfo(memoryDir);
     const terms = [...new Set(args.query.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])];
     if (!terms.length) throw new Error('Invalid memory search query');
+    const graph = await readMemoryGraph(memoryDir), byId = new Map(graph.nodes.map(node => [node.id, node]));
+    const neighbors = new Map(graph.nodes.map(node => [node.id, new Set()]));
+    for (const edge of graph.edges) { neighbors.get(edge.source).add(edge.target); neighbors.get(edge.target).add(edge.source); }
     const matches = [];
-    for (const entry of await readdir(root, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-      const path = join(root, entry.name), handle = await open(path, constants.O_NOFOLLOW);
-      let content;
-      try {
-        const stat = await handle.stat();
-        if (!stat.isFile() || stat.size > 20000) continue;
-        content = await handle.readFile('utf8');
-      } finally { await handle.close(); }
-      const lower = content.toLowerCase(), found = terms.filter(term => lower.includes(term));
+    for (const node of graph.nodes) {
+      const content = noteBody(node.content), lower = content.toLowerCase();
+      const found = terms.filter(term => lower.includes(term) || node.title.toLowerCase().includes(term));
       if (!found.length) continue;
-      const position = Math.max(0, Math.min(...found.map(term => lower.indexOf(term))));
+      const positions = found.map(term => lower.indexOf(term)).filter(position => position >= 0);
+      const position = positions.length ? Math.min(...positions) : 0;
       const excerpt = content.slice(Math.max(0, position - 180), position + 900).trim();
-      matches.push({ score: found.length, title: content.split('\n')[0].replace(/^#\s*/, ''), excerpt });
+      matches.push({ score: found.length, id: node.id, title: node.title, excerpt });
     }
     matches.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
-    return matches.length ? matches.slice(0, 5).map(item => `## ${item.title}\n${item.excerpt}`).join('\n\n') : 'No shared notes matched that query.';
+    if (!matches.length) return 'No shared notes matched that query.';
+    return matches.slice(0, 5).map(item => {
+      const related = [...(neighbors.get(item.id) || [])].map(id => byId.get(id)).filter(Boolean).sort((a, b) => a.title.localeCompare(b.title)).slice(0, 3);
+      const links = related.length ? `\n\nLinked notes:\n${related.map(note => `- [[${note.title}]]: ${noteBody(note.content).slice(0, 400).trim()}`).join('\n')}` : '';
+      return `## ${item.title}\n${item.excerpt}${links}`;
+    }).join('\n\n');
   }
   if (typeof args.title !== 'string' || !args.title.trim() || args.title.trim().length > 120 || typeof args.content !== 'string' || !args.content.trim() || args.content.length > 20000) throw new Error('Invalid shared memory note');
   const title = args.title.trim(), root = await memoryRootInfo(memoryDir, true);

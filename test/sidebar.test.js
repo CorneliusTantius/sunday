@@ -188,7 +188,7 @@ function cssFixture(t, mobile, reduced = false) {
   document.head.append(source);
   function active(condition) {
     return condition.split(',').some(query => {
-      if (/max-width:\s*700px/.test(query)) return mobile;
+      if (/max-width:\s*(?:900|700|480|440)px/.test(query)) return mobile;
       if (/min-width:\s*701px/.test(query)) return !mobile;
       if (/prefers-reduced-motion:\s*reduce/.test(query)) return reduced;
       if (/forced-colors:\s*active/.test(query)) return false;

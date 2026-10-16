@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
 
 import { estimateContext, shouldCompact, measuredInput } from '../src/server/context.js';
+import { buildSystemPrompt } from '../src/server/prompts.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
 function harness(streams, idle = 100, total = 1000, agents = []) {
@@ -18,7 +19,7 @@ function harness(streams, idle = 100, total = 1000, agents = []) {
     modelsByMode: { api_key: { getModel: () => model, getAuth: async () => true,
       streamSimple: (m, input, opts) => { inputs.push(input); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
-    defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }),
+    defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
     validateTools, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools,
     readdir: async () => agents.map(agent => `${agent.id}.json`), readSession: async id => agents.find(agent => agent.id === id), sessionsDir: '/sessions', sharedMemoryDir: '/memory',
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return 'ok'; }, saveSession: async () => {},

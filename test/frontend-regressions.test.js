@@ -185,10 +185,14 @@ test('SessionConfig removes missing repositories after fetch and saves accepted 
     session: { id: 'session/1', title: 'Chat', allowedRepositories: ['kept', 'deleted'] },
     onSaved() { saved++; }, onClose() { closed++; }, toast() {},
   }, async url => url === '/api/repos' ? repositories.promise : { personas: [{ id: 'sunday', name: 'Sunday' }] }, async (url, method, body) => {
-    assert.equal(url, '/api/sessions/session%2F1');
-    assert.equal(method, 'PATCH');
-    payload = body;
-    if (body.allowedRepositories.some(name => name !== 'kept')) throw new Error('Unknown repository');
+    if (url === '/api/sessions/session%2F1') {
+      assert.equal(method, 'PATCH');
+      payload = body;
+      if (body.allowedRepositories.some(name => name !== 'kept')) throw new Error('Unknown repository');
+    } else {
+      assert.equal(url, '/api/settings');
+      assert.equal(method, 'PUT');
+    }
   });
   assert.equal(h.view.busy, true);
   repositories.resolve({ repos: [{ name: 'kept' }, { name: 'other' }] });
