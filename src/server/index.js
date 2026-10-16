@@ -17,6 +17,7 @@ import { BASIC_TOOLS, BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES
 
 import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
+import { createJsonStorage } from './storage.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
 let updateRunning = false;
@@ -46,15 +47,7 @@ const sharedMemoryInfo = await lstat(sharedMemoryDir);
 if (!sharedMemoryInfo.isDirectory() || sharedMemoryInfo.isSymbolicLink()) throw new Error('Invalid shared memory directory');
 await mkdir(agentWorkspacesDir, { recursive: true, mode: 0o700 });
 process.chdir(workspaceDir);
-async function load(name, fallback) {
-  try { return JSON.parse(await readFile(join(dataDir, name), 'utf8')); }
-  catch (error) { if (error.code === 'ENOENT') return fallback; throw error; }
-}
-async function save(name, value) {
-  const path = join(dataDir, name), temp = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
-  await rename(temp, path);
-}
+const { load, save } = createJsonStorage(dataDir);
 let settings = await load('settings.json', { mode: 'api_key', model: 'gpt-4o-mini' });
 let auth = await load('auth.json', {});
 settings.deviceId ||= randomUUID();
