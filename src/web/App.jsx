@@ -348,8 +348,23 @@ export default function App() {
     return () => clearInterval(timer);
   }, [activeRunning, busy, sessionId, loadSessions]);
   useEffect(() => {
-    const refresh = () => { if (!document.hidden) void loadSessions(); };
-    const timer = setInterval(refresh, 3000);
+    const refresh = () => {
+      if (document.hidden) return;
+      void loadSessions();
+      if (controller.current) detachResponse();
+      const id = activeSession.current;
+      if (id) void request(`/api/sessions/${encodeURIComponent(id)}`).then(data => {
+        if (activeSession.current === id && !controller.current && data.session) {
+          selectSession(data.session);
+          if (data.session.running) {
+            const index = (data.session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role)).length;
+            void resumeChat(id, index);
+          }
+        }
+      }).catch(() => {});
+    };
+    const poll = () => { if (!document.hidden) void loadSessions(); };
+    const timer = setInterval(poll, 3000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
@@ -434,10 +449,8 @@ export default function App() {
       if (abort.signal.aborted) return;
       idleTimer = setTimeout(() => {
         if (controller.current !== abort || activeSession.current !== sessionId) return;
-        detachResponse(); setActiveRunning(false);
-        setMessages(previous => previous.map((message, position) => position === index
-          ? { ...message, content: `${message.content ? `${message.content}\n\n` : ''}Response stalled. Check your connection and retry your message.`, error: true } : message));
-        cancelChat(sessionId);
+        detachResponse();
+        setActiveRunning(true);
       }, streamIdleTimeout);
     }
     abort.signal.addEventListener('abort', () => clearTimeout(idleTimer), { once: true });
@@ -460,7 +473,7 @@ export default function App() {
           if (!resume && !accepted) setPrompt(previous => previous || text);
           setMessages(previous => previous.map((message, position) => position === index
             ? { ...message, content: `${message.content ? `${message.content}\n\n` : ''}${error.message}`, error: true } : message));
-          setActiveRunning(false);
+          setActiveRunning(resume || accepted);
         }
       }
     } finally {

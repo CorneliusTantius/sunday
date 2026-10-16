@@ -396,33 +396,33 @@ for (const partial of [false, true]) {
 }
 
 for (const hangChat of [false, true]) {
-  test(`idle guard aborts ${hangChat ? 'stalled response headers' : 'a silent stream'} and allows retry without awaiting cancellation`, async t => {
-    const h = await mount(t, { manualTimers: true, hangCancel: true, hangChat });
+  test(`idle guard detaches ${hangChat ? 'stalled headers' : 'a silent stream'} without cancelling the server run`, async t => {
+    const h = await mount(t, { manualTimers: true, hangChat });
     await startChat(h);
-    const firstTimer = h.timers.find(timer => timer.ms === 150000 && !timer.cleared);
-    if (!hangChat) {
-      h.emit('delta', { text: 'Partial answer' });
-      await waitFor(() => assert.equal(h.$('#response-activity')?.textContent, 'Responding…'));
-      assert.equal(firstTimer.cleared, true, 'stream chunks reset the idle deadline');
-      assert.equal(h.timers.filter(timer => timer.ms === 150000 && !timer.cleared).length, 1);
-    }
     h.fireTimer(150000);
     assert.equal(h.streamAborted(), true);
-    assert.equal(h.cancelCalls().length, 1);
     await waitFor(() => {
       assert.equal(h.$('#response-activity'), null);
-      assert.equal(h.$('#prompt').disabled, false);
-      assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message');
-      assert.match(h.$('#messages').textContent, /Response stalled\. Check your connection and retry/);
-      if (!hangChat) assert.match(h.$('#messages').textContent, /Partial answer/);
+      assert.equal(h.$('#prompt').disabled, true);
+      assert.ok(h.$('.background-run-status'));
     });
-    assert.equal(h.resumeCalls(), 0, 'timeout must not automatically reconnect and lock the composer');
+    assert.equal(h.cancelCalls().length, 0);
     assert.ok(h.timers.filter(timer => timer.ms === 150000).every(timer => timer.cleared));
-    assert.ok(h.cancellationPending());
-    h.fireTimer(5000);
-    await waitFor(() => assert.equal(h.cancellationAborted(), true));
   });
 }
+
+test('returning to the browser reconnects a running chat without cancelling it', async t => {
+  const h = await mount(t, { manualTimers: true });
+  await startChat(h);
+  h.sessions[0].running = true;
+  h.sessions[0].messages = [{ role: 'user', content: 'Continue' }];
+  const document = h.$('#prompt').ownerDocument;
+  document.dispatchEvent(new document.defaultView.Event('visibilitychange'));
+  await waitFor(() => assert.equal(h.resumeCalls(), 1));
+  assert.equal(h.streamAborted(), true);
+  assert.equal(h.cancelCalls().length, 0);
+  h.emit('done', {}, true);
+});
 
 test('Stop aborts locally even if server cancellation fails', async t => {
   const h = await mount(t, { cancelFailure: true });
@@ -437,14 +437,15 @@ test('Stop aborts locally even if server cancellation fails', async t => {
   assert.equal(h.cancelCalls().length, 1);
 });
 
-test('unexpected stream EOF preserves partial text and releases the composer with retry guidance', async t => {
+test('unexpected stream EOF preserves partial text and keeps server reconciliation enabled', async t => {
   const h = await mount(t, { manualTimers: true });
   await startChat(h);
   h.emit('delta', { text: 'Partial answer' });
   h.finishStream();
   await waitFor(() => {
     assert.equal(h.$('#response-activity'), null);
-    assert.equal(h.$('#prompt').disabled, false);
+    assert.equal(h.$('#prompt').disabled, true);
+    assert.ok(h.$('.background-run-status'));
     assert.match(h.$('#messages').textContent, /Partial answer/);
     assert.match(h.$('#messages').textContent, /Response stream ended unexpectedly\. Check your connection and retry/);
   });
