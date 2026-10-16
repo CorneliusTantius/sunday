@@ -5,8 +5,8 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
 test('sidebar destinations share a row height and consistent sibling spacing', () => {
   assert.match(css, /\.feature-heading \{[^}]*min-height: 52px/);
-  assert.match(css, /\.sidebar > :is\(\.feature-heading, \.agents-feature\) \+ :is\(\.feature-heading, \.agents-feature\) \{ margin-top: 8px; \}/);
-  assert.match(css, /\.sidebar > \.feature-heading, \.sidebar > \.agents-feature \{ flex-shrink: 0; \}/);
+  assert.match(css, /\.sidebar-scroll > :is\(\.feature-heading, \.agents-feature\) \+ :is\(\.feature-heading, \.agents-feature\) \{ margin-top: 8px; \}/);
+  assert.match(css, /\.sidebar-scroll > \.feature-heading, \.sidebar-scroll > \.agents-feature \{ flex-shrink: 0; \}/);
 });
 
 test('standalone menu links group icons and labels like the agents link', () => {

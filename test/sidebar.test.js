@@ -237,7 +237,7 @@ test('desktop CSS animates layout without display:none or discrete display trans
     assert.equal(style.marginRight, open ? '0px' : '-1px');
     assert.equal(style.opacity, open ? '1' : '0');
     assert.equal(style.overflowX, 'hidden');
-    assert.equal(style.overflowY, 'auto');
+    assert.equal(style.overflowY, 'hidden');
     assert.equal(style.visibility, open ? 'visible' : 'hidden');
     for (const property of ['width', 'padding', 'margin-right']) transition(style, property, 240, 0);
     transition(style, 'visibility', 0, open ? 0 : 240);
@@ -312,6 +312,9 @@ test('session pin and running indicator have independent columns beside truncate
   const pill = app.window.document.querySelector('.session-running-pill');
   assert.equal(pill.parentElement.className, 'session-row');
   assert.ok(pill.nextElementSibling.classList.contains('pin-session'));
+  assert.equal(pill.nextElementSibling.disabled, false);
+  act(() => pill.nextElementSibling.click());
+  assert.deepEqual(JSON.parse(app.window.localStorage.getItem('sunday-pinned-agent-ids')), ['working-test']);
   assert.equal(css('.session-running-pill').gridColumn, '3');
   assert.equal(css('.session-running-pill').width, '14px');
   for (const [selector, column] of [['.session-item', '2'], ['.pin-session', '4'], ['.configure-session', '5']]) {
@@ -320,4 +323,17 @@ test('session pin and running indicator have independent columns beside truncate
     assert.equal(control.gridColumn, column);
     assert.notEqual(control.position, 'absolute');
   }
+});
+
+test('subagents have no pin control and sidebar brand stays outside the scroller', async t => {
+  const app = await mount(t, false, [
+    { id: 'parent', title: 'Parent', messages: [] },
+    { id: 'child', title: 'Child', parentSessionId: 'parent', messages: [] },
+  ]);
+  app.click('agents-toggle');
+  assert.equal(app.window.document.querySelector('.subagent-row .pin-session'), null);
+  const scroller = app.window.document.querySelector('.sidebar-scroll');
+  assert.equal(scroller.contains(app.window.document.querySelector('.sidebar-brand')), false);
+  assert.ok(scroller.contains(app.get('sessions-list')));
+  assert.ok(scroller.contains(app.get('dashboard-link')));
 });
