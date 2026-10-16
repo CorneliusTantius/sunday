@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm';
 
 test('Files route aliases preserve dirty and saving guards', () => {
   const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
-  const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function formatTokens'));
+  const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function greeting'));
   const route = source.slice(source.indexOf('const route = () =>'), source.indexOf('const layout = matchMedia'));
   let page = 'editor', confirmations = 0, alerts = 0, discard = false, dashboardExiting = false;
   let nextTimer = 0;

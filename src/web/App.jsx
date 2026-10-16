@@ -17,6 +17,7 @@ import CompactionSummary from './components/CompactionSummary.jsx';
 import MessageHistory from './components/MessageHistory.jsx';
 import ComposerInput from './components/ComposerInput.jsx';
 import { chatCommands, fileReferences } from './composer.js';
+import { getContextMetrics, formatTokens } from './context.js';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
 const activityLabels = { compacting: 'Compacting context…', waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
@@ -61,9 +62,6 @@ function currentPage() {
   return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#financial-tracker' ? 'financial-tracker' : location.hash === '#dashboard' ? 'dashboard' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#memory' ? 'memory' : 'chat';
 }
 
-function formatTokens(value) {
-  return value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)}M` : value >= 1_000 ? `${(value / 1_000).toFixed(1)}k` : String(value);
-}
 function greeting() {
   const hour = new Date().getHours();
   return hour < 5 ? 'Good night.' : hour < 12 ? 'Good morning.' : hour < 17 ? 'Good afternoon.' : hour < 22 ? 'Good evening.' : 'Good night.';
@@ -517,11 +515,7 @@ export default function App() {
   const selectedModel = models.find(model => model.id === sessionConfig?.model);
   const levels = selectedModel?.thinkingLevels || ['off'];
   const thinking = levels.includes(sessionConfig?.thinkingLevel) ? sessionConfig.thinkingLevel : levels[0];
-  const measuredUsage = Boolean(contextUsage && sessionConfig && contextUsage.model === sessionConfig.model && contextUsage.provider === sessionConfig.provider && contextUsage.messageCount >= messages.length - 1);
-  const contextWindow = selectedModel?.contextWindow || (measuredUsage ? contextUsage.contextWindow : 0);
-  const estimatedCharacters = prompt.length + messages.reduce((total, message) => total + (message.content?.length || 0) + (message.fileReferences || []).reduce((size, ref) => size + (ref.content?.length || 0), 0) + (message.toolCalls || []).reduce((size, call) => size + JSON.stringify(call.arguments || {}).length, 0), 0);
-  const contextTokens = measuredUsage ? contextUsage.tokens + Math.ceil(prompt.length / 3) : Math.ceil(estimatedCharacters / 3);
-  const contextPercent = contextWindow ? Math.min(100, Math.round(contextTokens / contextWindow * 100)) : 0;
+  const { measuredUsage, contextWindow, contextTokens, contextPercent } = getContextMetrics(contextUsage, sessionConfig, messages, prompt, selectedModel?.contextWindow);
   const closeSidebar = () => { setSidebarOpen(false); menu.current?.focus(); };
   const pinnedSessions = pinnedAgentIds.map(id => sessions.find(session => session.id === id)).filter(session => session && !session.parentSessionId);
   const pinnedIds = new Set(pinnedSessions.map(session => session.id));
