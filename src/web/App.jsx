@@ -236,8 +236,9 @@ export default function App() {
       const saved = localStorage.getItem('sunday-session-id');
       // Restore the conversation without waiting for every sidebar summary.
       if (saved) await openSession(saved, false);
-      await listing;
-      if (!activeSession.current) await createSession(false);
+      const existing = await listing;
+      if (!activeSession.current && existing.length) await openSession(existing[0].id, false);
+      if (!activeSession.current && !existing.length) await createSession(false);
     })();
     const timer = setInterval(() => setGreetingText(greeting()), 60_000);
     const visibility = () => { if (!document.hidden) setGreetingText(greeting()); };

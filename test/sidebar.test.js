@@ -33,10 +33,13 @@ async function mount(t, mobile = false, sessions = [{ id: 'sidebar-test', title:
   };
   window.HTMLElement.prototype.scrollIntoView = function () {};
   const session = sessions[0];
+  const requests = [];
   const fetch = async (url, options = {}) => {
+    requests.push({ url, method: options.method || 'GET' });
     let data;
     if (url === '/api/settings') data = { providers: [], models: [], thinkingLevel: 'off' };
     else if (url === '/api/sessions') data = options.method === 'POST' ? { session } : { sessions };
+    else if (url.startsWith('/api/sessions/')) data = { session: sessions.find(item => item.id === decodeURIComponent(url.slice('/api/sessions/'.length))) };
     else throw new Error(`Unexpected sidebar test request: ${url}`);
     return { ok: true, status: 200, json: async () => data };
   };
@@ -65,7 +68,7 @@ async function mount(t, mobile = false, sessions = [{ id: 'sidebar-test', title:
     return element;
   };
   return {
-    window, get,
+    window, get, requests,
     click(id) { act(() => get(id).click()); },
     key(key, shiftKey = false) {
       const event = new window.KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
@@ -95,6 +98,19 @@ test('new agent label and pinning keep at most three agents first without a head
   act(() => pinButton('agent-2').click());
   act(() => pinButton('agent-4').click());
   assert.deepEqual(rows(), ['Agent 1', 'Agent 3', 'Agent 4', 'Agent 2']);
+});
+
+test('mobile startup reuses an existing agent without creating a session', async t => {
+  const app = await mount(t, true);
+  await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
+  assert.equal(app.requests.some(request => request.method === 'POST'), false);
+  assert.ok(app.requests.some(request => request.url === '/api/sessions/sidebar-test'));
+  assert.equal(app.window.localStorage.getItem('sunday-session-id'), 'sidebar-test');
+});
+
+test('mobile sidebar has an opaque background', () => {
+  const css = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
+  assert.match(css, /@media\(max-width:700px\)[\s\S]*?\.sidebar\s*\{[^}]*background: var\(--sidebar-bg\)/);
 });
 
 function state(harness, { mobile, open }) {
