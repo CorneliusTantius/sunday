@@ -1295,5 +1295,6 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 @media (max-width: 700px) { .memory-page { width: calc(100% - 30px); padding: 64px 0 30px; } .memory-header { align-items: flex-start; flex-direction: column; gap: 11px; } .memory-header h1 { font-size: 26px; } .memory-graph-panel, .memory-note-panel { padding: 14px; } .memory-canvas, .memory-canvas svg { min-height: 320px; } }
 @media (prefers-reduced-motion: reduce) { .memory-node circle { transition: none; } }
 
-.sidebar-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
+.sidebar-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.sidebar-scroll::-webkit-scrollbar { display: none; }
 .sidebar-scroll > * { flex-shrink: 0; }

@@ -9,6 +9,11 @@ test('sidebar destinations share a row height and consistent sibling spacing', (
   assert.match(css, /\.sidebar-scroll > \.feature-heading, \.sidebar-scroll > \.agents-feature \{ flex-shrink: 0; \}/);
 });
 
+test('sidebar hides the scrollbar without disabling scrolling', () => {
+  assert.match(css, /\.sidebar-scroll \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/);
+  assert.match(css, /\.sidebar-scroll::-webkit-scrollbar \{ display: none; \}/);
+});
+
 test('standalone menu links group icons and labels like the agents link', () => {
   assert.match(css, /\.feature-link \{[^}]*display: flex;[^}]*align-items: center;[^}]*gap: 10px;/);
   assert.match(css, /\.feature-heading\.feature-link \{ justify-content: flex-start; \}/);
