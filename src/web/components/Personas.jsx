@@ -4,7 +4,7 @@ import Character from './Character.jsx';
 
 const emptyProfile = () => ({ name: '', specialty: '', instructions: '', color: 'cyan', allowedTools: [] });
 const toolGroups = [
-  { name: 'Repository files', tools: ['read', 'edit'] },
+  { name: 'Repository files', tools: ['read', 'find', 'edit'] },
   { name: 'Subagents', tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list'] },
   { name: 'Shared memory', tools: ['memory_search', 'memory_update'] },
   { name: 'Agents', tools: ['agent_list', 'agent_whisper'] },

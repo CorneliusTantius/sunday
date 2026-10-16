@@ -7,18 +7,19 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 export const BASIC_TOOLS = [
-  { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt. Returns immediately; completion is delivered automatically. Dispatch independent tasks to multiple children before waiting for results so they run concurrently. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
-  { name: 'subagent_send_prompt', description: 'Send work to an idle child session and return immediately. Its completion automatically notifies you.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
+  { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt and wait for the response. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
+  { name: 'subagent_send_prompt', description: 'Send work to an idle child session and wait for its response.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
   { name: 'subagent_list', description: 'List your child sessions, running state, and latest assistant message.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'read', description: "Read a text file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
-  { name: 'edit', description: "Replace exact text in a file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
+  { name: 'read', description: "Prefer this over shell scripts for reading text files up to 200000 bytes; optional 1-based offset and limit select lines from files up to 5 MB. Output exceeding 200000 bytes requires a smaller line range using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, offset: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 1, maximum: 10000 } }, required: ['path'], additionalProperties: false } },
+  { name: 'find', description: "Find files or literal text under a repository path. query is a case-sensitive substring; mode defaults to path, content returns path:line:text. Skips sensitive files, symlinks, node_modules, dist, build, and vendor. Bounded results report truncation; narrow path/query if needed.", parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string', maxLength: 1000 }, mode: { type: 'string', enum: ['path', 'content'] }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, required: ['path'], additionalProperties: false } },
+  { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Use empty oldText to write a new or empty file; nonempty files are never overwritten in this mode.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
   { name: 'memory_search', description: 'Search shared notes for relevant saved knowledge. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
   { name: 'memory_update', description: 'Create or replace a shared Markdown note by title. Link related notes with [[Exact note title]]. Save durable, useful knowledge for other agents; never save credentials or secrets.', parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['title', 'content'], additionalProperties: false } },
   { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
-export const REPOSITORY_TOOL_NAMES = ['read', 'edit', 'bash'];
+export const REPOSITORY_TOOL_NAMES = ['read', 'find', 'edit', 'bash'];
 export const MEMORY_TOOL_NAMES = ['memory_search', 'memory_update'];
 export const BASIC_TOOL_NAMES = BASIC_TOOLS.map(tool => tool.name);
 export function validateTools(value) {
@@ -29,8 +30,8 @@ export function validateTools(value) {
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
   // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
   const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
-  if (BASIC_TOOL_NAMES.filter(name => !orchestration.includes(name)).every(name => migrated.includes(name))) {
-    for (const name of orchestration) if (!migrated.includes(name)) migrated.push(name);
+  if (BASIC_TOOL_NAMES.filter(name => name !== 'find' && !orchestration.includes(name)).every(name => migrated.includes(name))) {
+    for (const name of [...orchestration, 'find']) if (!migrated.includes(name)) migrated.push(name);
   }
   return migrated;
 }
@@ -153,7 +154,7 @@ export async function executeTool(name, args, repositories, memoryDir, signal) {
   const raw = args.path ?? '.';
   if (typeof raw !== 'string' || raw.includes('\\') || raw.startsWith('/') || raw.split('/').includes('..')) throw new Error('Invalid repository path');
   if (name === 'bash' && (typeof args.command !== 'string' || args.command.length > 10000 || (args.timeout !== undefined && (!Number.isInteger(args.timeout) || args.timeout < 1 || args.timeout > 300000)))) throw new Error('Invalid bash command or timeout');
-  if (name === 'edit' && (typeof args.oldText !== 'string' || !args.oldText || typeof args.newText !== 'string' || args.newText.length > 50000)) throw new Error('Invalid edit arguments');
+  if (name === 'edit' && (typeof args.oldText !== 'string' || typeof args.newText !== 'string' || args.newText.length > 50000)) throw new Error('Invalid edit arguments');
   async function rootInfo(root) {
     const info = await lstat(root);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid repository root');
@@ -165,7 +166,7 @@ export async function executeTool(name, args, repositories, memoryDir, signal) {
   const root = name === 'bash' && raw === '.' ? { base: resolve(dirname(roots[0].base)) } : roots.find(item => item.name === repoName);
   if (!root) throw new Error('Repository name is required');
   const parts = raw === '.' ? [] : slash < 0 ? [] : raw.slice(slash + 1).split('/');
-  if (name !== 'bash' && parts.length === 0) throw new Error('A file path is required');
+  if (!['bash', 'find'].includes(name) && parts.length === 0) throw new Error('A file path is required');
   let path = root.base;
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
@@ -190,9 +191,52 @@ export async function executeTool(name, args, repositories, memoryDir, signal) {
       return (stdout + stderr).slice(0, 50000);
     } catch (error) { return `${error.message}\n${error.stdout || ''}${error.stderr || ''}`.slice(0, 50000); }
   }
+  if (name === 'find') {
+    const { query = '', mode = 'path', limit = 100 } = args;
+    if (typeof query !== 'string' || query.length > 1000 || !['path', 'content'].includes(mode) || (mode === 'content' && !query) || !Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid find arguments');
+    const matches = [];
+    let visited = 0, bytes = 0, truncated = false;
+    async function visit(target, relative) {
+      signal?.throwIfAborted();
+      if (++visited > 20000 || matches.length >= limit || bytes >= 190000) { truncated = true; return; }
+      const info = await lstat(target);
+      if (info.isSymbolicLink()) return;
+      if (info.isDirectory()) {
+        for (const entry of await readdir(target, { withFileTypes: true })) {
+          if (isSensitiveRepositoryEntry(entry.name) || ['node_modules', 'dist', 'build', 'vendor'].includes(entry.name)) continue;
+          await visit(join(target, entry.name), `${relative}/${entry.name}`);
+          if (truncated) break;
+        }
+      } else if (info.isFile()) {
+        if (mode === 'path') { if (relative.includes(query)) { matches.push(relative); bytes += Buffer.byteLength(relative); } return; }
+        if (info.size > 1000000) return;
+        const handle = await open(target, constants.O_NOFOLLOW);
+        let text;
+        try { text = await handle.readFile('utf8'); } finally { await handle.close(); }
+        if (text.includes('\0')) return;
+        for (const [index, line] of text.split('\n').entries()) if (line.includes(query)) {
+          const match = `${relative}:${index + 1}:${line.slice(0, 1000)}`;
+          matches.push(match); bytes += Buffer.byteLength(match);
+          if (matches.length >= limit || bytes >= 190000) { truncated = true; break; }
+        }
+      }
+    }
+    await visit(path, raw.replace(/\/$/, ''));
+    return JSON.stringify({ matches, truncated });
+  }
   if (name === 'read') {
+    const { offset = 1, limit } = args;
+    if (!Number.isInteger(offset) || offset < 1 || (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 10000))) throw new Error('Invalid read range');
     const handle = await open(path, constants.O_NOFOLLOW);
-    try { const stat = await handle.stat(); if (!stat.isFile() || stat.size > 50000) throw new Error('File is too large or not a regular file'); return await handle.readFile('utf8'); } finally { await handle.close(); }
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size > 5000000) throw new Error('File exceeds 5 MB or is not a regular file');
+      const text = await handle.readFile('utf8');
+      if (text.includes('\0')) throw new Error('Binary files are not supported');
+      const result = offset === 1 && limit === undefined ? text : text.split('\n').slice(offset - 1, limit === undefined ? undefined : offset - 1 + limit).join('\n');
+      if (Buffer.byteLength(result) > 200000) throw new Error('Output exceeds 200000 bytes; use offset and limit to read a smaller line range');
+      return result;
+    } finally { await handle.close(); }
   }
   signal?.throwIfAborted();
   await mkdir(dirname(path), { recursive: true });
@@ -206,10 +250,13 @@ export async function executeTool(name, args, repositories, memoryDir, signal) {
   }
   const handle = await open(path, constants.O_NOFOLLOW | constants.O_CREAT | constants.O_RDWR, 0o600);
   try {
-    if (!(await handle.stat()).isFile()) throw new Error('Not a regular file');
-    const content = await handle.readFile('utf8');
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > 5000000) throw new Error('File exceeds 5 MB or is not a regular file');
+    const original = await handle.readFile();
+    const content = original.toString('utf8');
+    if (content.includes('\0') || !Buffer.from(content, 'utf8').equals(original)) throw new Error('Binary or invalid UTF-8 files are not supported');
     const first = content.indexOf(args.oldText);
-    if (first < 0 || content.indexOf(args.oldText, first + args.oldText.length) >= 0) throw new Error('Old text must match exactly once');
+    if (args.oldText === '' ? content.length > 0 : first < 0 || content.indexOf(args.oldText, first + 1) >= 0) throw new Error('Old text must match exactly once');
     await handle.truncate(0);
     const updated = Buffer.from(content.slice(0, first) + args.newText + content.slice(first + args.oldText.length), 'utf8');
     let offset = 0;

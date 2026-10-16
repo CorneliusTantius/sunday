@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from './api.js';
 import Character from './components/Character.jsx';
+import MenuIcon from './components/MenuIcon.jsx';
 import Repositories from './components/Repositories.jsx';
 import Socials from './components/Socials.jsx';
 import Dashboard from './components/Dashboard.jsx';
@@ -74,20 +75,6 @@ function trapFocus(event, container) {
   if (!first) return;
   if (event.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-}
-
-function MenuIcon({ name }) {
-  const paths = {
-    dashboard: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
-    agents: 'M4 5h16v12H9l-5 4V5Z M8 9h8 M8 13h5',
-    repositories: 'M6 3v12a4 4 0 0 0 4 4h7 M17 5v14 M3 3h6 M14 5h6 M14 19h6',
-    files: 'M4 6h6l2 2h8v12H4V6Z',
-    socials: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z M4 21v-2a8 8 0 0 1 16 0v2',
-    schedule: 'M8 3v3 M16 3v3 M4 9h16 M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z M8 13h3 M8 16h6',
-    finance: 'M3 3v18h18 M7 14l4-4 4 3 6-7 M16 6h5v5',
-    memory: 'M12 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z M5 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z M19 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z M10.5 9.5 6.5 15 M13.5 9.5 17.5 15 M8 18h8',
-  };
-  return <svg class="menu-icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d={paths[name]} stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>;
 }
 
 export default function App() {
@@ -171,7 +158,7 @@ export default function App() {
     const nextMessages = (session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role));
     if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
     setMessages(nextMessages);
-    setCompaction(session.compaction?.summary ? session.compaction : null);
+    setCompaction(session.latestCompaction || (session.compaction?.summary ? session.compaction : null));
     setContextUsage(session.contextUsage || null);
     setSessionConfig(session.config || null);
     setSessionModels(session.models || []);
@@ -362,9 +349,16 @@ export default function App() {
     return () => clearInterval(timer);
   }, [activeRunning, busy, sessionId, loadSessions]);
   useEffect(() => {
-    const timer = setInterval(() => loadSessions(), 5000);
-    return () => clearInterval(timer);
-  }, [sessions.some(session => session.running), loadSessions]);
+    const refresh = () => { if (!document.hidden) void loadSessions(); };
+    const timer = setInterval(refresh, 3000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadSessions]);
 
   function stopResponse() {
     if (!controller.current) return;
@@ -536,7 +530,7 @@ export default function App() {
     const pinned = pinnedIds.has(session.id);
     return <div class={`session-row${session.parentSessionId ? ' subagent-row' : ''}`} key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
       <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span></button>
-      {session.running && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
+      {(session.id === sessionId ? activeRunning : session.running) && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
       <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} disabled={busy || loadingSession} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={busy || loadingSession} onClick={event => { if (controller.current || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
     </div>;
@@ -607,7 +601,7 @@ export default function App() {
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
           {showLatest && <button class="scroll-to-latest" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
           {busy && activity && <div class="response-activity" id="response-activity" role="status">{activity}</div>}
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction starts at 75%.">
+          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction reserves space for the model response.">
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage && contextUsage.measured ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
           </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">{busy ? <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" /> : <path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}</svg></button></div></form>
