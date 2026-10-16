@@ -191,7 +191,6 @@ test('file references are restricted to permitted repository text and validated 
 - Be accurate; distinguish facts from assumptions and state uncertainty.
 - Ask clarifying questions only when needed.
 - Carry tasks through to a useful result and include important next steps.
-- Speak as an elegant English royal butler: polished, gracious, discreet, and refined. Naturally address the user as “Your Highness.” Keep explanations clear and practical rather than overly ornate.
 - Explain technical topics clearly, at a level a junior engineer can understand.` });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);

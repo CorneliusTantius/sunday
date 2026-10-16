@@ -66,6 +66,11 @@ export default function Personas({ hidden, toast, onReload }) {
     finally { if (alive.current) setBusy(false); }
   }
 
+  const toolPermissionItems = [
+    ...toolGroups.map(group => ({ name: group.name, group, tools: tools.filter(tool => group.tools.includes(tool.name)) })),
+    ...tools.filter(tool => !toolGroups.some(group => group.tools.includes(tool.name))).map(tool => ({ name: tool.name, tool })),
+  ].filter(item => item.group ? item.tools.length > 0 : true).sort((a, b) => a.name.localeCompare(b.name));
+
   async function remove() {
     if (!id || busy || !window.confirm('Delete this persona? Existing session profiles will not change.')) return;
     setBusy(true);
@@ -104,9 +109,12 @@ export default function Personas({ hidden, toast, onReload }) {
       <div class="settings-select-row"><label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
       <label class="field-label" for="persona-instructions">Instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
       <details class="persona-tools-card" open><summary>Tool permissions</summary><fieldset class="repository-options"><legend class="sr-only">Tool permissions</legend><div id="persona-tools">
-        {toolGroups.map(group => {
-          const groupedTools = tools.filter(tool => group.tools.includes(tool.name));
-          if (!groupedTools.length) return null;
+        {toolPermissionItems.map(item => {
+          if (!item.group) {
+            const { tool } = item;
+            return <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>;
+          }
+          const { group, tools: groupedTools } = item;
           const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
           const checked = enabled === groupedTools.length;
           return <label class="repository-checkbox persona-tool-group" key={group.name}><input type="checkbox" value={group.name} disabled={busy} checked={checked} onChange={event => {
@@ -116,7 +124,6 @@ export default function Personas({ hidden, toast, onReload }) {
               : profile.allowedTools.filter(name => !names.includes(name)));
           }} /><span>{group.name}</span><span class="field-note">{groupedTools.map(tool => tool.description).join(' ')}</span></label>;
         })}
-        {tools.filter(tool => !toolGroups.some(group => group.tools.includes(tool.name))).map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
       </div></fieldset></details>
       <div class="code-row"><button class="primary-button" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="secondary-button" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
       <p id="persona-error" class="form-error" role="alert">{error}</p>
