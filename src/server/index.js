@@ -8,17 +8,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
-import { createModels } from '@earendil-works/pi-ai';
 import { getSupportedThinkingLevels, clampThinkingLevel } from './thinking.js';
-import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
-import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
-import { googleProvider } from '@earendil-works/pi-ai/providers/google';
 import { BASIC_TOOLS, BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, executeTool, makeTools, isSensitiveRepositoryEntry, readMemoryGraph, readMemoryNote } from './tools.js';
 
 import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { createJsonStorage } from './storage.js';
 import { dispatchToolCalls } from './tool-dispatch.js';
+import { providers, credentialId, createModelsByMode } from './provider-models.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
 let updateRunning = false;
@@ -97,27 +94,7 @@ const credentials = {
   modify(id, fn) { return serialize(async () => { const value = await fn(structuredClone(auth[id])); if (value) { const next = { ...auth, [id]: value }; await save('auth.json', next); auth = next; } return structuredClone(auth[id]); }); },
   delete(id) { return serialize(async () => { const next = { ...auth }; delete next[id]; await save('auth.json', next); auth = next; }); },
 };
-// Pi stores one credential per provider. Mode-scoped stores preserve existing
-// OpenAI entries while keeping API keys and subscription tokens independent.
-const providers = [
-  { ...openaiProvider(), modes: ['api_key', 'oauth'] },
-  { ...anthropicProvider(), modes: ['api_key'] },
-  { ...googleProvider(), modes: ['api_key'] },
-];
-const credentialId = (provider, mode) => mode === 'oauth' ? 'openai-chatgpt' : provider;
-const modelsByMode = Object.fromEntries(['api_key', 'oauth'].map(mode => {
-  const store = {
-    async read(id, options) { const value = await credentials.read(credentialId(id, mode)); options?.signal?.throwIfAborted(); return value?.type === mode ? value : undefined; },
-    async list() { const entries = await Promise.all(providers.filter(p => p.modes.includes(mode)).map(async p => ({ providerId: p.id, value: await this.read(p.id) }))); return entries.filter(entry => entry.value).map(entry => ({ providerId: entry.providerId, type: mode })); },
-    modify: (id, fn, options) => credentials.modify(credentialId(id, mode), async current => { options?.signal?.throwIfAborted(); const value = await fn(current?.type === mode ? current : undefined); options?.signal?.throwIfAborted(); return value; }),
-    delete: (id, options) => { options?.signal?.throwIfAborted(); return credentials.delete(credentialId(id, mode)); },
-  };
-  const models = createModels({ credentials: store, ...(mode === 'oauth' ? { authContext: { env: async () => undefined, fileExists: async () => false } } : {}) });
-  for (const provider of providers.filter(p => p.modes.includes(mode))) {
-    models.setProvider({ ...provider, auth: mode === 'oauth' ? { oauth: provider.auth.oauth } : { apiKey: provider.auth.apiKey } });
-  }
-  return [mode, models];
-}));
+const modelsByMode = createModelsByMode(credentials);
 function selection(provider = settings.provider, mode) {
   const entry = providers.find(p => p.id === provider);
   if (!entry) throw new Error('Invalid provider');
