@@ -108,9 +108,13 @@ export default function Personas({ hidden, toast, onReload }) {
           const groupedTools = tools.filter(tool => group.tools.includes(tool.name));
           if (!groupedTools.length) return null;
           const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
-          return <details class="persona-tool-group" key={group.name}><summary><span>{group.name}</span><span class="persona-tool-count">{enabled} of {groupedTools.length} enabled</span></summary><div class="persona-tool-group-content">
-            {groupedTools.map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
-          </div></details>;
+          const checked = enabled === groupedTools.length;
+          return <label class="repository-checkbox persona-tool-group" key={group.name}><input type="checkbox" value={group.name} disabled={busy} checked={checked} onChange={event => {
+            const names = groupedTools.map(tool => tool.name);
+            change('allowedTools', event.currentTarget.checked
+              ? [...new Set([...profile.allowedTools, ...names])]
+              : profile.allowedTools.filter(name => !names.includes(name)));
+          }} /><span>{group.name}</span><span class="field-note">{groupedTools.map(tool => tool.description).join(' ')}</span></label>;
         })}
         {tools.filter(tool => !toolGroups.some(group => group.tools.includes(tool.name))).map(tool => <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>)}
       </div></fieldset></details>

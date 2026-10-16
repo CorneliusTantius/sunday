@@ -275,7 +275,7 @@ test('persona permissions use the tool registry and preserve explicit whitelists
   h.unmount();
 });
 
-test('persona tool whitelist groups related tools into compact dropdowns', () => {
+test('persona tool whitelist gives each related tool group a single checkbox', () => {
   const source = readFileSync(new URL('../src/web/components/Personas.jsx', import.meta.url), 'utf8');
   for (const names of [
     "tools: ['read', 'edit']",
@@ -283,8 +283,9 @@ test('persona tool whitelist groups related tools into compact dropdowns', () =>
     "tools: ['memory_search', 'memory_update']",
     "tools: ['agent_list', 'agent_whisper']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
-  assert.match(source, /<details class="persona-tool-group"/);
-  assert.match(source, /persona-tool-count/);
+  assert.match(source, /class="repository-checkbox persona-tool-group"/);
+  assert.match(source, /groupedTools\.map\(tool => tool\.name\)/);
+  assert.doesNotMatch(source, /groupedTools\.map\(tool => <label/);
   assert.match(source, /tools\.filter\(tool => !toolGroups\.some/);
 });
 
