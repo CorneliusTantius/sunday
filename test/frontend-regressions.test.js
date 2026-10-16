@@ -98,7 +98,9 @@ test('Settings exposes an Update action that only posts to the pull endpoint', (
   assert.match(source, /toast\('Update complete'\)/);
   assert.match(source, /id="update-output"/);
   assert.match(source, /catch \(error\) \{ if \(alive\.current\) setError\(error\.message\); \}/);
-  assert.doesNotMatch(source, /window\.location\.(?:reload|replace)|onReload\(\)/);
+  assert.doesNotMatch(source.slice(source.indexOf('  async function update()'), source.indexOf('  return <div ref={backdrop}')), /window\.location\.(?:reload|replace)|onReload\(\)/);
+  assert.match(source, /id="restart-app"/);
+  assert.match(source, /jsonRequest\('\/api\/restart', 'POST', \{\}\)/);
 });
 
 test('Settings polls only on OpenAI OAuth connect, not Config or API key', async () => {

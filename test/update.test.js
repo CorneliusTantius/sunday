@@ -40,6 +40,32 @@ test('update rejects overlapping pulls and releases the lock after failure', asy
   assert.equal((await retry).status, 200);
 });
 
+test('restart builds before shutdown and keeps the server alive on build failure', async () => {
+  const route = source.slice(source.indexOf("    if (url.pathname === '/api/restart')"), source.indexOf("    if (url.pathname === '/api/update')"));
+  let fail = true;
+  let scheduled = false;
+  const context = vm.createContext({
+    appDir: '/app', updateRunning: false, Error, Promise,
+    process: { env: { INVOCATION_ID: 'service' } },
+    execFile(command, args, options, callback) {
+      assert.equal(command, 'npm');
+      assert.deepEqual(Array.from(args), ['run', 'build']);
+      callback(fail ? new Error('Build failed') : null, '', '');
+    },
+    json: (res, status, body) => ({ status, body }),
+    res: { once(event) { assert.equal(event, 'finish'); scheduled = true; } }
+  });
+  vm.runInContext(`async function restart(method) { const url = { pathname: '/api/restart' }, req = { method }; ${route} }`, context);
+  assert.equal((await context.restart('GET')).status, 405);
+  await assert.rejects(context.restart('POST'), /Build failed/);
+  assert.equal(scheduled, false);
+  assert.equal(context.updateRunning, false);
+  fail = false;
+  assert.equal((await context.restart('POST')).status, 200);
+  assert.equal(scheduled, true);
+  assert.equal((await context.restart('POST')).status, 409);
+});
+
 test('update reports subprocess timeouts', async () => {
   const h = harness((command, args, options, callback) => callback({ killed: true }, '', ''));
   await assert.rejects(h.updateRoute('POST'), /Git pull timed out/);

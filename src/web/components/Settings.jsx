@@ -272,6 +272,26 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { if (alive.current) setSaving(false); }
   }
 
+  async function restart() {
+    if (updatePending.current || !window.confirm('Rebuild and restart Sunday? Running agent tasks will be interrupted.')) return;
+    updatePending.current = true;
+    setUpdating(true); setError(''); setUpdateOutput('Building app…');
+    try {
+      const data = await jsonRequest('/api/restart', 'POST', {});
+      if (alive.current) setUpdateOutput(data.output);
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      for (let attempt = 0; attempt < 60; attempt++) {
+        try {
+          const response = await fetch('/api/settings', { cache: 'no-store', signal: AbortSignal.timeout(2000) });
+          if (response.ok) { window.location.reload(); return; }
+        } catch {}
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      throw new Error('Server did not return. Check the server logs and reload manually.');
+    } catch (error) { if (alive.current) setError(error.message); }
+    finally { updatePending.current = false; if (alive.current) setUpdating(false); }
+  }
+
   async function update() {
     if (updatePending.current) return;
     updatePending.current = true;
@@ -348,6 +368,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <h3>Update Sunday</h3>
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
             <button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
+            <button class="secondary-button" id="restart-app" disabled={updating} onClick={restart}>Restart app</button>
+            <p class="field-note">Rebuilds and restarts the server, interrupting running tasks. The page reloads when ready.</p>
             <pre id="update-output" role="status" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{updateOutput}</pre>
           </section>
           <Personas hidden={page !== 'personas'} toast={toast} onReload={onReload} />
