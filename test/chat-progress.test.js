@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
 
-import { estimateContext, shouldCompact, measuredInput } from '../src/server/context.js';
+import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
@@ -13,7 +13,8 @@ function harness(streams, idle = 100, total = 1000, agents = []) {
   let calls = 0;
   const model = { id: 'test', api: 'test', provider: 'test', contextWindow: 10000 };
   const context = vm.createContext({
-    AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput,
+    AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow,
+    summarizeContext: async () => 'Earlier work summary',
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,
     settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' },
     modelsByMode: { api_key: { getModel: () => model, getAuth: async () => true,
@@ -226,4 +227,22 @@ test('agent_list rejects unexpected arguments', async () => {
   h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
   await h.run();
   assert.equal(h.session.messages[0].toolCalls[0].status, 'failed');
+});
+
+
+test('compaction preserves original transcript and publishes a persisted summary', async () => {
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
+  h.session.messages = [
+    { role: 'user', content: 'Original request' },
+    { role: 'assistant', content: 'Earlier response ' + 'y'.repeat(100000) },
+    { role: 'user', content: 'Next step' },
+    { role: 'assistant', content: 'Recent response ' + 'z'.repeat(80000) },
+    { role: 'user', content: 'Continue' },
+  ];
+  const original = structuredClone(h.session.messages);
+  await h.run();
+  assert.deepEqual(h.session.messages.slice(0, original.length), original);
+  assert.ok(h.session.compaction.through > 0);
+  assert.equal(h.session.latestCompaction.summary, 'Earlier work summary');
+  assert.ok(h.events.some(event => event.type === 'compaction' && event.compaction.summary === 'Earlier work summary'));
 });

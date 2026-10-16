@@ -171,7 +171,7 @@ export default function App() {
     const nextMessages = (session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role));
     if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
     setMessages(nextMessages);
-    setCompaction(session.compaction?.summary ? session.compaction : null);
+    setCompaction(session.latestCompaction || (session.compaction?.summary ? session.compaction : null));
     setContextUsage(session.contextUsage || null);
     setSessionConfig(session.config || null);
     setSessionModels(session.models || []);
@@ -362,9 +362,16 @@ export default function App() {
     return () => clearInterval(timer);
   }, [activeRunning, busy, sessionId, loadSessions]);
   useEffect(() => {
-    const timer = setInterval(() => loadSessions(), 5000);
-    return () => clearInterval(timer);
-  }, [sessions.some(session => session.running), loadSessions]);
+    const refresh = () => { if (!document.hidden) void loadSessions(); };
+    const timer = setInterval(refresh, 3000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadSessions]);
 
   function stopResponse() {
     if (!controller.current) return;
@@ -536,7 +543,7 @@ export default function App() {
     const pinned = pinnedIds.has(session.id);
     return <div class={`session-row${session.parentSessionId ? ' subagent-row' : ''}`} key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
       <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span></button>
-      {session.running && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
+      {(session.id === sessionId ? activeRunning : session.running) && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
       <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} disabled={busy || loadingSession} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={busy || loadingSession} onClick={event => { if (controller.current || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
     </div>;
@@ -607,7 +614,7 @@ export default function App() {
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
           {showLatest && <button class="scroll-to-latest" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
           {busy && activity && <div class="response-activity" id="response-activity" role="status">{activity}</div>}
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction starts at 75%.">
+          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction reserves space for the model response.">
             <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage && contextUsage.measured ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
           </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">{busy ? <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" /> : <path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}</svg></button></div></form>

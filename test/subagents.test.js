@@ -40,10 +40,6 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal((await api(path, { sessionId: first.id, prompt: '' })).status, 400);
     const denied = (await api('/sessions', { profile: { name: 'Restricted', specialty: '', instructions: '', allowedTools: [] } })).session;
     assert.equal((await api(`/sessions/${denied.id}/subagents`, {})).status, 400);
-    const deletion = await fetch(`http://127.0.0.1:${port}/api/sessions/${parent.id}`, { method: 'DELETE' });
-    assert.equal(deletion.status, 400);
-    const listed = (await api('/sessions')).sessions;
-    assert.equal(listed.find(item => item.id === first.id).parentSessionId, parent.id);
     const configure = async value => {
       const response = await fetch(`http://127.0.0.1:${port}/api/settings/subagents`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
       return { status: response.status, ...await response.json() };
@@ -68,6 +64,14 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     await new Promise(resolve => setTimeout(resolve, 1500));
     assert.equal((await api(`/sessions/${parent.id}`)).session.messages.some(message => message.role === 'subagent'), false);
     assert.equal(JSON.parse(await readFile(filename, 'utf8')).pendingCompletion.id, 'legacy-completion');
+    const deletion = await fetch(`http://127.0.0.1:${port}/api/sessions/${parent.id}`, { method: 'DELETE' });
+    assert.equal(deletion.status, 200);
+    const listed = (await api('/sessions')).sessions;
+    for (const session of [parent, ...children]) {
+      assert.equal(listed.some(item => item.id === session.id), false);
+      await assert.rejects(readFile(join(home, 'sunday/data/sessions', `${session.id}.json`)), { code: 'ENOENT' });
+    }
+    assert.equal(listed.some(item => item.id === other.id), true);
   } finally {
     if (child.exitCode === null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited; }
     await rm(home, { recursive: true, force: true });

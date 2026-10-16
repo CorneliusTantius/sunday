@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, symlink, rm, readdir, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, rm, readdir, stat, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { executeTool, validateTools, BASIC_TOOL_NAMES, MEMORY_TOOL_NAMES, makeTools, isSensitiveRepositoryEntry } from '../src/server/tools.js';
@@ -78,4 +78,59 @@ test('agent discovery is a registered, whitelisted, server-only tool', async () 
   assert.equal(tool.parameters.additionalProperties, false);
   assert.deepEqual(validateTools(['agent_list']), ['agent_list']);
   await assert.rejects(executeTool('agent_list', {}, [], ''), /Tool must be handled by the chat server/);
+});
+
+test('edit creates files with empty oldText without overwriting existing content', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'sunday-create-'));
+  const path = `${repo.split('/').at(-1)}/new.txt`;
+  try {
+    assert.equal(await executeTool('edit', { path, oldText: '', newText: 'hello' }, [repo]), 'File edited');
+    await assert.rejects(executeTool('edit', { path, oldText: '', newText: 'replacement' }, [repo]));
+    assert.equal(await executeTool('read', { path }, [repo]), 'hello');
+  } finally { await rm(repo, { recursive: true, force: true }); }
+});
+
+test('find searches paths and literal content without exposing sensitive or linked files', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'sunday-find-'));
+  const path = repo.split('/').at(-1);
+  try {
+    await writeFile(join(repo, 'sample.txt'), 'first\nneedle\nneedle');
+    await writeFile(join(repo, '.env'), 'needle');
+    await symlink(join(repo, 'sample.txt'), join(repo, 'linked.txt'));
+    await mkdir(join(repo, 'node_modules'));
+    await writeFile(join(repo, 'node_modules', 'hidden.txt'), 'needle');
+    const files = JSON.parse(await executeTool('find', { path, query: '.txt' }, [repo]));
+    assert.deepEqual(files.matches, [`${path}/sample.txt`]);
+    const hits = JSON.parse(await executeTool('find', { path, query: 'needle', mode: 'content', limit: 1 }, [repo]));
+    assert.deepEqual(hits.matches, [`${path}/sample.txt:2:needle`]);
+    assert.equal(hits.truncated, true);
+    await assert.rejects(executeTool('find', { path: `${path}/../`, query: '' }, [repo]));
+    await assert.rejects(executeTool('find', { path, mode: 'content' }, [repo]));
+  } finally { await rm(repo, { recursive: true, force: true }); }
+});
+
+test('read supports larger files and precise bounded line ranges', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'sunday-read-'));
+  const path = `${repo.split('/').at(-1)}/large.txt`;
+  try {
+    await writeFile(join(repo, 'large.txt'), 'hello\n'.repeat(20000));
+    assert.equal((await executeTool('read', { path }, [repo])).length, 120000);
+    assert.equal(await executeTool('read', { path, offset: 2, limit: 2 }, [repo]), 'hello\nhello');
+    await writeFile(join(repo, 'large.txt'), 'hello\n'.repeat(40000));
+    await assert.rejects(executeTool('read', { path }, [repo]), /smaller line range/);
+    assert.equal(await executeTool('read', { path, offset: 30000, limit: 1 }, [repo]), 'hello');
+    await assert.rejects(executeTool('read', { path, offset: 0 }, [repo]));
+  } finally { await rm(repo, { recursive: true, force: true }); }
+});
+
+test('edit rejects overlapping matches and unsafe text without changing bytes', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'sunday-edit-safe-'));
+  const path = `${repo.split('/').at(-1)}/sample.txt`;
+  try {
+    for (const content of [Buffer.from('aaa'), Buffer.from([0xff, 0x61]), Buffer.from('a\0b'), Buffer.alloc(5000001, 97)]) {
+      await writeFile(join(repo, 'sample.txt'), content);
+      await assert.rejects(executeTool('edit', { path, oldText: content.length === 3 && content[0] === 97 && content[1] === 97 ? 'aa' : 'a', newText: 'x' }, [repo]));
+      assert.deepEqual(await readFile(join(repo, 'sample.txt')), content);
+    }
+  } finally { await rm(repo, { recursive: true, force: true }); }
 });

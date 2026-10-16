@@ -9,6 +9,7 @@ export default function Memory({ toast }) {
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [noteError, setNoteError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -24,8 +25,9 @@ export default function Memory({ toast }) {
     if (!selectedId) { setNote(null); return; }
     let active = true;
     setNote(null);
+    setNoteError('');
     request(`/api/memory/notes/${encodeURIComponent(selectedId)}`).then(data => { if (active) setNote(data.note); })
-      .catch(reason => { if (active) { setNote(null); toast?.(`Could not load memory note: ${reason.message}`); } });
+      .catch(reason => { if (active) { setNote(null); setNoteError(reason.message); toast?.(`Could not load memory note: ${reason.message}`); } });
     return () => { active = false; };
   }, [selectedId, toast]);
 
@@ -47,7 +49,7 @@ export default function Memory({ toast }) {
 
   return <section class="memory-page" aria-labelledby="memory-title">
     <header class="memory-header">
-      <div><p class="eyebrow">SHARED MEMORY</p><h1 id="memory-title">Memory graph</h1><p>Notes connect through <code>[[Exact note title]]</code> links.</p></div>
+      <div><p class="eyebrow">SHARED MEMORY</p><h1 id="memory-title" tabIndex="-1">Memory graph</h1><p>Notes connect through <code>[[Exact note title]]</code> links.</p></div>
       <div class="memory-counts"><strong>{graph.nodes.length}</strong> notes <span>·</span> <strong>{graph.edges.length}</strong> links</div>
     </header>
     {error && <p class="memory-error" role="alert">Could not load memory graph: {error}</p>}
@@ -75,7 +77,7 @@ export default function Memory({ toast }) {
       <aside class="memory-note-panel" aria-label="Selected memory note">
         {selected ? <>
           <p class="eyebrow">NOTE</p><h2>{selected.title}</h2>
-          {note ? <div class="memory-note-content markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content || '_This note has no content._') }} /> : <p class="memory-empty">Loading note…</p>}
+          {noteError ? <p class="memory-error" role="alert">Could not load memory note: {noteError}</p> : note ? <div class="memory-note-content markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content || '_This note has no content._') }} /> : <p class="memory-empty">Loading note…</p>}
           {related.length > 0 && <div class="memory-related"><h3>Linked notes</h3>{related.map(item => <button key={item.id} class="memory-link" onClick={() => setSelectedId(item.id)}>{item.title}</button>)}</div>}
           {unresolved.length > 0 && <div class="memory-unresolved"><h3>Unresolved links</h3><p>{[...new Set(unresolved)].map(target => `[[${target}]]`).join(', ')}</p></div>}
         </> : <p class="memory-empty">Select a note to inspect it.</p>}

@@ -11,6 +11,7 @@ export function buildSystemPrompt(profile, { repositoryTools = [], allowedReposi
     profile.instructions && `Instructions: ${profile.instructions}`,
     (profile.personaId === 'coding-agent' || profile.id === 'coding-agent' || profile.name === 'Coding Agent') && `Coding Agent instructions: ${codingAgentInstructions}`,
     hasRepositoryTools && `Repository tools available: ${repositoryTools.join(', ')}. Use them when useful. Repository paths must begin with one of these names: ${allowedRepositories.join(', ')}. These are private copies in this agent’s workspace; changes do not affect other agents.`,
+    repositoryTools.includes('read') && repositoryTools.includes('edit') && 'Prefer read and edit for file inspection and changes; use find when available for file discovery and literal text search, rather than bash with Python or shell scripts. Use bash for builds, tests, or operations the file tools cannot handle.',
     !hasRepositoryTools && 'No repository tools are enabled for this session.',
     agentCoordinationInstructions,
     memoryTools.length && sharedMemoryInstructions.replace('Shared memory tools are always available to every agent.', `Shared memory tools available: ${memoryTools.join(', ')}.`).replace(' Use memory_search to find relevant existing notes before using memory_update to create or replace a durable shared note.', `${memoryTools.includes('memory_search') ? ' Use memory_search to find relevant existing notes.' : ''}${memoryTools.includes('memory_update') ? ' Use memory_update to create or replace a durable shared note.' : ''}`),
