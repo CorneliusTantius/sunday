@@ -6,6 +6,7 @@ import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateToo
 
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
+import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
 function harness(streams, idle = 100, total = 1000, agents = []) {
@@ -21,7 +22,7 @@ function harness(streams, idle = 100, total = 1000, agents = []) {
       streamSimple: (m, input, opts) => { inputs.push(input); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
-    validateTools, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools,
+    validateTools, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     readdir: async () => agents.map(agent => `${agent.id}.json`), readSession: async id => agents.find(agent => agent.id === id), sessionsDir: '/sessions', sharedMemoryDir: '/memory',
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return 'ok'; }, saveSession: async () => {},
     whisperToAgent: async (sourceId, args) => { whispers.push(args); return 'Specialist result'; },
