@@ -184,15 +184,12 @@ test('SessionConfig removes missing repositories after fetch and saves accepted 
   const h = mount('SessionConfig', {
     session: { id: 'session/1', title: 'Chat', allowedRepositories: ['kept', 'deleted'] },
     onSaved() { saved++; }, onClose() { closed++; }, toast() {},
-  }, async url => url === '/api/repos' ? repositories.promise : { personas: [{ id: 'sunday', name: 'Sunday' }] }, async (url, method, body) => {
+  }, async url => url === '/api/repos' ? repositories.promise : url.startsWith('/api/sessions/') ? { session: { config: { model: 'test', thinkingLevel: 'off' } } } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, async (url, method, body) => {
     if (url === '/api/sessions/session%2F1') {
       assert.equal(method, 'PATCH');
       payload = body;
       if (body.allowedRepositories.some(name => name !== 'kept')) throw new Error('Unknown repository');
-    } else {
-      assert.equal(url, '/api/settings');
-      assert.equal(method, 'PUT');
-    }
+    } else assert.fail(`Unexpected settings write: ${url}`);
   });
   assert.equal(h.view.busy, true);
   repositories.resolve({ repos: [{ name: 'kept' }, { name: 'other' }] });
@@ -210,7 +207,7 @@ test('SessionConfig shows workspace copy progress while saving', async () => {
   const h = mount('SessionConfig', {
     session: { id: 'agent-session', title: 'Agent', allowedRepositories: [] },
     onSaved() {}, onClose() {}, toast() {},
-  }, async url => url === '/api/repos' ? { repos: [{ name: 'demo' }] } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, () => pendingSave.promise);
+  }, async url => url === '/api/repos' ? { repos: [{ name: 'demo' }] } : url.startsWith('/api/sessions/') ? { session: { config: { model: 'test', thinkingLevel: 'off' } } } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, () => pendingSave.promise);
   await h.settle();
   const save = h.view.save({ preventDefault() {} });
   h.render();
@@ -305,8 +302,33 @@ function deleteConfigHarness(onDelete, extras = {}) {
   return mount('SessionConfig', {
     session: { id: 'delete-agent', title: 'Agent', allowedRepositories: [] },
     onDelete, onSaved() {}, onClose() {}, toast() { assert.fail('Deletion must not show a toast'); }, ...extras,
-  }, async url => url === '/api/repos' ? { repos: [] } : { personas: [{ id: 'sunday', name: 'Sunday' }] });
+  }, async url => url === '/api/repos' ? { repos: [] } : url === '/api/sessions/delete-agent' ? { session: { config: { model: 'child-model', thinkingLevel: 'high' }, models: [{ id: 'child-model', thinkingLevels: ['off', 'high'] }] } } : { personas: [{ id: 'sunday', name: 'Sunday' }] });
 }
+
+test('agent settings loads and saves its own model and thinking without changing defaults', async () => {
+  const calls = [];
+  const h = mount('SessionConfig', {
+    session: { id: 'child', title: 'Child' }, onSaved() {}, onClose() {}, toast() {},
+  }, async url => {
+    calls.push(url);
+    if (url === '/api/personas') return { personas: [] };
+    if (url === '/api/repos') return { repos: [] };
+    assert.equal(url, '/api/sessions/child');
+    return { session: { config: { model: 'child-model', thinkingLevel: 'high' }, models: [{ id: 'child-model', thinkingLevels: ['off', 'high'] }] } };
+  }, async (url, method, body) => {
+    calls.push(url);
+    assert.equal(url, '/api/sessions/child');
+    assert.equal(method, 'PATCH');
+    assert.equal(body.config.model, 'child-model');
+    assert.equal(body.config.thinkingLevel, 'high');
+  });
+  await h.settle();
+  assert.equal(h.view.model, 'child-model');
+  assert.equal(h.view.thinking, 'high');
+  await h.view.save({ preventDefault() {} });
+  assert.ok(!calls.includes('/api/settings'));
+  h.unmount();
+});
 
 test('agent deletion requires a second click after a three-second wait and prevents duplicate requests', async () => {
   const pending = deferred();

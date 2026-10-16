@@ -35,7 +35,8 @@ html, body, #app { height: 100%; overflow: hidden; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text)}
 .app-shell{position:relative;isolation:isolate;display:flex;height:100vh;height:100dvh;overflow:hidden}
-.sidebar{width:250px;flex:none;z-index:1;border-right:1px solid var(--line);padding:27px 18px 20px;display:flex;flex-direction:column;background:transparent}
+.sidebar{width:250px;flex:none;z-index:1;border-right:1px solid var(--line);padding:27px 18px 20px;display:flex;flex-direction:column;background:transparent;overflow-y:auto;min-height:0}
+.sidebar > *{flex-shrink:0}
 .brand{display:flex;align-items:center;gap:7px;color:var(--text);text-decoration:none;font:800 24px Manrope,sans-serif;letter-spacing:-1px;padding:0 10px;margin-bottom:38px}
 .brand-mark{width:25px;height:25px;background:var(--accent);border-radius:8px;color:var(--bg);display:grid;place-items:center;font:800 18px Manrope}
 .new-chat{height:38px;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:9px;text-align:left;padding:0 13px;font:600 15px 'DM Sans',sans-serif;cursor:pointer}

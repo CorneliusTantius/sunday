@@ -34,9 +34,9 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
     let active = true;
     alive.current = true;
     dialog.current.showModal();
-    Promise.all([request('/api/personas'), request('/api/repos'), request('/api/settings')]).then(([profiles, repositories, settings]) => {
+    Promise.all([request('/api/personas'), request('/api/repos'), request(`/api/sessions/${encodeURIComponent(session.id)}`)]).then(([profiles, repositories, data]) => {
       if (!active) return;
-      setPersonas(profiles.personas); setRepos(repositories.repos); setModels(settings.models || []); setModel(settings.model || ''); setThinking(settings.thinkingLevel || 'off');
+      setPersonas(profiles.personas); setRepos(repositories.repos); setModels(data.session.models || []); setModel(data.session.config.model); setThinking(data.session.config.thinkingLevel || 'off');
       setAllowed(previous => previous.filter(name => repositories.repos.some(repo => repo.name === name)));
       setBusy(false); titleInput.current?.focus();
     }).catch(error => { if (active) setError(error.message); });
@@ -77,8 +77,7 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
     event.preventDefault(); clearDeleteArm(); if (busy || deletingRef.current) return;
     setBusy(true); setSaving(true); setError('');
     try {
-      await jsonRequest(`/api/sessions/${encodeURIComponent(session.id)}`, 'PATCH', { title: title.trim(), personaId, allowedRepositories: allowed });
-      await jsonRequest('/api/settings', 'PUT', { model, thinkingLevel: thinking });
+      await jsonRequest(`/api/sessions/${encodeURIComponent(session.id)}`, 'PATCH', { title: title.trim(), personaId, allowedRepositories: allowed, config: { model, thinkingLevel: thinking } });
       await onSaved();
       if (alive.current) { close(); toast('Session settings saved'); }
     } catch (error) { if (alive.current) setError(error.message); }
