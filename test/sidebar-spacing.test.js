@@ -72,6 +72,12 @@ test('compact sidebar artwork retains the character beside it', () => {
   assert.match(css, /\.sidebar-brand \.brand-character \{ width: 28px; height: 28px; flex-shrink: 0;/);
 });
 
+test('mobile Sunday card uses compact spacing and artwork', () => {
+  assert.match(css, /@media \(max-width: 700px\) \{\s*\.sidebar-brand \{ margin-bottom: 12px; padding: 0 0 10px; \}/);
+  assert.match(css, /\.sidebar-brand \.brand \{ padding: 8px 10px; border-radius: 14px; \}/);
+  assert.ok(css.includes('font-size: min(6px, calc((100cqw - 34px) * .045))'));
+});
+
 test('artwork scales to the card space remaining beside the character', () => {
   assert.match(css, /container-type: inline-size;/);
   assert.ok(css.includes('font-size: min(7px, calc((100cqw - 42px) * .045))'));

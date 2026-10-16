@@ -872,6 +872,13 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   flex-shrink: 0;
   text-shadow: 0 0 12px color-mix(in srgb, var(--violet) 45%, transparent);
 }
+@media (max-width: 700px) {
+  .sidebar-brand { margin-bottom: 12px; padding: 0 0 10px; }
+  .sidebar-brand .brand { padding: 8px 10px; border-radius: 14px; }
+  .sidebar-brand .brand-character { width: 24px; height: 24px; }
+  .brand-card-heading { gap: 10px; }
+  .sidebar-brand .brand-ascii { font-size: min(6px, calc((100cqw - 34px) * .045)); }
+}
 @media (forced-colors: active) {
   .sidebar-brand .brand-ascii { text-shadow: none; }
 }
