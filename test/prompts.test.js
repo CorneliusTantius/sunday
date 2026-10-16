@@ -30,6 +30,14 @@ test('every agent prompt uses a compact coordination format without constraining
   assert.ok(prompt.includes('User-facing replies stay natural.'));
 });
 
+test('delegation prioritizes small concurrent assignments on every round', () => {
+  const prompt = buildSystemPrompt({ name: 'Agent' });
+  assert.ok(prompt.includes('prioritize concurrent assignments on every round, not just initial creation'));
+  assert.ok(prompt.includes('one small, bounded task with a narrow file scope and one verification target'));
+  assert.ok(prompt.includes('Reuse idle children for follow-up work'));
+  assert.ok(prompt.includes('Calls wait for the whole batch'));
+});
+
 test('Coding Agent system prompt includes the minimalist developer instruction', () => {
   const instruction = 'Act as an aggressive minimalist developer: use existing code, native platform capabilities, or a single-line expression to deliver the absolute bare minimum, production-ready code with zero commentary.';
   for (const profile of [
@@ -39,6 +47,14 @@ test('Coding Agent system prompt includes the minimalist developer instruction',
     assert.ok(buildSystemPrompt(profile).includes(instruction));
   }
   assert.ok(!buildSystemPrompt({ name: 'Other', instructions: '' }).includes(instruction));
+});
+
+test('repository prompts prioritize independent read batches without requiring concurrency', () => {
+  const instruction = 'Prioritize batching independent read-only tool calls (especially read, find, and searches) together for concurrent execution when supported, rather than issuing them one at a time.';
+  const prompt = buildSystemPrompt({ name: 'Agent' }, { repositoryTools: ['read', 'find'] });
+  assert.ok(prompt.includes(instruction));
+  assert.ok(prompt.includes('Wait for results when later calls depend on them; keep state-changing calls sequential.'));
+  assert.ok(!buildSystemPrompt({ name: 'Agent' }).includes(instruction));
 });
 
 test('shared style stays in the system prompt with repository tools enabled', () => {
