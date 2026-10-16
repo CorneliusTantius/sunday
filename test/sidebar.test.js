@@ -236,7 +236,8 @@ test('desktop CSS animates layout without display:none or discrete display trans
     assert.equal(style.paddingRight, open ? '18px' : '0px');
     assert.equal(style.marginRight, open ? '0px' : '-1px');
     assert.equal(style.opacity, open ? '1' : '0');
-    assert.equal(style.overflow, 'hidden');
+    assert.equal(style.overflowX, 'hidden');
+    assert.equal(style.overflowY, 'auto');
     assert.equal(style.visibility, open ? 'visible' : 'hidden');
     for (const property of ['width', 'padding', 'margin-right']) transition(style, property, 240, 0);
     transition(style, 'visibility', 0, open ? 0 : 240);

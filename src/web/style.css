@@ -608,7 +608,7 @@ button:enabled:active { transform: translateY(1px); }
 /* Keep the sidebar rendered until its exit finishes; inert blocks interaction. */
 @media (min-width: 701px) {
   .sidebar {
-    overflow: hidden; opacity: 1; visibility: visible; margin-right: 0;
+    overflow-x: hidden; overflow-y: auto; opacity: 1; visibility: visible; margin-right: 0;
     transition: width 240ms cubic-bezier(.2,.8,.2,1), padding 240ms cubic-bezier(.2,.8,.2,1), margin-right 240ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease, visibility 0s linear;
   }
   .sidebar.collapsed {

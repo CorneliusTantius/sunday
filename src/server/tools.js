@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 export const BASIC_TOOLS = [
-  { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt. Returns immediately; completion is delivered automatically. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
+  { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt. Returns immediately; completion is delivered automatically. Dispatch independent tasks to multiple children before waiting for results so they run concurrently. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
   { name: 'subagent_send_prompt', description: 'Send work to an idle child session and return immediately. Its completion automatically notifies you.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
   { name: 'subagent_list', description: 'List your child sessions, running state, and latest assistant message.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'read', description: "Read a text file using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false } },
