@@ -183,7 +183,7 @@ export default function App() {
       selectSession(data.session); await loadSessions(); navigateChat(navigate);
     } catch (error) { setReady(!!activeSession.current); toast(`Could not start chat: ${error.message}`); }
     finally { sessionLock.current = false; setLoadingSession(false); }
-    promptInput.current?.focus();
+    if (!mobile) promptInput.current?.focus();
   }
   async function openSession(id, navigate = true) {
     if (id === activeSession.current) { navigateChat(navigate); return; }
@@ -281,7 +281,7 @@ export default function App() {
     else if (page === 'financial-tracker') shell.current?.querySelector('#financial-tracker-title')?.focus();
     else if (page === 'scheduled-job') shell.current?.querySelector('#scheduled-job-title')?.focus();
     else if (page === 'memory') shell.current?.querySelector('#memory-title')?.focus();
-    else promptInput.current?.focus();
+    else if (!mobile) promptInput.current?.focus();
   }, [page]);
   useEffect(() => {
     if (sidebar.current) sidebar.current.inert = !sidebarOpen || settingsOpen;
@@ -328,7 +328,7 @@ export default function App() {
     if (messageList.current) observer.observe(messageList.current);
     return () => observer.disconnect();
   }, [page, scrollToLatest, updateScrollPosition]);
-  useEffect(() => { if (!busy && ready && !activeRunning) promptInput.current?.focus(); }, [busy, ready, activeRunning]);
+  useEffect(() => { if (!mobile && !busy && ready && !activeRunning) promptInput.current?.focus(); }, [mobile, busy, ready, activeRunning]);
   useEffect(() => {
     if (!activeRunning || busy || !sessionId) return;
     const id = sessionId;

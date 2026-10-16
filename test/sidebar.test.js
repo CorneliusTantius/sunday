@@ -79,6 +79,23 @@ async function mount(t, mobile = false, sessions = [{ id: 'sidebar-test', title:
   };
 }
 
+for (const mobile of [true, false]) {
+  test(`chat autofocus is ${mobile ? 'disabled on mobile' : 'preserved on desktop'}`, async t => {
+    const app = await mount(t, mobile);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 100)); });
+    const focused = () => app.window.document.activeElement === app.window.document.querySelector('textarea');
+    assert.equal(focused(), !mobile);
+    await act(async () => {
+      app.get('new-chat').click();
+      for (let i = 0; i < 30; i++) await Promise.resolve();
+    });
+    assert.equal(focused(), !mobile);
+    await act(async () => { app.window.location.hash = 'memory'; await new Promise(resolve => setTimeout(resolve, 20)); });
+    await act(async () => { app.window.location.hash = 'chat'; await new Promise(resolve => setTimeout(resolve, 20)); });
+    assert.equal(focused(), !mobile);
+  });
+}
+
 test('new agent label and pinning keep at most three agents first without a heading', async t => {
   const sessions = Array.from({ length: 4 }, (_, index) => ({ id: `agent-${index + 1}`, title: `Agent ${index + 1}`, messages: [] }));
   const app = await mount(t, false, sessions);
