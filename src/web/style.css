@@ -1286,12 +1286,11 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .memory-note-content pre { max-width: 100%; overflow: auto; }
 .memory-related, .memory-unresolved { display: grid; gap: 7px; margin-top: 22px; padding-top: 15px; border-top: 1px solid var(--line); }
 .memory-related h3, .memory-unresolved h3 { margin: 0; font-size: 11px; font-weight: 700; }
-.memory-link { width: fit-content; border: 0; padding: 2px 0; background: none; color: var(--highlight); font: 500 12px 'DM Sans', sans-serif; text-align: left; cursor: pointer; }
-.memory-link:hover { text-decoration: underline; }
+.memory-related .memory-link { width: fit-content; border: 0; padding: 2px 0; background: none; color: var(--highlight); font: 500 12px 'DM Sans', sans-serif; text-align: left; cursor: pointer; }
+.memory-related .memory-link:hover { text-decoration: underline; }
 .memory-unresolved p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .memory-empty { margin: auto; padding: 22px 8px; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .memory-error { padding: 12px; border: 1px solid color-mix(in srgb, var(--error, #f87171) 45%, var(--line)); border-radius: 9px; color: var(--error, #f87171); font-size: 13px; }
-.memory-link[aria-current="page"], .memory-link.active { border-color: color-mix(in srgb, var(--highlight) 38%, transparent); }
 @media (max-width: 900px) { .memory-layout { grid-template-columns: minmax(0, 1fr); } .memory-note-panel { min-height: 220px; } }
 @media (max-width: 700px) { .memory-page { width: calc(100% - 30px); padding: 64px 0 30px; } .memory-header { align-items: flex-start; flex-direction: column; gap: 11px; } .memory-header h1 { font-size: 26px; } .memory-graph-panel, .memory-note-panel { padding: 14px; } .memory-canvas, .memory-canvas svg { min-height: 320px; } }
 @media (prefers-reduced-motion: reduce) { .memory-node circle { transition: none; } }

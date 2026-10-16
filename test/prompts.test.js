@@ -21,6 +21,15 @@ test('every persona system prompt enforces the shared cold, direct style', () =>
   }
 });
 
+test('every agent prompt uses a compact coordination format without constraining user-facing replies', () => {
+  const prompt = buildSystemPrompt({ name: 'Agent' });
+  assert.ok(prompt.includes('Agent-to-agent and delegated-work only: terse fields; grammar and English optional, clarity mandatory.'));
+  assert.ok(prompt.includes('`TASK|GOAL:...|MODE:edit/read-only|SCOPE:...|LIMIT:...|VERIFY:...|RETURN:...`'));
+  assert.ok(prompt.includes('`RESULT|STATUS:done/partial/blocked|FILES:...|EVIDENCE:...|CHECKS:...|BLOCKERS:...`'));
+  assert.ok(prompt.includes('Omit empty fields; no prose.'));
+  assert.ok(prompt.includes('User-facing replies stay natural.'));
+});
+
 test('Coding Agent system prompt includes the minimalist developer instruction', () => {
   const instruction = 'Act as an aggressive minimalist developer: use existing code, native platform capabilities, or a single-line expression to deliver the absolute bare minimum, production-ready code with zero commentary.';
   for (const profile of [

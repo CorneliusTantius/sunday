@@ -15,7 +15,7 @@ test('bird names avoid collisions and support exhaustion', () => {
 test('persistent subagents enforce ownership, permissions, nesting and the three-child limit', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-subagents-'));
   const port = 32000 + Math.floor(Math.random() * 20000);
-  const child = spawn(process.execPath, ['src/server/index.js', '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['src/server/index.js', '--production'], { env: { ...process.env, HOME: home, PORT: String(port), OPENAI_API_KEY: '', ANTHROPIC_API_KEY: '', GEMINI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const api = async (path, data) => {
     const response = await fetch(`http://127.0.0.1:${port}/api${path}`, { method: data === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json' }, ...(data !== undefined ? { body: JSON.stringify(data) } : {}) });
     return { status: response.status, ...await response.json() };
@@ -40,10 +40,6 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal((await api(path, { sessionId: first.id, prompt: '' })).status, 400);
     const denied = (await api('/sessions', { profile: { name: 'Restricted', specialty: '', instructions: '', allowedTools: [] } })).session;
     assert.equal((await api(`/sessions/${denied.id}/subagents`, {})).status, 400);
-    const deletion = await fetch(`http://127.0.0.1:${port}/api/sessions/${parent.id}`, { method: 'DELETE' });
-    assert.equal(deletion.status, 400);
-    const listed = (await api('/sessions')).sessions;
-    assert.equal(listed.find(item => item.id === first.id).parentSessionId, parent.id);
     const configure = async value => {
       const response = await fetch(`http://127.0.0.1:${port}/api/settings/subagents`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
       return { status: response.status, ...await response.json() };
@@ -53,23 +49,32 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 400);
     assert.equal((await api(path)).result.length, 3);
     assert.equal((await configure({ enabled: true, maxChildren: 1 })).subagents.maxChildren, 1);
-    assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 201);
+    const created = await api(`/sessions/${other.id}/subagents`, {});
+    assert.equal(created.status, 201);
+    const otherChild = created.result;
+    assert.ok(otherChild.id);
     assert.equal((await api(`/sessions/${other.id}/subagents`, {})).status, 400);
-    // Inject a durable completion, emulating recovery after a process restart.
+    const prompted = await api(`/sessions/${other.id}/subagents`, { sessionId: otherChild.id, prompt: 'Run synchronous prompt' });
+    assert.equal(prompted.status, 400);
+    const promptedChild = (await api(`/sessions/${otherChild.id}`)).session;
+    assert.equal(promptedChild.messages.at(-1).content, 'Run synchronous prompt');
+    const updatedParent = (await api(`/sessions/${other.id}`)).session;
+    assert.equal(updatedParent.messages.some(message => message.role === 'subagent'), false);
     const filename = join(home, 'sunday/data/sessions', `${first.id}.json`);
     const saved = JSON.parse(await readFile(filename, 'utf8'));
-    saved.pendingCompletion = { id: 'test-completion', content: 'Child finished its assignment.' };
+    saved.pendingCompletion = { id: 'legacy-completion', content: 'Should not be delivered asynchronously.' };
     await writeFile(filename, JSON.stringify(saved));
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    const updated = (await api(`/sessions/${parent.id}`)).session;
-    assert.equal(updated.messages.filter(message => message.content === 'Child finished its assignment.').length, 1);
-    const response = updated.messages.find(message => message.content === 'Child finished its assignment.');
-    assert.equal(response.role, 'subagent');
-    assert.equal(response.subagentId, first.id);
-    assert.ok(response.subagentName);
-    assert.equal(updated.messages.some(message => message.content === 'Review the newly delivered subagent completion and continue the task as appropriate.'), false);
-    assert.equal(updated.deliveredCompletions.filter(id => id === 'test-completion').length, 1);
-    assert.equal(JSON.parse(await readFile(filename, 'utf8')).pendingCompletion, undefined);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    assert.equal((await api(`/sessions/${parent.id}`)).session.messages.some(message => message.role === 'subagent'), false);
+    assert.equal(JSON.parse(await readFile(filename, 'utf8')).pendingCompletion.id, 'legacy-completion');
+    const deletion = await fetch(`http://127.0.0.1:${port}/api/sessions/${parent.id}`, { method: 'DELETE' });
+    assert.equal(deletion.status, 200);
+    const listed = (await api('/sessions')).sessions;
+    for (const session of [parent, ...children]) {
+      assert.equal(listed.some(item => item.id === session.id), false);
+      await assert.rejects(readFile(join(home, 'sunday/data/sessions', `${session.id}.json`)), { code: 'ENOENT' });
+    }
+    assert.equal(listed.some(item => item.id === other.id), true);
   } finally {
     if (child.exitCode === null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited; }
     await rm(home, { recursive: true, force: true });
