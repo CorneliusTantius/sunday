@@ -787,6 +787,13 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .chat-model { flex: 0 1 240px; max-width: 240px; }
 .thinking-level { width: 110px; flex-shrink: 0; }
 
+@media (max-width: 700px) {
+  .composer-controls { flex-wrap: nowrap; gap: 6px; }
+  .chat-model, .thinking-level { height: 30px; padding-inline: 8px; font-size: 14px; }
+  .chat-model { flex: 1; max-width: none; }
+  .thinking-level { width: 90px; }
+}
+
 /* Keep native select behavior, but omit arrows on model/reasoning controls. */
 .chat-model, .thinking-level, #model, #settings-thinking-level {
   -webkit-appearance: none;

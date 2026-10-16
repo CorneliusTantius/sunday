@@ -40,8 +40,10 @@ test('mobile styles reduce spacing and text size while keeping controls and long
     assert.equal(css(selector).height, '22px');
   }
   assert.equal(css('.assistant .message-bubble').maxWidth, '100%');
-  for (const selector of ['textarea', '.chat-model', '.thinking-level']) {
-    assert.equal(css(selector).fontSize, '16px', `${selector} must avoid mobile input zoom`);
+  assert.equal(css('textarea').fontSize, '16px', 'textarea must avoid mobile input zoom');
+  for (const selector of ['.chat-model', '.thinking-level']) {
+    assert.equal(css(selector).fontSize, '14px');
+    assert.equal(css(selector).height, '30px');
   }
   for (const selector of ['.context-meter-label', '.code-row', '.settings-page-heading']) {
     assert.equal(css(selector).flexWrap, 'wrap');
