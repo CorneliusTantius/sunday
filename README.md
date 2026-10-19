@@ -28,7 +28,7 @@ Open <http://localhost:3000>. In **Settings**, connect an AI provider and choose
 - Streaming AI chat with reusable agents, personas, and optional repository tools.
 - Child agents with separate histories and isolated repository workspaces.
 - Repository browsing, Git status, pull, and file editing.
-- UI previews for scheduled jobs, Socials (including planned Slack and Gmail integrations), and a personal financial tracker. These previews do not connect services or save jobs or financial data.
+- UI previews for scheduled jobs and Socials (including planned Slack and Gmail integrations). These previews do not connect services or save jobs.
 
 ## Data and privacy
 
