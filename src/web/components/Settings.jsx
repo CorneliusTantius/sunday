@@ -38,6 +38,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [authTick, setAuthTick] = useState(0);
   const [authBusy, setAuthBusy] = useState(false);
   const [code, setCode] = useState('');
+  const [mcpConfig, setMcpConfig] = useState('{\n  "mcpServers": {}\n}');
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpSaving, setMcpSaving] = useState(false);
   const backdrop = useRef(null);
   const closeButton = useRef(null);
   const contentViewport = useRef(null);
@@ -193,6 +196,31 @@ export default function Settings({ settings, onReload, onClose, toast }) {
 
   function navigate(nextPage) { setPage(nextPage); setError(''); }
 
+  useEffect(() => {
+    if (page !== 'mcp') return;
+    let active = true;
+    setMcpLoading(true); setError('');
+    request('/api/mcp').then(data => {
+      if (active) setMcpConfig(JSON.stringify(data, null, 2));
+    }).catch(error => { if (active) setError(error.message); })
+      .finally(() => { if (active) setMcpLoading(false); });
+    return () => { active = false; };
+  }, [page]);
+
+  async function saveMcp() {
+    if (mcpSaving || mcpLoading) return;
+    setError('');
+    let config;
+    try {
+      config = JSON.parse(mcpConfig);
+      if (!config || typeof config !== 'object' || !config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) throw new Error('Expected an object with an mcpServers object');
+    } catch (error) { setError(error.message); return; }
+    setMcpSaving(true);
+    try { await jsonRequest('/api/mcp', 'PUT', config); toast('MCP settings saved'); }
+    catch (error) { setError(error.message); }
+    finally { setMcpSaving(false); }
+  }
+
   function chooseProvider(nextProvider, nextMode = mode) {
     authGeneration.current++;
     setAuth(null);
@@ -311,6 +339,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         <nav class="settings-providers" aria-label="Settings sections">
           <button class={`settings-nav${page === 'providers' || page === 'connect' ? ' active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
           <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
+          <button class={`settings-nav${page === 'mcp' ? ' active' : ''}`} id="settings-mcp-nav" onClick={() => navigate('mcp')}>MCP</button>
           <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
           <button class={`settings-nav${page === 'subagents' ? ' active' : ''}`} id="settings-subagents-nav" onClick={() => navigate('subagents')}>Subagents</button>
           <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
@@ -364,6 +393,13 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <p class="field-note">These defaults apply only to new subagents. Unspecified values inherit from the parent; thinking levels are adjusted to model support. Manage available personas in Personas. Children use isolated workspaces. Lowering the limit does not delete existing children.</p>
             <button class="primary-button" disabled={saving} onClick={async () => { setSaving(true); setError(''); try { await jsonRequest('/api/settings/subagents', 'PUT', subagents); await onReload?.(); toast('Subagent settings saved'); } catch (error) { setError(error.message); } finally { setSaving(false); } }}>Save subagent settings</button>
           </section>
+          <section inert={page !== 'mcp'} id="settings-mcp-page" class={`settings-section${page === 'mcp' ? '' : ' hidden'}`}>
+            <h3>MCP servers</h3>
+            <p class="field-note">Configure stdio servers with <code>command</code>, optional <code>args</code>/<code>env</code>, or HTTP servers with <code>url</code> and optional <code>headers</code>. Each server may set <code>enabled</code>.</p>
+            <p class="field-note">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
+            {mcpLoading ? <p role="status">Loading MCP settings…</p> : <textarea id="mcp-config" class="text-input" aria-label="MCP configuration JSON" rows="16" spellcheck={false} value={mcpConfig} disabled={mcpSaving} onInput={event => setMcpConfig(event.currentTarget.value)} />}
+            <button class="primary-button" id="save-mcp-settings" disabled={mcpLoading || mcpSaving} onClick={saveMcp}>{mcpSaving ? 'Saving…' : 'Save MCP settings'}</button>
+          </section>
           <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
             <h3>Update Sunday</h3>
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
@@ -377,7 +413,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'subagents' || page === 'update' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'subagents' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }
