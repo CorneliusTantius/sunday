@@ -41,6 +41,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [mcpConfig, setMcpConfig] = useState('{\n  "mcpServers": {}\n}');
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpSaving, setMcpSaving] = useState(false);
+  const [mcpLogin, setMcpLogin] = useState(null);
+  const [mcpRedirect, setMcpRedirect] = useState('');
+  const [mcpLoginBusy, setMcpLoginBusy] = useState(false);
   const backdrop = useRef(null);
   const closeButton = useRef(null);
   const contentViewport = useRef(null);
@@ -206,6 +209,34 @@ export default function Settings({ settings, onReload, onClose, toast }) {
       .finally(() => { if (active) setMcpLoading(false); });
     return () => { active = false; };
   }, [page]);
+
+  useEffect(() => {
+    if (page !== 'mcp' || mcpLogin?.status !== 'pending' || !mcpLogin.id) return;
+    let active = true;
+    let timer;
+    async function poll() {
+      try {
+        const data = await request(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`);
+        if (!active || !alive.current) return;
+        setMcpLogin(data);
+        if (data.status === 'pending') timer = setTimeout(poll, 1200);
+      } catch (error) {
+        if (active && alive.current) { setError(error.message); timer = setTimeout(poll, 1200); }
+      }
+    }
+    timer = setTimeout(poll, 1200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [page, mcpLogin?.id, mcpLogin?.status]);
+
+  async function mcpLoginAction(url, method, body) {
+    if (mcpLoginBusy) return;
+    setMcpLoginBusy(true); setError('');
+    try {
+      const data = method === 'DELETE' ? await request(url, { method }) : await jsonRequest(url, method, body);
+      if (alive.current) { setMcpLogin(data?.id ? data : null); setMcpRedirect(''); }
+    } catch (error) { if (alive.current) setError(error.message); }
+    finally { if (alive.current) setMcpLoginBusy(false); }
+  }
 
   async function saveMcp() {
     if (mcpSaving || mcpLoading) return;
@@ -398,6 +429,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <p class="field-note">Configure stdio servers with <code>command</code>, optional <code>args</code>/<code>env</code>, or HTTP servers with <code>url</code> and optional <code>headers</code>. Each server may set <code>enabled</code>.</p>
             <p class="field-note">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
             {mcpLoading ? <p role="status">Loading MCP settings…</p> : <textarea id="mcp-config" class="text-input" aria-label="MCP configuration JSON" rows="16" spellcheck={false} value={mcpConfig} disabled={mcpSaving} onInput={event => setMcpConfig(event.currentTarget.value)} />}
+            {(() => { let names = []; try { names = Object.keys(JSON.parse(mcpConfig).mcpServers || {}); } catch {} return <div class="mcp-oauth"><h4>Server sign-in</h4>{names.map(name => <button key={name} class="secondary-button" disabled={mcpLoginBusy || mcpLoading} onClick={() => mcpLoginAction('/api/mcp/login', 'POST', { server: name })}>Sign in to {name}</button>)}</div>; })()}
+            {mcpLogin && <div class="mcp-login" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="field-label" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="text-input" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="secondary-button" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="text-button" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
             <button class="primary-button" id="save-mcp-settings" disabled={mcpLoading || mcpSaving} onClick={saveMcp}>{mcpSaving ? 'Saving…' : 'Save MCP settings'}</button>
           </section>
           <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>

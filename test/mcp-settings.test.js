@@ -13,4 +13,9 @@ test('MCP settings page loads, edits, and saves MCP JSON with safety guidance', 
   assert.match(source, /stdio servers execute code/);
   assert.match(source, /stored locally/);
   assert.match(source, /page === 'update' \|\| page === 'mcp'/);
+  assert.match(source, /jsonRequest\(url, method, body\)/);
+  assert.match(source, /\/api\/mcp\/login/);
+  assert.match(source, /redirectUrl: mcpRedirect/);
+  assert.match(source, /method === 'DELETE'/);
+  assert.match(source, /setTimeout\(poll, 1200\)/);
 });

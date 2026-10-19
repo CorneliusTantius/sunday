@@ -15,7 +15,9 @@ import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { createJsonStorage } from './storage.js';
 import { dispatchToolCalls } from './tool-dispatch.js';
-import { connectMcp, validateMcpConfig } from './mcp.js';
+import { connectMcp, validateMcpConfig, createMcpLogin } from './mcp.js';
+const mcpLogins = new Map();
+function mcpLoginState(id, login) { return { id, status: ['starting', 'waiting'].includes(login.status) ? 'pending' : login.status, url: login.url, error: login.error }; }
 import { providers, credentialId, createModelsByMode } from './provider-models.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
@@ -545,7 +547,7 @@ async function runChatTurn(session, job, allowWhisper = true) {
       publishChat(job, { type: 'progress', status: 'using_tools' });
       try {
         if ((!allowed.includes(call.name) && !tools.some(tool => tool.name === call.name)) || !call.arguments || typeof call.arguments !== 'object' || Array.isArray(call.arguments)) throw new Error('Tool is not allowed or arguments are invalid');
-        if (call.name.startsWith('mcp_')) result = await waitForChat(job.mcp.call(call.name, call.arguments), job.controller.signal);
+        if (job.mcp.tools.some(tool => tool.name === call.name)) result = await waitForChat(job.mcp.call(call.name, call.arguments), job.controller.signal);
         else if (['subagent_create', 'subagent_send_prompt', 'subagent_list'].includes(call.name)) result = await manageSubagents(session, call.name, call.arguments, job.controller.signal);
         else if (call.name === 'agent_whisper') result = await waitForChat(whisperToAgent(session.id, call.arguments, job.controller.signal), job.controller.signal);
         else if (call.name === 'agent_list') {
@@ -801,6 +803,30 @@ const server = http.createServer(async (req, res) => {
     if (req.headers.origin && !localOrigins.has(req.headers.origin) && !isTailnetOrigin(req.headers.origin)) return json(res, 403, { error: 'Invalid origin' });
     if (url.pathname === '/api/mcp' && req.method === 'GET') return json(res, 200, mcpConfig);
     if (url.pathname === '/api/mcp' && req.method === 'PUT') { const next = validateMcpConfig(await body(req)); await save('mcp.json', next); await chmod(join(dataDir, 'mcp.json'), 0o600); mcpConfig = next; return json(res, 200, mcpConfig); }
+    if (url.pathname === '/api/mcp/login' && req.method === 'POST') {
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      const { server: name } = await body(req);
+      if (typeof name !== 'string' || !Object.hasOwn(mcpConfig.mcpServers, name) || !mcpConfig.mcpServers[name].url) return json(res, 400, { error: 'Choose a configured HTTP MCP server' });
+      for (const login of mcpLogins.values()) login.close();
+      mcpLogins.clear();
+      const id = randomUUID(), login = await createMcpLogin(mcpConfig, name);
+      mcpLogins.set(id, login);
+      setTimeout(() => { login.close(); mcpLogins.delete(id); }, 10 * 60 * 1000).unref();
+      return json(res, 200, mcpLoginState(id, login));
+    }
+    const mcpLoginMatch = url.pathname.match(/^\/api\/mcp\/login\/([\w-]+)$/);
+    if (mcpLoginMatch) {
+      const id = mcpLoginMatch[1], login = mcpLogins.get(id);
+      if (!login) return json(res, 404, { error: 'Sign-in expired' });
+      if (req.method === 'DELETE') { login.close(); mcpLogins.delete(id); return json(res, 200, {}); }
+      if (req.method === 'POST') {
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+        const { redirectUrl } = await body(req);
+        if (typeof redirectUrl !== 'string' || !URL.canParse(redirectUrl) || !['http:', 'https:'].includes(new URL(redirectUrl).protocol)) return json(res, 400, { error: 'Invalid redirect URL' });
+        login.submit(redirectUrl);
+      } else if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+      return json(res, 200, mcpLoginState(id, login));
+    }
     if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { status: 'ok' });
     if (url.pathname === '/api/memory/graph') {
       if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
