@@ -57,6 +57,14 @@ test('repository prompts prioritize independent read batches without requiring c
   assert.ok(!buildSystemPrompt({ name: 'Agent' }).includes(instruction));
 });
 
+test('context link instructions appear only for enabled link tools', () => {
+  const prompt = buildSystemPrompt({ name: 'Agent' }, { contextTools: ['context_links', 'context_link', 'context_unlink'] });
+  assert.ok(prompt.includes('Use context_links to inspect incoming and outgoing links for an indexed note.'));
+  assert.ok(prompt.includes('Use context_link to create or update meaningful directed links between indexed notes.'));
+  assert.ok(prompt.includes('Use context_unlink to remove a directed link between indexed notes.'));
+  assert.ok(!buildSystemPrompt({ name: 'Agent' }, { contextTools: ['context_search'] }).includes('Use context_link'));
+});
+
 test('shared style stays in the system prompt with repository tools enabled', () => {
   const prompt = buildSystemPrompt({ name: 'Coder', specialty: '', instructions: '' }, {
     repositoryTools: ['read', 'edit'],

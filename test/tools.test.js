@@ -28,11 +28,13 @@ test('context tools index and search selected sources without repository access'
   try {
     assert.deepEqual(makeTools(CONTEXT_TOOL_NAMES).map(tool => tool.name), CONTEXT_TOOL_NAMES);
     assert.deepEqual(validateTools(['memory_search', 'memory_update']), ['context_search', 'context_index']);
-    const legacyUnrestricted = BASIC_TOOL_NAMES.filter(name => !['find', 'context_compress', 'subagent_create', 'subagent_send_prompt', 'subagent_list'].includes(name))
+    const legacyUnrestricted = BASIC_TOOL_NAMES.filter(name => !['find', 'context_compress', 'subagent_create', 'subagent_send_prompt', 'subagent_list', 'context_links', 'context_link', 'context_unlink'].includes(name))
       .map(name => ({ context_search: 'memory_search', context_index: 'memory_update' })[name] ?? name);
     const upgradedUnrestricted = validateTools(legacyUnrestricted);
     assert.ok(upgradedUnrestricted.includes('context_compress'));
     assert.ok(upgradedUnrestricted.includes('find'));
+    assert.ok(upgradedUnrestricted.includes('context_links'));
+    assert.deepEqual(validateTools(['context_search']), ['context_search']);
     assert.match(await executeTool('context_index', { source: 'release.md', title: 'Build and deployment', content: 'Production deployments use the stable branch. Roll back by redeploying the previous release.' }, [], store), /Indexed release\.md/);
     const result = await executeTool('context_search', { query: 'deployment rollback' }, [], store);
     assert.match(result, /Build and deployment/);
@@ -41,6 +43,13 @@ test('context tools index and search selected sources without repository access'
     const updated = await executeTool('context_search', { query: 'health check' }, [], store);
     assert.match(updated, /\[health\] \[check\]/);
     assert.doesNotMatch(updated, /previous release/);
+    await executeTool('context_index', { source: 'architecture.md', title: 'Architecture', content: 'Services communicate through events.' }, [], store);
+    assert.deepEqual(JSON.parse(await executeTool('context_link', { source: 'release.md', target: 'architecture.md', relation: 'documents' }, [], store)), { source: 'release.md', target: 'architecture.md', relation: 'documents' });
+    assert.deepEqual(JSON.parse(await executeTool('context_links', { source: 'release.md' }, [], store)), {
+      nodes: [{ source: 'architecture.md', title: 'Architecture' }],
+      links: [{ source: 'release.md', target: 'architecture.md', relation: 'documents' }],
+    });
+    assert.deepEqual(JSON.parse(await executeTool('context_unlink', { source: 'release.md', target: 'architecture.md' }, [], store)), { source: 'release.md', target: 'architecture.md', deleted: true });
     await assert.rejects(executeTool('context_search', { query: '  ' }, [], store));
     await assert.rejects(executeTool('context_compress', {}, [], store), /Tool must be handled by the chat server/);
   } finally { store.close(); await rm(dir, { recursive: true, force: true }); }

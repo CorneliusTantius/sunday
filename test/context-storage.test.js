@@ -32,6 +32,44 @@ test('context sources are chunked, searchable with stemming, and re-indexed incr
   assert.equal(store.getSource(store.listSources()[0].id).content, changedContent);
 }));
 
+test('context links are directed, upsert relations, validate sources, and cascade on deletion', async () => withStore(store => {
+  store.index('notes/a.md', 'A', 'Note A');
+  store.index('notes/b.md', 'B', 'Note B');
+  store.index('notes/c.md', 'C', 'Note C');
+  assert.deepEqual(store.linkSources('notes/a.md', 'notes/b.md'), { source: 'notes/a.md', target: 'notes/b.md', relation: 'related' });
+  store.linkSources('notes/a.md', 'notes/b.md', 'depends-on');
+  store.linkSources('notes/a.md', 'notes/c.md', 'mentions');
+  const graph = store.graph();
+  assert.deepEqual(graph.nodes.map(({ source, title }) => ({ source, title })), [
+    { source: 'notes/a.md', title: 'A' },
+    { source: 'notes/b.md', title: 'B' },
+    { source: 'notes/c.md', title: 'C' },
+  ]);
+  assert.deepEqual(graph.links, [
+    { source: 'notes/a.md', target: 'notes/b.md', relation: 'depends-on' },
+    { source: 'notes/a.md', target: 'notes/c.md', relation: 'mentions' },
+  ]);
+  assert.deepEqual(store.links('notes/a.md'), {
+    nodes: [{ source: 'notes/b.md', title: 'B' }, { source: 'notes/c.md', title: 'C' }],
+    links: [
+      { source: 'notes/a.md', target: 'notes/b.md', relation: 'depends-on' },
+      { source: 'notes/a.md', target: 'notes/c.md', relation: 'mentions' },
+    ],
+  });
+  assert.deepEqual(store.links('notes/b.md'), {
+    nodes: [{ source: 'notes/a.md', title: 'A' }],
+    links: [{ source: 'notes/a.md', target: 'notes/b.md', relation: 'depends-on' }],
+  });
+  assert.equal(store.unlinkSources('notes/a.md', 'notes/b.md'), true);
+  assert.equal(store.unlinkSources('notes/a.md', 'notes/b.md'), false);
+  assert.throws(() => store.linkSources('notes/a.md', 'notes/a.md'), /Invalid context link/);
+  assert.throws(() => store.linkSources('notes/a.md', 'missing.md'), /Context source not found/);
+  assert.throws(() => store.linkSources('notes/a.md', 'notes/c.md', ' '), /Invalid context link/);
+  store.linkSources('notes/a.md', 'notes/c.md');
+  assert.equal(store.deleteSource(store.listSources().find(item => item.source === 'notes/c.md').id), true);
+  assert.deepEqual(store.links('notes/a.md'), { nodes: [], links: [] });
+}));
+
 test('context source deletion removes its searchable chunks and validates inputs', async () => withStore(store => {
   store.index('docs/guide.md', 'Guide', 'Run the local test suite before release.');
   assert.equal(store.search('local tests').length, 1);

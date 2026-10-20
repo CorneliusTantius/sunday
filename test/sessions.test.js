@@ -123,7 +123,34 @@ test('file references are restricted to permitted repository text and validated 
     assert.match((await api('/api/context/search?q=rollback+release')).body.results[0].excerpt, /previous \[release\]/);
     const sourceId = sources.body.sources[0].id;
     assert.equal((await api(`/api/context/sources/${sourceId}`)).body.source.content, 'Roll back through the previous release.');
+    await api('/api/context/sources', { source: 'docs/architecture.md', title: 'Architecture', content: 'Services communicate through events.' });
+    assert.equal((await api('/api/context/links?source=docs/deployment.md', undefined, 'GET')).status, 200);
+    assert.deepEqual((await api('/api/context/links?source=docs/deployment.md', undefined, 'GET')).body, { source: 'docs/deployment.md', nodes: [], links: [] });
+    const linked = await api('/api/context/links', { source: 'docs/deployment.md', target: 'docs/architecture.md', relation: 'documents' });
+    assert.equal(linked.status, 200);
+    const architectureId = (await api('/api/context/sources')).body.sources.find(item => item.source === 'docs/architecture.md').id;
+    assert.deepEqual((await api('/api/context/graph', undefined, 'GET')).body, {
+      nodes: [
+        { id: architectureId, source: 'docs/architecture.md', title: 'Architecture' },
+        { id: sourceId, source: 'docs/deployment.md', title: 'Deployment' },
+      ],
+      links: [{ source: 'docs/deployment.md', target: 'docs/architecture.md', relation: 'documents' }],
+    });
+    assert.deepEqual(linked.body, {
+      source: 'docs/deployment.md',
+      nodes: [{ source: 'docs/architecture.md', title: 'Architecture' }],
+      links: [{ source: 'docs/deployment.md', target: 'docs/architecture.md', relation: 'documents' }],
+    });
+    assert.deepEqual((await api('/api/context/links?source=docs/architecture.md', undefined, 'GET')).body, {
+      source: 'docs/architecture.md',
+      nodes: [{ source: 'docs/deployment.md', title: 'Deployment' }],
+      links: [{ source: 'docs/deployment.md', target: 'docs/architecture.md', relation: 'documents' }],
+    });
+    assert.equal((await api('/api/context/links', { source: 'docs/deployment.md', target: 'missing.md' })).status, 404);
+    assert.equal((await api('/api/context/links', { source: 'docs/deployment.md', target: 'docs/deployment.md' })).status, 400);
+    assert.equal((await api('/api/context/links', { source: 'docs/deployment.md', target: 'docs/architecture.md' }, 'DELETE')).body.links.length, 0);
     assert.equal((await api(`/api/context/sources/${sourceId}`, undefined, 'DELETE')).body.deleted, true);
+    assert.equal((await api(`/api/context/sources/${architectureId}`, undefined, 'DELETE')).body.deleted, true);
     assert.deepEqual((await api('/api/context/sources')).body.sources, []);
     assert.equal((await api('/api/context/sources', { source: '', title: '', content: '' })).status, 400);
     assert.equal((await api('/api/context/sources', null)).status, 400);

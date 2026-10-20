@@ -850,6 +850,33 @@ const server = http.createServer(async (req, res) => {
         throw error;
       }
     }
+    if (url.pathname === '/api/context/graph') {
+      if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+      return json(res, 200, contextStorage.graph());
+    }
+    if (url.pathname === '/api/context/links') {
+      if (req.method === 'GET') {
+        const source = url.searchParams.get('source');
+        try { return json(res, 200, { source, ...contextStorage.links(source) }); }
+        catch (error) {
+          if (error.message === 'Invalid context link') return json(res, 400, { error: error.message });
+          if (error.message === 'Context source not found') return json(res, 404, { error: error.message });
+          throw error;
+        }
+      }
+      if (!['POST', 'DELETE'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      const input = await body(req);
+      try {
+        if (req.method === 'POST') contextStorage.linkSources(input?.source, input?.target, input?.relation);
+        else contextStorage.unlinkSources(input?.source, input?.target);
+        return json(res, 200, { source: input.source.trim(), ...contextStorage.links(input.source) });
+      } catch (error) {
+        if (error.message === 'Invalid context link') return json(res, 400, { error: error.message });
+        if (error.message === 'Context source not found') return json(res, 404, { error: error.message });
+        throw error;
+      }
+    }
     if (url.pathname === '/api/context/search') {
       if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
       try { return json(res, 200, { results: contextStorage.search(url.searchParams.get('q'), 10) }); }

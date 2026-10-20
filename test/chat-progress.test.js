@@ -169,7 +169,7 @@ test('referenced file contents reach model history without changing displayed us
 
 const specialist = { id: '00000000-0000-0000-0000-000000000001', title: 'Reviewer', profile: { specialty: 'Code review' } };
 
-for (const name of ['context_search', 'context_index', 'agent_whisper', 'agent_list']) {
+for (const name of ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink', 'agent_whisper', 'agent_list']) {
   for (const permitted of [false, true]) {
     test(`${name} is advertised and executed only when the profile permits it (${permitted})`, async () => {
       const args = name === 'agent_whisper' ? { agentSessionId: specialist.id, message: 'Review this' } : name === 'context_search' ? { query: 'note' } : name === 'agent_list' ? {} : { source: 'note.md', title: 'Note', content: 'Useful information' };

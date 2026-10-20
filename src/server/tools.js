@@ -15,13 +15,16 @@ export const BASIC_TOOLS = [
   { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Use empty oldText to write a new or empty file; nonempty files are never overwritten in this mode.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
   { name: 'context_search', description: 'Search indexed context for relevant source passages. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
-  { name: 'context_index', description: 'Index selected text for future retrieval. Re-indexing the same source replaces its content. Never index secrets or private user data.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 200000 } }, required: ['source', 'title', 'content'], additionalProperties: false } },
+  { name: 'context_index', description: 'Index selected text or a durable note for future retrieval. Re-indexing the same source replaces its content. Never index secrets or private user data.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 200000 } }, required: ['source', 'title', 'content'], additionalProperties: false } },
+  { name: 'context_links', description: 'List incoming and outgoing links and related note titles for an indexed context source.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['source'], additionalProperties: false } },
+  { name: 'context_link', description: 'Create or update a directed link between indexed context sources.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, target: { type: 'string', minLength: 1, maxLength: 300 }, relation: { type: 'string', minLength: 1, maxLength: 100 } }, required: ['source', 'target'], additionalProperties: false } },
+  { name: 'context_unlink', description: 'Remove a directed link between indexed context sources.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, target: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['source', 'target'], additionalProperties: false } },
   { name: 'context_compress', description: 'Summarize older conversation history to reduce context for the rest of this response. The original transcript is retained. Use only for long conversations.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
 export const REPOSITORY_TOOL_NAMES = ['read', 'find', 'edit', 'bash'];
-export const CONTEXT_TOOL_NAMES = ['context_search', 'context_index', 'context_compress'];
+export const CONTEXT_TOOL_NAMES = ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink', 'context_compress'];
 export const BASIC_TOOL_NAMES = BASIC_TOOLS.map(tool => tool.name);
 export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
@@ -31,9 +34,10 @@ export function validateTools(value) {
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
   // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
   const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
-  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && name !== 'context_compress' && !orchestration.includes(name));
+  const linkTools = ['context_links', 'context_link', 'context_unlink'];
+  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && name !== 'context_compress' && !orchestration.includes(name) && !linkTools.includes(name));
   if (legacyUnrestrictedTools.every(name => migrated.includes(name))) {
-    for (const name of [...orchestration, 'find', 'context_compress']) if (!migrated.includes(name)) migrated.push(name);
+    for (const name of [...orchestration, 'find', 'context_compress', ...linkTools]) if (!migrated.includes(name)) migrated.push(name);
   }
   return migrated;
 }
@@ -48,6 +52,9 @@ async function executeContextTool(name, args, contextStore) {
     if (!matches.length) return 'No indexed context matched that query.';
     return matches.map(item => `## ${item.title}\nSource: ${item.source}\n${item.excerpt}`).join('\n\n');
   }
+  if (name === 'context_links') return JSON.stringify(contextStore.links(args.source));
+  if (name === 'context_link') return JSON.stringify(contextStore.linkSources(args.source, args.target, args.relation));
+  if (name === 'context_unlink') return JSON.stringify({ source: args.source, target: args.target, deleted: contextStore.unlinkSources(args.source, args.target) });
   if (typeof args.source !== 'string' || !args.source.trim() || args.source.trim().length > 300 ||
       typeof args.title !== 'string' || !args.title.trim() || args.title.trim().length > 120 ||
       typeof args.content !== 'string' || !args.content.trim() || args.content.length > 200000) {

@@ -18,7 +18,7 @@ function mount(name, props, request, jsonRequest = async () => ({})) {
   const body = source.slice(0, source.indexOf('  return <')).replace(/^import .*;\n/gm, '').replace('export default function', 'function')
     .replace(/const (dialog|titleInput) = useRef\(null\);/g, 'const $1 = useRef({ showModal() {}, focus() {} });');
   const bindings = [...body.matchAll(/const \[(\w+), (\w+)\] = useState/g)].flatMap(match => [match[1], match[2]]);
-  const actions = [...body.matchAll(/(?:async )?function (\w+)\(/g)].map(match => match[1]).filter(value => value !== name && value !== 'keydown' && value !== 'poll');
+  const actions = [...body.matchAll(/(?:async )?function (\w+)\(/g)].map(match => match[1]).filter(value => value !== name && !['keydown', 'load', 'onKeyDown', 'poll'].includes(value));
   const slots = [], effects = [], timers = new Map(), timerDelays = [];
   let cursor = 0, dirty = false, nextTimer = 0, view;
   const context = vm.createContext({
@@ -286,13 +286,71 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
   for (const names of [
     "tools: ['read', 'find', 'edit']",
     "tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list']",
-    "tools: ['context_search', 'context_index', 'context_compress']",
+    "tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink', 'context_compress']",
     "tools: ['agent_list', 'agent_whisper']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
   assert.match(source, /class="repository-checkbox persona-tool-group"/);
   assert.match(source, /groupedTools\.map\(tool => tool\.name\)/);
   assert.doesNotMatch(source, /groupedTools\.map\(tool => <label/);
   assert.match(source, /tools\.filter\(tool => !toolGroups\.some/);
+});
+
+test('context source indexing opens in an accessible modal', () => {
+  const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  assert.match(source, /＋ Index a source/);
+  assert.match(source, /role="dialog" aria-modal="true" aria-labelledby="context-index-title"/);
+  assert.match(source, /event\.key === 'Escape'/);
+  assert.match(source, /sourceInput\.current\?\.focus\(\)/);
+  assert.match(source, /trigger\?\.focus\(\)/);
+  assert.doesNotMatch(source, /<form class="context-panel context-index-form"/);
+});
+
+test('context notes load, create, and remove directed links', async () => {
+  const sources = [{ id: 'a', source: 'notes/a.md', title: 'A' }, { id: 'b', source: 'notes/b.md', title: 'B' }];
+  const selected = { ...sources[0], scope: 'shared', content: 'Note A' };
+  let links = [];
+  let graph = { nodes: sources, links };
+  const calls = [], writes = [];
+  const h = mount('Memory', { toast() {} }, async url => {
+    calls.push(url);
+    if (url === '/api/context/sources') return { sources };
+    if (url === '/api/context/graph') return graph;
+    if (url === '/api/context/sources/a') return { source: selected };
+    if (url.startsWith('/api/context/links?source=')) return { links };
+    assert.fail(`Unexpected request: ${url}`);
+  }, async (url, method, body) => {
+    writes.push({ url, method, body });
+    if (method === 'POST') links = [{ source: body.source, target: body.target, relation: body.relation }];
+    else links = [];
+    graph = { ...graph, links };
+    return {};
+  });
+  await h.settle();
+  assert.deepEqual(Array.from(h.view.links), []);
+  assert.deepEqual(Array.from(h.view.graph.nodes, node => node.source), ['notes/a.md', 'notes/b.md']);
+  h.view.setLinkTarget('notes/b.md'); h.render();
+  await h.view.linkSource({ preventDefault() {} });
+  h.render();
+  assert.deepEqual(JSON.parse(JSON.stringify(writes[0])), { url: '/api/context/links', method: 'POST', body: { source: 'notes/a.md', target: 'notes/b.md', relation: 'related' } });
+  assert.equal(h.view.links[0].target, 'notes/b.md');
+  assert.equal(h.view.graph.links[0].target, 'notes/b.md');
+  await h.view.unlinkSource(h.view.links[0]);
+  h.render();
+  assert.deepEqual(JSON.parse(JSON.stringify(writes[1])), { url: '/api/context/links', method: 'DELETE', body: { source: 'notes/a.md', target: 'notes/b.md' } });
+  assert.deepEqual(Array.from(h.view.links), []);
+  assert.deepEqual(Array.from(h.view.graph.links), []);
+  h.unmount();
+});
+
+test('context notes show a global directed graph and selected-note link controls', () => {
+  const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  assert.match(source, /class="context-global-edges"/);
+  assert.match(source, /Graph of all indexed context notes/);
+  assert.match(source, /context-link-arrow/);
+  assert.match(source, /aria-label={`Open note: \$\{node\.title\}`}/);
+  assert.match(source, /Linked notes/);
+  assert.match(source, /aria-label="Relationship"/);
+  assert.match(source, /link\.source === selected\.source \? link\.target : link\.source/);
 });
 
 test('persona initial load defaults to the loaded registry, not stale state', async () => {
