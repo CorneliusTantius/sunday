@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import Personas from './Personas.jsx';
+import McpServers from './McpServers.jsx';
 
 const providerNames = { openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google' };
 const connected = provider => provider.hasApiKey || provider.oauthConnected;
@@ -38,7 +39,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [authTick, setAuthTick] = useState(0);
   const [authBusy, setAuthBusy] = useState(false);
   const [code, setCode] = useState('');
-  const [mcpConfig, setMcpConfig] = useState('{\n  "mcpServers": {}\n}');
+  const [mcpConfig, setMcpConfig] = useState({ mcpServers: {} });
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpSaving, setMcpSaving] = useState(false);
   const [mcpLogin, setMcpLogin] = useState(null);
@@ -204,7 +205,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     let active = true;
     setMcpLoading(true); setError('');
     request('/api/mcp').then(data => {
-      if (active) setMcpConfig(JSON.stringify(data, null, 2));
+      if (active) setMcpConfig(data);
     }).catch(error => { if (active) setError(error.message); })
       .finally(() => { if (active) setMcpLoading(false); });
     return () => { active = false; };
@@ -238,17 +239,16 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { if (alive.current) setMcpLoginBusy(false); }
   }
 
-  async function saveMcp() {
-    if (mcpSaving || mcpLoading) return;
+  async function saveMcp(config) {
+    if (mcpSaving || mcpLoading) return false;
     setError('');
-    let config;
-    try {
-      config = JSON.parse(mcpConfig);
-      if (!config || typeof config !== 'object' || !config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) throw new Error('Expected an object with an mcpServers object');
-    } catch (error) { setError(error.message); return; }
     setMcpSaving(true);
-    try { await jsonRequest('/api/mcp', 'PUT', config); toast('MCP settings saved'); }
-    catch (error) { setError(error.message); }
+    try {
+      await jsonRequest('/api/mcp', 'PUT', config);
+      setMcpConfig(config);
+      toast('MCP settings saved');
+      return true;
+    } catch (error) { setError(error.message); return false; }
     finally { setMcpSaving(false); }
   }
 
@@ -425,13 +425,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <button class="primary-button" disabled={saving} onClick={async () => { setSaving(true); setError(''); try { await jsonRequest('/api/settings/subagents', 'PUT', subagents); await onReload?.(); toast('Subagent settings saved'); } catch (error) { setError(error.message); } finally { setSaving(false); } }}>Save subagent settings</button>
           </section>
           <section inert={page !== 'mcp'} id="settings-mcp-page" class={`settings-section${page === 'mcp' ? '' : ' hidden'}`}>
-            <h3>MCP servers</h3>
-            <p class="field-note">Configure stdio servers with <code>command</code>, optional <code>args</code>/<code>env</code>, or HTTP servers with <code>url</code> and optional <code>headers</code>. Each server may set <code>enabled</code>.</p>
-            <p class="field-note">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
-            {mcpLoading ? <p role="status">Loading MCP settings…</p> : <textarea id="mcp-config" class="text-input" aria-label="MCP configuration JSON" rows="16" spellcheck={false} value={mcpConfig} disabled={mcpSaving} onInput={event => setMcpConfig(event.currentTarget.value)} />}
-            {(() => { let names = []; try { names = Object.keys(JSON.parse(mcpConfig).mcpServers || {}); } catch {} return <div class="mcp-oauth"><h4>Server sign-in</h4>{names.map(name => <button key={name} class="secondary-button" disabled={mcpLoginBusy || mcpLoading} onClick={() => mcpLoginAction('/api/mcp/login', 'POST', { server: name })}>Sign in to {name}</button>)}</div>; })()}
+            {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
             {mcpLogin && <div class="mcp-login" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="field-label" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="text-input" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="secondary-button" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="text-button" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
-            <button class="primary-button" id="save-mcp-settings" disabled={mcpLoading || mcpSaving} onClick={saveMcp}>{mcpSaving ? 'Saving…' : 'Save MCP settings'}</button>
           </section>
           <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
             <h3>Update Sunday</h3>

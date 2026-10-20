@@ -1253,3 +1253,18 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .sidebar-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
 .sidebar-scroll::-webkit-scrollbar { display: none; }
 .sidebar-scroll > * { flex-shrink: 0; }
+
+.mcp-server-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  color: inherit;
+}
+.mcp-server-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.mcp-server-dialog fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.mcp-server-dialog .field-label { display: block; margin-top: 16px; }
+.mcp-server-dialog .text-input, .mcp-server-dialog .select { width: 100%; }
