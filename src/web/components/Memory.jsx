@@ -13,6 +13,7 @@ export default function Memory({ toast }) {
   const [linkBusy, setLinkBusy] = useState(false);
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [graphLoading, setGraphLoading] = useState(true);
+  const [graphOpen, setGraphOpen] = useState(false);
   const [source, setSource] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -182,6 +183,7 @@ export default function Memory({ toast }) {
     finally { setBusy(false); }
   }
 
+  const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
   const graphColumns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(graph.nodes.length))));
   const graphRows = Math.ceil(graph.nodes.length / graphColumns);
   const graphWidth = Math.max(420, graphColumns * 190 + 20);
@@ -203,7 +205,11 @@ export default function Memory({ toast }) {
       </div>
     </header>
     {error && !indexOpen && <p class="context-error" role="alert">{error}</p>}
-    <section class="context-panel context-global-panel" aria-labelledby="context-global-title">
+    <div class="context-view-controls" role="group" aria-label="Memory view">
+      <button class={`context-button${!graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
+      <button class={`context-button${graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
+    </div>
+    {graphOpen && <section class="context-panel context-global-panel" aria-labelledby="context-global-title">
       <header class="context-global-header">
         <div><h2 id="context-global-title">Knowledge graph</h2><p>All indexed notes and their directed links. Select a note to inspect it.</p></div>
         <div class="context-global-meta"><span>{graph.nodes.length} notes · {graph.links.length} links</span><button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button></div>
@@ -224,23 +230,23 @@ export default function Memory({ toast }) {
           {graphNodes.map(node => <button key={node.id} class={`context-graph-node context-global-node${selected?.id === node.id ? ' active' : ''}`} type="button" title={node.source} aria-label={`Open note: ${node.title}`} style={{ left: `${node.x}px`, top: `${node.y}px` }} onClick={() => openSource(node.id)}><strong>{node.title}</strong><span>{node.source}</span></button>)}
         </div>
       </div> : <p class="context-empty">No indexed notes yet. Index notes to populate the graph.</p>}
-    </section>
+    </section>}
     <div class="context-layout">
       <section class="context-panel" aria-label="Indexed sources">
-        <h2>Sources</h2>
-        {loading ? <p class="context-empty">Loading sources…</p> : sources.length ? <ul class="context-source-list">
-          {sources.map(item => <li key={item.id}><button class={`context-source${selected?.id === item.id ? ' active' : ''}`} onClick={() => openSource(item.id)}>
-            <strong>{item.title}</strong><span>{item.source}</span><small>{item.chunks} chunks · {item.characters.toLocaleString()} characters</small>
-          </button></li>)}
-        </ul> : <p class="context-empty">No indexed sources yet.</p>}
+        <h2>Notes <span class="context-notes-count">{visibleSources.length}</span></h2>
         <form class="context-search" onSubmit={search}>
-          <label class="field-label" for="context-search">Search indexed context</label>
-          <div class="context-search-row"><input class="text-input" id="context-search" maxLength={300} value={query} onInput={event => setQuery(event.currentTarget.value)} placeholder="Search documents" /><button class="context-button" type="submit">Search</button></div>
+          <label class="field-label" for="context-search">Search note titles and content</label>
+          <div class="context-search-row"><input class="text-input" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="context-button" type="submit">Search</button></div>
         </form>
-        {results.length > 0 && <div class="context-results" aria-label="Search results">
-          {results.map((result, index) => <button class="context-result" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
+        {loading ? <p class="context-empty">Loading notes…</p> : visibleSources.length ? <ul class="context-source-list">
+          {visibleSources.map(item => <li key={item.id}><button class={`context-source${selected?.id === item.id ? ' active' : ''}`} onClick={() => openSource(item.id)}>
+            <strong>{item.title}</strong><span>{item.source}</span><small>{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
+          </button></li>)}
+        </ul> : <p class="context-empty">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
+        {query.trim() && <div class="context-results" aria-label="Content search results">
+          {results.length > 0 ? results.map((result, index) => <button class="context-result" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
             <strong>{result.title}</strong><span>{result.source}</span><p>{result.excerpt}</p>
-          </button>)}
+          </button>) : <p class="context-empty">Submit the search to find matching note content.</p>}
         </div>}
       </section>
       <div class="context-detail-column">

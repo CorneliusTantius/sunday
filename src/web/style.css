@@ -1227,14 +1227,17 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .context-header-actions { display: flex; align-items: center; gap: 12px; }
 .context-count { flex: none; color: var(--muted); font-size: 12px; }
 .context-count strong { color: var(--text); }
-.context-layout { display: grid; grid-template-columns: minmax(250px, .75fr) minmax(0, 1.25fr); gap: 16px; align-items: start; }
+.context-view-controls { display: flex; gap: 8px; margin: 0 0 14px; }
+.context-layout { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
 .context-panel { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
 .context-panel h2 { margin: 0 0 14px; font: 700 18px Manrope, sans-serif; }
-.context-source-list { display: grid; gap: 7px; max-height: 280px; overflow: auto; padding: 0; margin: 0; list-style: none; }
+.context-notes-count { display: inline-grid; min-width: 23px; height: 23px; place-items: center; margin-left: 5px; border-radius: 999px; background: color-mix(in srgb, var(--highlight) 15%, var(--panel)); color: var(--highlight); font: 600 11px 'DM Sans', sans-serif; vertical-align: 2px; }
+.context-source-list { display: grid; gap: 8px; max-height: 65vh; overflow: auto; padding: 0; margin: 12px 0 0; list-style: none; }
 .context-source, .context-result { display: grid; width: 100%; gap: 5px; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--text); text-align: left; cursor: pointer; }
 .context-source.active, .context-source:hover, .context-result:hover { border-color: var(--highlight); background: color-mix(in srgb, var(--highlight) 8%, var(--panel)); }
+.context-source strong { font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .context-source span, .context-result span { overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
-.context-source small { color: var(--muted); font-size: 10px; }
+.context-source small { color: var(--muted); font-size: 11px; }
 .context-search { display: grid; gap: 8px; margin-top: 16px; }
 .context-search-row { display: flex; gap: 8px; }
 .context-search-row .text-input { min-width: 0; flex: 1; }
@@ -1245,7 +1248,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .context-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .context-detail-header h2 { margin: 0; }
 .context-detail-header > div > p:last-child { overflow-wrap: anywhere; }
-.context-detail pre { max-height: 340px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.context-detail pre { max-height: 50vh; overflow: auto; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: 14px/1.7 'DM Sans', sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; }
 .context-global-panel { margin-bottom: 16px; }
 .context-global-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .context-global-header h2 { margin: 0 0 4px; font: 700 16px Manrope, sans-serif; }
