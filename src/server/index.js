@@ -141,10 +141,16 @@ async function publicSettings(provider = settings.provider, mode) {
     return { id: p.id, name: p.name, modes: p.modes, connected: mode === 'oauth' ? oauthConnected : hasApiKey, hasApiKey, oauthConnected };
   }));
   const available = await modelsByMode[mode].getAvailable(provider);
+  const connectedModels = (await Promise.all(providers.flatMap(entry => entry.modes.map(async authorization => {
+    const status = statuses.find(item => item.id === entry.id);
+    if (authorization === 'api_key' ? !status.hasApiKey : !status.oauthConnected) return [];
+    const list = await modelsByMode[authorization].getAvailable(entry.id);
+    return list.map(item => ({ ...item, provider: entry.id, providerName: entry.name, mode: authorization, thinkingLevels: getSupportedThinkingLevels(item) }));
+  })))).flat();
   const modelId = provider === settings.provider && mode === settings.mode ? settings.model : defaultModel(provider, mode, available);
   const model = available.find(m => m.id === modelId) || available.find(m => m.id === defaultModel(provider, mode, available));
   const status = statuses.find(p => p.id === provider);
-  return { subagentPersonas: personas.map(({ id, name }) => ({ id, name })), subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), dataDir, workspaceDir };
+  return { subagentPersonas: personas.map(({ id, name }) => ({ id, name })), subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), connectedModels, dataDir, workspaceDir };
 }
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 let login = { status: 'idle', events: [] }, loginAttempt;

@@ -25,6 +25,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [provider, setProvider] = useState(initial.provider || 'openai');
   const [mode, setMode] = useState(initial.mode || 'api_key');
   const [models, setModels] = useState(initial.models || []);
+  const [connectedModels, setConnectedModels] = useState(initial.connectedModels || []);
   const [model, setModel] = useState(initial.model || initial.models?.[0]?.id || '');
   const [thinking, setThinking] = useState(initial.thinkingLevel || 'off');
   const [details, setDetails] = useState(initial);
@@ -114,11 +115,10 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   }, []);
 
   useEffect(() => {
-    if (settings) { defaults.current = settings; setProviders(settings.providers || []); }
+    if (settings) { defaults.current = settings; setProviders(settings.providers || []); setConnectedModels(settings.connectedModels || []); }
   }, [settings]);
 
   const available = providers.filter(connected);
-  const configModes = modesFor(providers.find(item => item.id === provider));
   const levels = models.find(item => item.id === model)?.thinkingLevels || ['off'];
   const thinkingLevel = levels.includes(thinking) ? thinking : levels[0];
   const oauthConnected = auth?.status === 'done' || (auth?.status !== 'pending' && details.oauthConnected);
@@ -150,6 +150,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     if (!alive.current) return data;
     defaults.current = data;
     setProviders(data.providers || []);
+    setConnectedModels(data.connectedModels || []);
     await onReload?.();
     return data;
   }
@@ -166,6 +167,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
       const data = await request(`/api/settings?provider=${encodeURIComponent(nextProvider)}&mode=${encodeURIComponent(nextMode)}`);
       if (!alive.current || current !== generation.current) return;
       setProviders(data.providers || []);
+      setConnectedModels(data.connectedModels || []);
       setDetails(data);
       setModels(data.models || []);
       setModel(data.model || data.models?.[0]?.id || '');
@@ -261,6 +263,17 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { setMcpSaving(false); }
   }
 
+  function chooseDefaultModel(value) {
+    const selected = connectedModels.find(item => `${item.provider}:${item.mode}:${item.id}` === value);
+    if (!selected) return;
+    const nextModels = connectedModels.filter(item => item.provider === selected.provider && item.mode === selected.mode);
+    setProvider(selected.provider);
+    setMode(selected.mode);
+    setModels(nextModels);
+    setModel(selected.id);
+    setThinking(selected.thinkingLevels.includes(thinking) ? thinking : selected.thinkingLevels[0]);
+  }
+
   function chooseProvider(nextProvider, nextMode = mode) {
     authGeneration.current++;
     setAuth(null);
@@ -274,15 +287,19 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   }
 
   function openConfig() {
+    generation.current++;
+    setLoading(false);
     navigate('config');
-    const nextProvider = available.find(item => item.id === defaults.current.provider) || available[0];
-    if (!nextProvider) {
-      generation.current++;
+    const selected = connectedModels.find(item => item.provider === defaults.current.provider && item.mode === defaults.current.mode && item.id === defaults.current.model) || connectedModels[0];
+    if (!selected) {
       setModels([]); setModel(''); setThinking('off'); setLoading(false);
       return;
     }
-    const modes = modesFor(nextProvider);
-    chooseProvider(nextProvider.id, modes.some(([value]) => value === defaults.current.mode) ? defaults.current.mode : modes[0][0]);
+    setProvider(selected.provider);
+    setMode(selected.mode);
+    setModels(connectedModels.filter(item => item.provider === selected.provider && item.mode === selected.mode));
+    setModel(selected.id);
+    setThinking(selected.thinkingLevels.includes(defaults.current.thinkingLevel) ? defaults.current.thinkingLevel : selected.thinkingLevels[0]);
   }
 
   async function authAction(url, method = 'POST', body = {}) {
@@ -381,7 +398,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
           <button class={`settings-nav${page === 'mcp' ? ' active' : ''}`} id="settings-mcp-nav" onClick={() => navigate('mcp')}>MCP</button>
           <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
-          <button class={`settings-nav${page === 'subagents' ? ' active' : ''}`} id="settings-subagents-nav" onClick={() => navigate('subagents')}>Subagents</button>
           <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
         <div class={`settings-detail${page === 'personas' ? ' settings-detail-personas' : ''}`}>
@@ -418,20 +434,18 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             </div>
           </section>
           <section inert={page !== 'config'} id="settings-config-page" class={`settings-section${page === 'config' ? '' : ' hidden'}`}><h3>Chat defaults</h3>
-            <div class="settings-select-row"><label class="field-label" for="config-provider">Connected provider</label><select id="config-provider" class="select" value={available.length ? provider : ''} disabled={saving || !available.length} onChange={event => { const id = event.currentTarget.value; const modes = modesFor(providers.find(item => item.id === id)); chooseProvider(id, modes.some(([value]) => value === defaults.current.mode) ? defaults.current.mode : modes[0][0]); }}>{available.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></div>
-            <div class="settings-select-row"><label class="field-label" for="config-mode">Authorization</label><select id="config-mode" class="select" value={mode} disabled={saving || !available.length} onChange={event => chooseProvider(provider, event.currentTarget.value)}>{configModes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-            <div class="settings-select-row"><label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={model} disabled={loading || saving || !models.length} onChange={event => setModel(event.currentTarget.value)}>{models.length ? models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
+            <div class="settings-select-row"><label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={`${provider}:${mode}:${model}`} disabled={loading || saving || !connectedModels.length} onChange={event => chooseDefaultModel(event.currentTarget.value)}>{connectedModels.length ? connectedModels.map(item => <option key={`${item.provider}:${item.mode}:${item.id}`} value={`${item.provider}:${item.mode}:${item.id}`}>{item.name || item.id} · {item.providerName}{item.mode === 'oauth' ? ' (ChatGPT)' : ''}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
             <div class="settings-select-row"><label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
-            <p class="field-note">Only connected providers have available models. Save an API key first, then choose a default model. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
-          </section>
-          <section inert={page !== 'subagents'} id="settings-subagents-page" class={`settings-section${page === 'subagents' ? '' : ' hidden'}`}>
-            <h3>Subagents</h3>
+            <p class="field-note">Choose from models available through connected providers. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
+            <div class="settings-subagent-config">
+            <h3>Subagent defaults</h3>
             <div class="settings-select-row"><label class="field-label" for="subagent-limit">Maximum children per agent</label><select id="subagent-limit" class="select" value={subagents.maxChildren} disabled={saving} onChange={event => setSubagents({ ...subagents, maxChildren: Number(event.currentTarget.value) })}>{[1, 2, 3].map(limit => <option key={limit} value={limit}>{limit}</option>)}</select></div>
             <div class="settings-select-row"><label class="field-label" for="subagent-model">Model</label><select id="subagent-model" class="select" value={subagents.model || ''} disabled={saving} onChange={event => setSubagents({ ...subagents, model: event.currentTarget.value, provider, mode, thinkingLevel: '' })}><option value="">Inherit from parent</option>{models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></div>
             <div class="settings-select-row"><label class="field-label" for="subagent-thinking">Thinking level</label><select id="subagent-thinking" class="select" value={subagents.thinkingLevel || ''} disabled={saving} onChange={event => setSubagents({ ...subagents, thinkingLevel: event.currentTarget.value })}><option value="">Inherit from parent</option>{(models.find(item => item.id === subagents.model)?.thinkingLevels || ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']).map(level => <option key={level} value={level}>{level}</option>)}</select></div>
             <div class="settings-select-row"><label class="field-label" for="subagent-persona">Persona</label><select id="subagent-persona" class="select" value={subagents.personaId || ''} disabled={saving} onChange={event => setSubagents({ ...subagents, personaId: event.currentTarget.value })}><option value="">Inherit from parent</option>{subagentPersonas.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
             <p class="field-note">These defaults apply only to new subagents. Unspecified values inherit from the parent; thinking levels are adjusted to model support. Manage available personas in Personas. Children use isolated workspaces. Lowering the limit does not delete existing children.</p>
             <button class="primary-button" disabled={saving} onClick={async () => { setSaving(true); setError(''); try { await jsonRequest('/api/settings/subagents', 'PUT', subagents); await onReload?.(); toast('Subagent settings saved'); } catch (error) { setError(error.message); } finally { setSaving(false); } }}>Save subagent settings</button>
+            </div>
           </section>
           <section inert={page !== 'mcp'} id="settings-mcp-page" class={`settings-section${page === 'mcp' ? '' : ' hidden'}`}>
             {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} auth={mcpAuth} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
@@ -450,7 +464,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'subagents' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !available.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !connectedModels.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }

@@ -449,6 +449,12 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .provider-card[aria-pressed="true"] { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 10%, var(--panel)); }
 .provider-card small, .provider-status { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .provider-status.connected { color: var(--success); }
+.mcp-server-entry { cursor: default; }
+.mcp-server-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mcp-status-pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; line-height: 1.5; }
+.mcp-status-pill.enabled, .mcp-status-pill.signed-in { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.mcp-status-pill.disabled, .mcp-status-pill.signed-out { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+.mcp-server-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 .settings-section + .settings-section { border-top: 1px solid var(--line); padding-top: 24px; margin-top: 24px; }
 .settings-detail { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
 .settings-detail::-webkit-scrollbar { display: none; }
@@ -464,6 +470,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .settings-nav.active { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--panel)); }
 .settings-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .settings-page-heading h3 { margin: 0; }
+.settings-subagent-config { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 24px; }
 #settings-connect-page h3 { margin-top: 20px; }
 .settings-section + .settings-section { border-top: 0; padding-top: 0; margin-top: 0; }
 @media (max-width: 700px) { .settings-providers { display: flex; gap: 8px; } .settings-nav { margin-bottom: 0; } .provider-list { grid-template-columns: 1fr; } }

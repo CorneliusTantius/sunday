@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 const read = path => readFileSync(new URL(`../src/web/${path}`, import.meta.url), 'utf8');
 test('settings dropdowns use shared balanced rows', () => {
   const settings = read('components/Settings.jsx');
-  assert.equal((settings.match(/class="settings-select-row"/g) || []).length, 10);
+  assert.equal((settings.match(/class="settings-select-row"/g) || []).length, 8);
+  assert.match(settings, /connectedModels\.map\(item => <option/);
+  assert.doesNotMatch(settings, /id="config-provider"|id="config-mode"/);
   assert.match(read('style.css'), /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(read('components/Personas.jsx'), /persona-color-field settings-select-row/);
 });

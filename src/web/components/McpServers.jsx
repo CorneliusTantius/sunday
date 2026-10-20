@@ -44,10 +44,11 @@ export default function McpServers({ config, auth = {}, busy, onSave, onLogin, l
     <div class="settings-page-heading"><h3>MCP servers</h3><button class="secondary-button" disabled={busy} onClick={() => open()}>＋ Add server</button></div>
     <p class="field-note">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
     <div class="provider-list">
-      {Object.entries(servers).map(([name, server]) => <div class="provider-card" key={name}>
-        <strong>{name}</strong><span class="provider-status">{server.enabled === false ? 'Disabled' : 'Enabled'} · {server.url ? 'HTTP' : 'stdio'}</span>
-        {server.url && <span class="provider-status" role="status" title="Stored OAuth credentials; access is checked when connecting.">{auth[name] ? 'Signed in' : 'Not signed in'}</span>}
-        <div><button class="secondary-button" disabled={busy} onClick={() => open(name)}>Edit</button>{server.url && <button class="secondary-button" disabled={busy || loginBusy || server.enabled === false} onClick={() => onLogin(name)}>{auth[name] ? 'Sign in again' : 'Sign in'}</button>}<button class="text-button" disabled={busy} onClick={() => { if (window.confirm(`Remove MCP server ${name}?`)) { const next = { ...servers }; delete next[name]; onSave({ ...config, mcpServers: next }); } }}>Remove</button></div>
+      {Object.entries(servers).map(([name, server]) => <div class="provider-card mcp-server-entry" key={name}>
+        <div class="mcp-server-title"><strong>{name}</strong><span class={`mcp-status-pill${server.enabled === false ? ' disabled' : ' enabled'}`}>{server.enabled === false ? 'Disabled' : 'Enabled'}</span><span class="provider-status">{server.url ? 'HTTP' : 'stdio'}</span>
+          {server.url && <span class={`mcp-status-pill${auth[name] ? ' signed-in' : ' signed-out'}`} role="status" title="Stored OAuth credentials; access is checked when connecting.">{auth[name] ? 'Signed in' : 'Not signed in'}</span>}
+        </div>
+        <div class="mcp-server-actions"><button class="secondary-button" disabled={busy} onClick={() => open(name)}>Edit</button>{server.url && <button class="secondary-button" disabled={busy || loginBusy || server.enabled === false} onClick={() => onLogin(name)}>{auth[name] ? 'Sign in again' : 'Sign in'}</button>}<button class="text-button" disabled={busy} onClick={() => { if (window.confirm(`Remove MCP server ${name}?`)) { const next = { ...servers }; delete next[name]; onSave({ ...config, mcpServers: next }); } }}>Remove</button></div>
       </div>)}
       {!Object.keys(servers).length && <p class="field-note">No MCP servers configured. Add a server to get started.</p>}
     </div>

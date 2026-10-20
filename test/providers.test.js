@@ -54,6 +54,8 @@ test('provider credentials and model catalogs are isolated and persist', async (
     const settings = await api('/api/settings');
     assert.equal(settings.body.provider, 'openai');
     assert.ok(settings.body.models.every(model => model.id && model.name && Array.isArray(model.thinkingLevels)));
+    assert.deepEqual(new Set(settings.body.connectedModels.map(model => model.provider)), new Set(['openai', 'anthropic', 'google']));
+    assert.ok(settings.body.connectedModels.every(model => model.providerName && model.mode === 'api_key' && Array.isArray(model.thinkingLevels)));
 
     const defaults = settings.body;
     const first = (await api('/api/sessions', {})).body.session;
