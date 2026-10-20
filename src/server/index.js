@@ -68,8 +68,6 @@ const seededPersonas = [
 - Ask clarifying questions only when needed.
 - Carry tasks through to a useful result and include important next steps.
 - Explain technical topics clearly, at a level a junior engineer can understand.`, color: 'cyan', emoji: 'normal' },
-  { id: 'inbox-manager', name: 'Inbox Manager', specialty: 'Email organization', instructions: 'Help summarize messages and draft clear replies. Respect the user’s priorities and never imply messages were sent.', color: 'blue', emoji: 'normal' },
-  { id: 'expense-manager', name: 'Expense Manager', specialty: 'Expense organization', instructions: 'Help categorize and summarize expense information accurately. Flag uncertainty rather than inventing details.', color: 'lime', emoji: 'normal' },
   { id: 'coding-agent', name: 'Coding Agent', specialty: 'Software development', instructions: `- Inspect relevant files and follow existing conventions before changing code.
 - Make the smallest correct change that fixes the root cause.
 - Consider validation, security, and edge cases.
@@ -91,7 +89,7 @@ function migratePersonaVoice(profile) {
 let personas = await load('personas.json', null);
 if (personas === null) personas = seededPersonas;
 personas = personas.map(migratePersonaVoice);
-personas = personas.filter(persona => !['talent-scout', 'sales-outbound'].includes(persona.id));
+personas = personas.filter(persona => !['talent-scout', 'sales-outbound', 'inbox-manager', 'expense-manager'].includes(persona.id));
 const colors = ['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'], emojis = ['normal', 'sweat', 'sideeye', 'blink'];
 personas = personas.map((persona, index) => ({ ...persona, allowedTools: validateTools(persona.allowedTools), color: colors.includes(persona.color) ? persona.color : seededPersonas.find(item => item.id === persona.id)?.color || colors[index % colors.length], emoji: emojis.includes(persona.emoji) ? persona.emoji : 'normal' }));
 await serialize(async () => { await save('personas.json', personas); await chmod(join(dataDir, 'personas.json'), 0o600); });

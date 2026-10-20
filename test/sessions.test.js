@@ -248,8 +248,8 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.equal(await requestWithHeaders({ host: 'app.tailnet.ts.net', origin: 'https://app.tailnet.ts.net' }), 200);
     assert.equal(await requestWithHeaders({ host: 'attacker.example.com', origin: 'https://attacker.example.com' }), 403);
     assert.deepEqual(list.body.tools, BASIC_TOOLS.map(({ name, description }) => ({ name, description })));
-    assert.equal(list.body.personas.length, 4);
-    assert.ok(list.body.personas.every(persona => !['talent-scout', 'sales-outbound'].includes(persona.id)));
+    assert.deepEqual(list.body.personas.map(persona => persona.id), ['sunday', 'coding-agent']);
+    assert.ok(list.body.personas.every(persona => !['talent-scout', 'sales-outbound', 'inbox-manager', 'expense-manager'].includes(persona.id)));
     assert.ok(list.body.personas.every(persona => !persona.instructions.includes('medieval-peasant')));
     const generatedPersonas = JSON.parse(await readFile(join(home, 'sunday', 'data', 'personas.json'), 'utf8'));
     assert.equal(generatedPersonas.find(persona => persona.id === 'sunday').name, 'Sunday');
@@ -270,6 +270,31 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.equal((await api(`/api/personas/${created.body.persona.id}`)).status, 404);
     assert.equal((await api(`/api/personas/${created.body.persona.id}`, undefined, 'DELETE')).body.deleted, true);
     assert.equal((await api('/api/sessions', { personaId: 'missing' }, 'POST')).status, 400);
+  } finally {
+    const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited;
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test('startup removes Inbox Manager and Expense Manager from saved persona defaults', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'sunday-persona-migration-'));
+  const dataDir = join(home, 'sunday', 'data');
+  const personasPath = join(dataDir, 'personas.json');
+  const port = 32000 + Math.floor(Math.random() * 20000);
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(personasPath, JSON.stringify([
+    { id: 'inbox-manager', name: 'Inbox Manager', specialty: 'Email organization', instructions: 'Old default.' },
+    { id: 'expense-manager', name: 'Expense Manager', specialty: 'Expense organization', instructions: 'Old default.' },
+    { id: 'custom', name: 'Custom', specialty: 'Writing', instructions: 'Keep this persona.' },
+  ]));
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  try {
+    await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
+    const response = await fetch(`http://127.0.0.1:${port}/api/personas`);
+    const { personas } = await response.json();
+    assert.deepEqual(personas.map(persona => persona.id), ['custom']);
+    const saved = JSON.parse(await readFile(personasPath, 'utf8'));
+    assert.deepEqual(saved.map(persona => persona.id), ['custom']);
   } finally {
     const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited;
     await rm(home, { recursive: true, force: true });
