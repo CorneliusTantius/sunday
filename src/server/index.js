@@ -1,7 +1,7 @@
 import { estimateContext, shouldCompact, measuredInput, compactionCut, summarizeContext, isContextOverflow } from './context.js';
 import { repositoryStatusDetails, pullRepository } from './repo-status.js';
 import http from 'node:http';
-import { open, opendir, readFile, readlink, mkdir, writeFile, rename, chmod, readdir, rm, cp, lstat, stat } from 'node:fs/promises';
+import { open, opendir, readFile, readlink, mkdir, writeFile, rename, chmod, readdir, rm, cp, lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
@@ -14,6 +14,7 @@ import { BASIC_TOOLS, BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES
 import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { createJsonStorage } from './storage.js';
+import { createSessionStorage } from './session-storage.js';
 import { dispatchToolCalls } from './tool-dispatch.js';
 import { connectMcp, validateMcpConfig, createMcpLogin, mcpAuthStatus } from './mcp.js';
 const mcpLogins = new Map();
@@ -34,13 +35,13 @@ function pullUpdate() {
 
 const homeDir = join(homedir(), 'sunday');
 const dataDir = join(homeDir, 'data');
-const sessionsDir = join(dataDir, 'sessions');
+const sessionsDbPath = join(dataDir, 'sessions.sqlite');
 const workspaceDir = join(homeDir, 'workspace');
 const reposDir = join(workspaceDir, 'repos');
 const sharedMemoryDir = join(workspaceDir, 'shared-memory');
 const agentWorkspacesDir = join(homeDir, 'workspace-agents');
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
-await mkdir(sessionsDir, { recursive: true, mode: 0o700 });
+await chmod(dataDir, 0o700);
 await mkdir(workspaceDir, { recursive: true, mode: 0o700 });
 await mkdir(reposDir, { recursive: true, mode: 0o700 });
 await mkdir(sharedMemoryDir, { recursive: true, mode: 0o700 });
@@ -48,6 +49,8 @@ const sharedMemoryInfo = await lstat(sharedMemoryDir);
 if (!sharedMemoryInfo.isDirectory() || sharedMemoryInfo.isSymbolicLink()) throw new Error('Invalid shared memory directory');
 await mkdir(agentWorkspacesDir, { recursive: true, mode: 0o700 });
 process.chdir(workspaceDir);
+const sessionStorage = createSessionStorage(sessionsDbPath);
+await chmod(sessionsDbPath, 0o600);
 const { load, save } = createJsonStorage(dataDir);
 let settings = await load('settings.json', { mode: 'api_key', model: 'gpt-4o-mini' });
 let auth = await load('auth.json', {});
@@ -584,10 +587,9 @@ async function runChatTurn(session, job, allowWhisper = true) {
 }
 async function childSessions(parentId) {
   const children = [];
-  for (const name of await readdir(sessionsDir)) {
-    if (!/^[a-f0-9-]{36}\.json$/.test(name)) continue;
-    const child = await readSession(name.slice(0, -5));
-    if (child?.parentSessionId === parentId) children.push(child);
+  for (const id of sessionStorage.listIds(parentId)) {
+    const child = await readSession(id);
+    if (child) children.push(child);
   }
   return children;
 }
@@ -650,9 +652,8 @@ async function runSubagentTurn(id, prompt, signal) {
 }
 async function listAgents(sourceId) {
   const agents = [];
-  for (const name of await readdir(sessionsDir)) {
-    if (!/^[a-f0-9-]{36}\.json$/.test(name)) continue;
-    const agent = await readSession(name.slice(0, -5));
+  for (const id of sessionStorage.listIds()) {
+    const agent = await readSession(id);
     if (agent && agent.id !== sourceId) agents.push({ id: agent.id, title: agent.title, responsibility: agent.profile?.specialty || 'General assistance' });
   }
   return agents;
@@ -700,23 +701,14 @@ function validateProfile(profile) {
   return { name: profile.name, specialty: profile.specialty, instructions: profile.instructions, allowedTools: validateTools(profile.allowedTools), color, emoji };
 }
 async function readSession(id) {
-  try {
-    const session = JSON.parse(await readFile(join(sessionsDir, `${id}.json`), 'utf8'));
-    const matched = personas.find(persona => persona.id === session.profile?.personaId) || personas.find(persona => persona.name === session.profile?.name);
-    const profile = session.profile ? validateProfile({ ...session.profile, color: session.profile.color ?? matched?.color ?? defaultPersona().color, emoji: session.profile.emoji ?? 'normal' }) : defaultProfile();
-    session.profile = migratePersonaVoice({ ...profile, personaId: matched?.id || defaultPersona().id });
-    return session;
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  const session = sessionStorage.get(id);
+  if (!session) return null;
+  const matched = personas.find(persona => persona.id === session.profile?.personaId) || personas.find(persona => persona.name === session.profile?.name);
+  const profile = session.profile ? validateProfile({ ...session.profile, color: session.profile.color ?? matched?.color ?? defaultPersona().color, emoji: session.profile.emoji ?? 'normal' }) : defaultProfile();
+  session.profile = migratePersonaVoice({ ...profile, personaId: matched?.id || defaultPersona().id });
+  return session;
 }
-async function persistSession(session) { await save(join('sessions', `${session.id}.json`), session); await chmod(join(sessionsDir, `${session.id}.json`), 0o600); }
-for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
-  const session = await readSession(name.slice(0, -5));
-  if (session && (!session.config || !session.createdAt)) {
-    session.config ||= sessionConfig();
-    session.createdAt ||= session.messages?.[0]?.timestamp || (await stat(join(sessionsDir, name))).birthtimeMs || session.updatedAt;
-    await persistSession(session);
-  }
-}
+function persistSession(session) { sessionStorage.save(session); }
 function saveSession(session) { return serialize(() => persistSession(session)); }
 function workspaceSlug(title) {
   return String(title || 'agent').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0, 80) || 'agent';
@@ -923,8 +915,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/sessions' && req.method === 'GET') {
       const sessions = [];
-      for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
-        const session = await readSession(name.slice(0, -5));
+      for (const id of sessionStorage.listIds()) {
+        const session = await readSession(id);
         if (session) sessions.push({ id: session.id, title: session.title, parentSessionId: session.parentSessionId, createdAt: session.createdAt, updatedAt: session.updatedAt, profile: session.profile, config: session.config, allowedRepositories: session.allowedRepositories || [], running: activeChats.has(session.id) });
       }
       sessions.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
@@ -940,8 +932,8 @@ const server = http.createServer(async (req, res) => {
       const config = sessionConfig(), models = await sessionModels(config);
       return await serialize(async () => {
         const titles = [];
-        for (const name of await readdir(sessionsDir)) if (/^[a-f0-9-]{36}\.json$/.test(name)) {
-          const existing = await readSession(name.slice(0, -5));
+        for (const id of sessionStorage.listIds()) {
+          const existing = await readSession(id);
           if (existing) titles.push(existing.title);
         }
         const allowedRepositories = (await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
@@ -1010,9 +1002,8 @@ const server = http.createServer(async (req, res) => {
             for (const item of [...tree].reverse()) {
               const workspaceName = item.workspaceName || item.workspaceId;
               if (/^[A-Za-z0-9_-]{1,80}$/.test(workspaceName || '')) await rm(join(agentWorkspacesDir, workspaceName), { recursive: true, force: true });
-              await rm(join(sessionsDir, item.id), { recursive: true, force: true });
-              await rm(join(sessionsDir, `${item.id}.json`), { force: true });
             }
+            sessionStorage.deleteSessions([...tree].reverse().map(item => item.id));
           };
           await removeTree(1);
           return json(res, 200, { deleted: true });

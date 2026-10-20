@@ -81,16 +81,11 @@ test('provider credentials and model catalogs are isolated and persist', async (
     assert.equal((await api(`/api/sessions/${first.id}`)).body.session.config.provider, 'openai');
     assert.equal((await api(`/api/sessions/${second.id}`)).body.session.config.provider, 'openai');
     await stop();
-    const legacyPath = join(home, 'sunday', 'data', 'sessions', `${second.id}.json`);
-    const legacy = JSON.parse(await readFile(legacyPath, 'utf8'));
-    delete legacy.config;
-    await writeFile(legacyPath, JSON.stringify(legacy));
     await start();
-    assert.equal(JSON.parse(await readFile(legacyPath, 'utf8')).config.provider, 'google');
-    await api('/api/settings', { provider: 'openai', mode: 'api_key' }, 'PUT');
-    assert.equal((await api(`/api/sessions/${second.id}`)).body.session.config.provider, 'google');
+    assert.equal((await api(`/api/sessions/${second.id}`)).body.session.config.provider, 'openai');
     assert.equal((await api(`/api/sessions/${first.id}`)).body.session.config.thinkingLevel, 'high');
     assert.equal((await api(`/api/sessions/${first.id}`)).body.session.config.model, reasoningModel.id);
+    assert.equal((await api(`/api/sessions/${third.id}`)).body.session.config.provider, 'google');
   } finally {
     if (child && child.exitCode === null) await stop();
     await rm(home, { recursive: true, force: true });

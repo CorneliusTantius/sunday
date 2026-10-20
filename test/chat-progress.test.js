@@ -24,7 +24,7 @@ function harness(streams, idle = 100, total = 1000, agents = []) {
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
     validateTools, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: [], execute: async () => { throw new Error('Unexpected MCP tool call'); }, close: async () => {} }),
-    readdir: async () => agents.map(agent => `${agent.id}.json`), readSession: async id => agents.find(agent => agent.id === id), sessionsDir: '/sessions', sharedMemoryDir: '/memory',
+    sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id), sharedMemoryDir: '/memory',
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return 'ok'; }, saveSession: async () => {},
     whisperToAgent: async (sourceId, args) => { whispers.push(args); return 'Specialist result'; },
     publishChat: (job, event) => events.push(event),

@@ -1,11 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
+import { DatabaseSync } from 'node:sqlite';
 import { BIRD_NAMES, uniqueSessionName } from '../src/server/session-names.js';
+
+function withSessionDatabase(home, callback) {
+  const database = new DatabaseSync(join(home, 'sunday/data/sessions.sqlite'));
+  try { return callback(database); }
+  finally { database.close(); }
+}
 
 test('bird names avoid collisions and support exhaustion', () => {
   assert.equal(uniqueSessionName(BIRD_NAMES.slice(1), BIRD_NAMES), BIRD_NAMES[0]);
@@ -60,20 +67,22 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal(promptedChild.messages.at(-1).content, 'Run synchronous prompt');
     const updatedParent = (await api(`/sessions/${other.id}`)).session;
     assert.equal(updatedParent.messages.some(message => message.role === 'subagent'), false);
-    const filename = join(home, 'sunday/data/sessions', `${first.id}.json`);
-    const saved = JSON.parse(await readFile(filename, 'utf8'));
-    saved.pendingCompletion = { id: 'legacy-completion', content: 'Should not be delivered asynchronously.' };
-    await writeFile(filename, JSON.stringify(saved));
+    withSessionDatabase(home, database => {
+      const row = database.prepare('SELECT data FROM sessions WHERE id = ?').get(first.id);
+      const saved = JSON.parse(row.data);
+      saved.pendingCompletion = { id: 'legacy-completion', content: 'Should not be delivered asynchronously.' };
+      database.prepare('UPDATE sessions SET data = ? WHERE id = ?').run(JSON.stringify(saved), first.id);
+    });
     await new Promise(resolve => setTimeout(resolve, 1500));
     assert.equal((await api(`/sessions/${parent.id}`)).session.messages.some(message => message.role === 'subagent'), false);
-    assert.equal(JSON.parse(await readFile(filename, 'utf8')).pendingCompletion.id, 'legacy-completion');
+    assert.equal(withSessionDatabase(home, database => JSON.parse(database.prepare('SELECT data FROM sessions WHERE id = ?').get(first.id).data).pendingCompletion.id), 'legacy-completion');
     const deletion = await fetch(`http://127.0.0.1:${port}/api/sessions/${parent.id}`, { method: 'DELETE' });
     assert.equal(deletion.status, 200);
     const listed = (await api('/sessions')).sessions;
-    for (const session of [parent, ...children]) {
-      assert.equal(listed.some(item => item.id === session.id), false);
-      await assert.rejects(readFile(join(home, 'sunday/data/sessions', `${session.id}.json`)), { code: 'ENOENT' });
-    }
+    for (const session of [parent, ...children]) assert.equal(listed.some(item => item.id === session.id), false);
+    withSessionDatabase(home, database => {
+      for (const session of [parent, ...children]) assert.equal(database.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
+    });
     assert.equal(listed.some(item => item.id === other.id), true);
   } finally {
     if (child.exitCode === null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited; }

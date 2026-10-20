@@ -11,13 +11,13 @@ for command in git node npm; do
 done
 node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 19)) { console.error("Sunday requires Node.js 22.19 or newer."); process.exit(1); }'
 
-for directory in "$base" "$base/data" "$base/data/sessions" "$base/workspace" "$base/workspace/repos" "$app"; do
+for directory in "$base" "$base/data" "$base/workspace" "$base/workspace/repos" "$app"; do
   if [ -L "$directory" ]; then
     printf 'Refusing symbolic link: %s\n' "$directory" >&2
     exit 1
   fi
 done
-for directory in "$base" "$base/data" "$base/data/sessions" "$base/workspace" "$base/workspace/repos"; do
+for directory in "$base" "$base/data" "$base/workspace" "$base/workspace/repos"; do
   mkdir -p "$directory"
   chmod 700 "$directory"
 done

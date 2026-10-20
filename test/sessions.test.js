@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 import { GREEK_DEITY_NAMES } from '../src/server/session-names.js';
 import { BASIC_TOOLS } from '../src/server/tools.js';
 
@@ -14,6 +15,15 @@ function assertProfile(actual, expected) {
   const { name, specialty, instructions } = actual;
   assert.deepEqual({ name, specialty, instructions }, expected);
   assert.ok(actual.color); assert.ok(actual.emoji); assert.ok(actual.personaId);
+}
+
+function readStoredSession(home, id) {
+  const database = new DatabaseSync(join(home, 'sunday', 'data', 'sessions.sqlite'));
+  try {
+    const row = database.prepare('SELECT data FROM sessions WHERE id = ?').get(id);
+    assert.ok(row, `session ${id} should be stored`);
+    return JSON.parse(row.data);
+  } finally { database.close(); }
 }
 
 test('file references are restricted to permitted repository text and validated before saving', async () => {
@@ -54,12 +64,12 @@ test('file references are restricted to permitted repository text and validated 
     assert.deepEqual((await api(`/api/sessions/${session.id}/files?q=private-repo/notes`, undefined, 'GET')).body.files, ['private-repo/notes.txt']);
     const good = await api('/api/chat', { sessionId: session.id, messages: [{ role: 'user', content: 'Use this' }], fileReferences: ['private-repo/notes.txt'] });
     assert.equal(good.status, 400); // Invalid/no-auth chat still saves only after references have validated.
-    let saved = JSON.parse(await readFile(join(home, 'sunday', 'data', 'sessions', `${session.id}.json`), 'utf8'));
+    let saved = readStoredSession(home, session.id);
     assert.equal(saved.messages[0].fileReferences[0].content, 'private reference text');
     for (const references of [['private-repo/auth.json'], ['private-repo/link'], ['private-repo/missing'], ['private-repo/binary.txt'], ['private-repo/large.txt'], ['private-repo/part-a.txt', 'private-repo/part-b.txt'], ['private-repo/../notes.txt'], Array(6).fill('private-repo/notes.txt')]) {
       const before = saved.messages.length;
       assert.ok((await api('/api/chat', { sessionId: session.id, messages: [{ role: 'user', content: 'reject me' }], fileReferences: references })).status >= 400);
-      saved = JSON.parse(await readFile(join(home, 'sunday', 'data', 'sessions', `${session.id}.json`), 'utf8'));
+      saved = readStoredSession(home, session.id);
       assert.equal(saved.messages.length, before, `invalid references were saved: ${references.join(', ')}`);
     }
     assert.equal((await api('/api/sessions', {}, 'POST')).status, 201);
@@ -146,9 +156,11 @@ test('file references are restricted to permitted repository text and validated 
     assert.deepEqual(created.body.session.messages, []);
     const response = await api('/api/chat', { sessionId: id, messages: [{ role: 'user', content: 'Remember this message' }] });
     assert.equal(response.status, 400); // No credentials; user message must still persist.
-    const path = join(home, 'sunday', 'data', 'sessions', `${id}.json`);
-    assert.equal((await stat(path)).mode & 0o777, 0o600);
-    assert.equal(JSON.parse(await readFile(path, 'utf8')).messages[0].content, 'Remember this message');
+    const dataDirectory = join(home, 'sunday', 'data');
+    const databasePath = join(dataDirectory, 'sessions.sqlite');
+    assert.equal((await stat(dataDirectory)).mode & 0o777, 0o700);
+    assert.equal((await stat(databasePath)).mode & 0o777, 0o600);
+    assert.equal(readStoredSession(home, id).messages[0].content, 'Remember this message');
     assert.equal((await api('/api/sessions/not-a-valid-id')).status, 400);
     const settingsPath = join(home, 'sunday', 'data', 'settings.json');
     const deviceId = JSON.parse(await readFile(settingsPath, 'utf8')).deviceId;
