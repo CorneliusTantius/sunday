@@ -470,6 +470,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .settings-nav.active { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--panel)); }
 .settings-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .settings-page-heading h3 { margin: 0; }
+.settings-section-save { margin-top: 4px; }
 .settings-subagent-config { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 24px; }
 #settings-connect-page h3 { margin-top: 20px; }
 .settings-section + .settings-section { border-top: 0; padding-top: 0; margin-top: 0; }
@@ -821,6 +822,7 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 
 /* Separate the update action from its explanatory text. */
 #settings-update-page > .field-note { margin-bottom: 20px; }
+.settings-update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .dashboard-page { flex: 1; min-height: 0; display: grid; place-items: center; padding: 64px 24px; overflow-y: auto; text-align: center; animation: dashboard-arrive 420ms cubic-bezier(.2,.8,.2,1) both; }
 .dashboard-page.dashboard-exiting { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: dashboard-depart 320ms cubic-bezier(.4,0,.8,.2) both; }

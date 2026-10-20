@@ -437,6 +437,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <div class="settings-select-row"><label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={`${provider}:${mode}:${model}`} disabled={loading || saving || !connectedModels.length} onChange={event => chooseDefaultModel(event.currentTarget.value)}>{connectedModels.length ? connectedModels.map(item => <option key={`${item.provider}:${item.mode}:${item.id}`} value={`${item.provider}:${item.mode}:${item.id}`}>{item.name || item.id} · {item.providerName}{item.mode === 'oauth' ? ' (ChatGPT)' : ''}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
             <div class="settings-select-row"><label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
             <p class="field-note">Choose from models available through connected providers. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
+            <button class="primary-button settings-section-save" id="save-chat-defaults" disabled={saving || loading || !connectedModels.length} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
             <div class="settings-subagent-config">
             <h3>Subagent defaults</h3>
             <div class="settings-select-row"><label class="field-label" for="subagent-limit">Maximum children per agent</label><select id="subagent-limit" class="select" value={subagents.maxChildren} disabled={saving} onChange={event => setSubagents({ ...subagents, maxChildren: Number(event.currentTarget.value) })}>{[1, 2, 3].map(limit => <option key={limit} value={limit}>{limit}</option>)}</select></div>
@@ -454,8 +455,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
             <h3>Update Sunday</h3>
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
-            <button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
-            <button class="secondary-button" id="restart-app" disabled={updating} onClick={restart}>Restart app</button>
+            <div class="settings-update-actions"><button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
+            <button class="secondary-button" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
             <p class="field-note">Rebuilds and restarts the server, interrupting running tasks. The page reloads when ready.</p>
             <pre id="update-output" role="status" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{updateOutput}</pre>
           </section>
@@ -464,7 +465,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'personas' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !connectedModels.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'config' || page === 'personas' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !connectedModels.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }
