@@ -358,9 +358,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   }
 
   async function restart() {
-    if (updatePending.current || !window.confirm('Rebuild and restart Sunday? Running agent tasks will be interrupted.')) return;
+    if (updatePending.current || !window.confirm('Install dependencies, build, and restart Sunday? Running agent tasks will be interrupted.')) return;
     updatePending.current = true;
-    setUpdating(true); setError(''); setUpdateOutput('Building app…');
+    setUpdating(true); setError(''); setUpdateOutput('Installing dependencies…');
     try {
       const data = await jsonRequest('/api/restart', 'POST', {});
       if (alive.current) setUpdateOutput(data.output);
@@ -457,7 +457,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
             <div class="settings-update-actions"><button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
             <button class="secondary-button" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
-            <p class="field-note">Rebuilds and restarts the server, interrupting running tasks. The page reloads when ready.</p>
+            <p class="field-note">Runs npm install, builds, and restarts the server, interrupting running tasks. The page reloads when ready.</p>
             <pre id="update-output" role="status" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{updateOutput}</pre>
           </section>
           <Personas hidden={page !== 'personas'} toast={toast} onReload={onReload} />

@@ -1102,14 +1102,16 @@ const server = http.createServer(async (req, res) => {
       if (updateRunning) return json(res, 409, { error: 'An update or restart is already running' });
       updateRunning = true;
       try {
-        await new Promise((resolve, reject) => execFile('npm', ['run', 'build'], { cwd: appDir, timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => error ? reject(new Error((stderr || error.message).slice(0, 2000))) : resolve()));
+        const runNpm = args => new Promise((resolve, reject) => execFile('npm', args, { cwd: appDir, timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => error ? reject(new Error((stderr || error.message).slice(0, 2000))) : resolve()));
+        await runNpm(['install']);
+        await runNpm(['run', 'build']);
         if (!process.env.INVOCATION_ID) {
           const child = spawn(process.execPath, ['--input-type=module', '-e', "import { spawn } from 'node:child_process'; setTimeout(() => { const child = spawn('npm', ['start'], { cwd: process.cwd(), detached: true, stdio: 'ignore' }); child.unref(); }, 2000);"], { cwd: appDir, detached: true, stdio: 'ignore' });
           await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
           child.unref();
         }
         res.once('finish', () => { setTimeout(() => process.exit(0), 100); });
-        return json(res, 200, { output: 'Build complete. Restarting…' });
+        return json(res, 200, { output: 'Dependencies installed and build complete. Restarting…' });
       } catch (error) { updateRunning = false; throw error; }
     }
     if (url.pathname === '/api/update') {

@@ -100,6 +100,9 @@ test('Settings exposes an Update action that only posts to the pull endpoint', (
   assert.match(source, /catch \(error\) \{ if \(alive\.current\) setError\(error\.message\); \}/);
   assert.doesNotMatch(source.slice(source.indexOf('  async function update()'), source.indexOf('  return <div ref={backdrop}')), /window\.location\.(?:reload|replace)|onReload\(\)/);
   assert.match(source, /id="restart-app"/);
+  assert.match(source, /Install dependencies, build, and restart Sunday/);
+  assert.match(source, /setUpdateOutput\('Installing dependencies…'\)/);
+  assert.match(source, /Runs npm install, builds, and restarts the server/);
   assert.match(source, /jsonRequest\('\/api\/restart', 'POST', \{\}\)/);
 });
 

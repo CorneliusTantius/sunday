@@ -40,28 +40,42 @@ test('update rejects overlapping pulls and releases the lock after failure', asy
   assert.equal((await retry).status, 200);
 });
 
-test('restart builds before shutdown and keeps the server alive on build failure', async () => {
+test('restart installs dependencies and builds before shutdown; failures keep the server alive', async () => {
   const route = source.slice(source.indexOf("    if (url.pathname === '/api/restart')"), source.indexOf("    if (url.pathname === '/api/update')"));
-  let fail = true;
+  let fail = 'install';
   let scheduled = false;
+  const calls = [];
   const context = vm.createContext({
     appDir: '/app', updateRunning: false, Error, Promise,
     process: { env: { INVOCATION_ID: 'service' } },
     execFile(command, args, options, callback) {
       assert.equal(command, 'npm');
-      assert.deepEqual(Array.from(args), ['run', 'build']);
-      callback(fail ? new Error('Build failed') : null, '', '');
+      assert.equal(options.cwd, '/app');
+      assert.equal(options.timeout, 120000);
+      calls.push(Array.from(args));
+      const install = args[0] === 'install';
+      assert.ok(install || (args[0] === 'run' && args[1] === 'build'));
+      callback(fail === (install ? 'install' : 'build') ? new Error(`${install ? 'Install' : 'Build'} failed`) : null, '', '');
     },
     json: (res, status, body) => ({ status, body }),
     res: { once(event) { assert.equal(event, 'finish'); scheduled = true; } }
   });
   vm.runInContext(`async function restart(method) { const url = { pathname: '/api/restart' }, req = { method }; ${route} }`, context);
   assert.equal((await context.restart('GET')).status, 405);
-  await assert.rejects(context.restart('POST'), /Build failed/);
+  await assert.rejects(context.restart('POST'), /Install failed/);
+  assert.deepEqual(calls, [['install']]);
   assert.equal(scheduled, false);
   assert.equal(context.updateRunning, false);
-  fail = false;
-  assert.equal((await context.restart('POST')).status, 200);
+  fail = 'build';
+  await assert.rejects(context.restart('POST'), /Build failed/);
+  assert.deepEqual(calls.slice(1), [['install'], ['run', 'build']]);
+  assert.equal(scheduled, false);
+  assert.equal(context.updateRunning, false);
+  fail = '';
+  const result = await context.restart('POST');
+  assert.equal(result.status, 200);
+  assert.deepEqual(calls.slice(3), [['install'], ['run', 'build']]);
+  assert.match(result.body.output, /Dependencies installed and build complete/);
   assert.equal(scheduled, true);
   assert.equal((await context.restart('POST')).status, 409);
 });
