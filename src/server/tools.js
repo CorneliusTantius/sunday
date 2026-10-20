@@ -1,7 +1,7 @@
 import { open, lstat, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -14,24 +14,26 @@ export const BASIC_TOOLS = [
   { name: 'find', description: "Find files or literal text under a repository path. query is a case-sensitive substring; mode defaults to path, content returns path:line:text. Skips sensitive files, symlinks, node_modules, dist, build, and vendor. Bounded results report truncation; narrow path/query if needed.", parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string', maxLength: 1000 }, mode: { type: 'string', enum: ['path', 'content'] }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, required: ['path'], additionalProperties: false } },
   { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Use empty oldText to write a new or empty file; nonempty files are never overwritten in this mode.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
-  { name: 'memory_search', description: 'Search shared notes for relevant saved knowledge. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
-  { name: 'memory_update', description: 'Create or replace a shared Markdown note by title. Link related notes with [[Exact note title]]. Save durable, useful knowledge for other agents; never save credentials or secrets.', parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['title', 'content'], additionalProperties: false } },
+  { name: 'context_search', description: 'Search indexed context for relevant source passages. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
+  { name: 'context_index', description: 'Index selected text for future retrieval. Re-indexing the same source replaces its content. Never index secrets or private user data.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 200000 } }, required: ['source', 'title', 'content'], additionalProperties: false } },
+  { name: 'context_compress', description: 'Summarize older conversation history to reduce context for the rest of this response. The original transcript is retained. Use only for long conversations.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
 export const REPOSITORY_TOOL_NAMES = ['read', 'find', 'edit', 'bash'];
-export const MEMORY_TOOL_NAMES = ['memory_search', 'memory_update'];
+export const CONTEXT_TOOL_NAMES = ['context_search', 'context_index', 'context_compress'];
 export const BASIC_TOOL_NAMES = BASIC_TOOLS.map(tool => tool.name);
 export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
   if (!Array.isArray(value)) throw new Error('Invalid allowed tools');
-  // Migrate permissions persisted under the previous file-tool names.
-  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list', list_agents: 'agent_list', whisper_to_agent: 'agent_whisper' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
+  // Migrate persisted tool names to their current implementations.
+  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list', list_agents: 'agent_list', whisper_to_agent: 'agent_whisper', memory_search: 'context_search', memory_update: 'context_index' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
   // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
   const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
-  if (BASIC_TOOL_NAMES.filter(name => name !== 'find' && !orchestration.includes(name)).every(name => migrated.includes(name))) {
-    for (const name of [...orchestration, 'find']) if (!migrated.includes(name)) migrated.push(name);
+  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && name !== 'context_compress' && !orchestration.includes(name));
+  if (legacyUnrestrictedTools.every(name => migrated.includes(name))) {
+    for (const name of [...orchestration, 'find', 'context_compress']) if (!migrated.includes(name)) migrated.push(name);
   }
   return migrated;
 }
@@ -39,117 +41,27 @@ export function makeTools(names) { return BASIC_TOOLS.filter(tool => names.inclu
 
 export const isSensitiveRepositoryEntry = name => name === '.git' || name === '.ssh' || /^auth\.json(?:\.|$)/i.test(name) || /^\.env(?:\.|$)/i.test(name) || /credential|secret/i.test(name) || /\.(?:pem|key|p12|pfx)$/i.test(name);
 const within = (base, path) => path === base || path.startsWith(base + sep);
-function memoryFileName(title) {
-  const slug = title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'note';
-  const hash = createHash('sha256').update(title.normalize('NFKC').toLowerCase()).digest('hex').slice(0, 8);
-  return `${slug}-${hash}.md`;
-}
-async function memoryRootInfo(memoryDir, create = false) {
-  if (typeof memoryDir !== 'string' || !memoryDir) throw new Error('Shared memory is unavailable');
-  if (create) await mkdir(memoryDir, { recursive: true, mode: 0o700 });
-  const info = await lstat(memoryDir);
-  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid shared memory directory');
-  return resolve(memoryDir);
-}
-function noteTitle(content, fallback) {
-  return content.split(/\r?\n/, 1)[0].replace(/^#\s*/, '').trim() || fallback;
-}
-function noteBody(content) {
-  return content.replace(/^#\s+[^\r\n]*(?:\r?\n)?/, '').trim();
-}
-function wikiTargets(content) {
-  return [...content.matchAll(/\[\[([^\]]+)\]\]/g)].map(([, raw]) => raw.split('|', 1)[0].split('#', 1)[0].trim()).filter(Boolean);
-}
-function titleKey(value) { return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase(); }
-async function memoryNotes(memoryDir) {
-  const root = await memoryRootInfo(memoryDir), notes = [];
-  for (const entry of await readdir(root, { withFileTypes: true })) {
-    if (!entry.isFile() || !/^[a-z0-9-]{1,100}\.md$/.test(entry.name)) continue;
-    const handle = await open(join(root, entry.name), constants.O_NOFOLLOW);
-    let content;
-    try {
-      const stat = await handle.stat();
-      if (!stat.isFile() || stat.size > 20000) continue;
-      content = await handle.readFile('utf8');
-    } finally { await handle.close(); }
-    notes.push({ id: entry.name.slice(0, -3), title: noteTitle(content, entry.name.slice(0, -3)), content });
+async function executeContextTool(name, args, contextStore) {
+  if (!contextStore) throw new Error('Context storage is unavailable');
+  if (name === 'context_search') {
+    const matches = contextStore.search(args.query, 5);
+    if (!matches.length) return 'No indexed context matched that query.';
+    return matches.map(item => `## ${item.title}\nSource: ${item.source}\n${item.excerpt}`).join('\n\n');
   }
-  return notes;
-}
-export async function readMemoryGraph(memoryDir) {
-  const nodes = await memoryNotes(memoryDir), byTitle = new Map();
-  for (const node of nodes) {
-    byTitle.set(titleKey(node.title), node);
-    byTitle.set(titleKey(node.id), node);
+  if (typeof args.source !== 'string' || !args.source.trim() || args.source.trim().length > 300 ||
+      typeof args.title !== 'string' || !args.title.trim() || args.title.trim().length > 120 ||
+      typeof args.content !== 'string' || !args.content.trim() || args.content.length > 200000) {
+    throw new Error('Invalid context source');
   }
-  nodes.sort((a, b) => a.id.localeCompare(b.id));
-  const edges = [], unresolved = [], seen = new Set();
-  for (const node of nodes) for (const target of wikiTargets(node.content)) {
-    const linked = byTitle.get(titleKey(target));
-    if (!linked) { unresolved.push({ source: node.id, target }); continue; }
-    if (linked.id === node.id) continue;
-    const key = `${node.id}\0${linked.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key); edges.push({ source: node.id, target: linked.id });
-  }
-  return { nodes, edges, unresolved };
+  const result = contextStore.index(args.source, args.title, args.content);
+  return result.indexed ? `Indexed ${result.source} (${result.added} new, ${result.updated} changed, ${result.reused} unchanged chunks).` : `No changes to ${result.source} (${result.chunks} chunks).`;
 }
-export async function readMemoryNote(memoryDir, id) {
-  if (typeof id !== 'string' || !/^[a-z0-9-]{1,100}$/.test(id)) return null;
-  const root = await memoryRootInfo(memoryDir), path = join(root, `${id}.md`);
-  let handle;
-  try { handle = await open(path, constants.O_NOFOLLOW); }
-  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
-  try {
-    const stat = await handle.stat();
-    if (!stat.isFile() || stat.size > 20000) return null;
-    const content = await handle.readFile('utf8');
-    return { id, title: noteTitle(content, id), content: noteBody(content) };
-  } finally { await handle.close(); }
-}
-async function executeMemoryTool(name, args, memoryDir) {
-  if (name === 'memory_search') {
-    if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 300) throw new Error('Invalid memory search query');
-    const terms = [...new Set(args.query.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])];
-    if (!terms.length) throw new Error('Invalid memory search query');
-    const graph = await readMemoryGraph(memoryDir), byId = new Map(graph.nodes.map(node => [node.id, node]));
-    const neighbors = new Map(graph.nodes.map(node => [node.id, new Set()]));
-    for (const edge of graph.edges) { neighbors.get(edge.source).add(edge.target); neighbors.get(edge.target).add(edge.source); }
-    const matches = [];
-    for (const node of graph.nodes) {
-      const content = noteBody(node.content), lower = content.toLowerCase();
-      const found = terms.filter(term => lower.includes(term) || node.title.toLowerCase().includes(term));
-      if (!found.length) continue;
-      const positions = found.map(term => lower.indexOf(term)).filter(position => position >= 0);
-      const position = positions.length ? Math.min(...positions) : 0;
-      const excerpt = content.slice(Math.max(0, position - 180), position + 900).trim();
-      matches.push({ score: found.length, id: node.id, title: node.title, excerpt });
-    }
-    matches.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
-    if (!matches.length) return 'No shared notes matched that query.';
-    return matches.slice(0, 5).map(item => {
-      const related = [...(neighbors.get(item.id) || [])].map(id => byId.get(id)).filter(Boolean).sort((a, b) => a.title.localeCompare(b.title)).slice(0, 3);
-      const links = related.length ? `\n\nLinked notes:\n${related.map(note => `- [[${note.title}]]: ${noteBody(note.content).slice(0, 400).trim()}`).join('\n')}` : '';
-      return `## ${item.title}\n${item.excerpt}${links}`;
-    }).join('\n\n');
-  }
-  if (typeof args.title !== 'string' || !args.title.trim() || args.title.trim().length > 120 || typeof args.content !== 'string' || !args.content.trim() || args.content.length > 20000) throw new Error('Invalid shared memory note');
-  const title = args.title.trim(), root = await memoryRootInfo(memoryDir, true);
-  const path = join(root, memoryFileName(title)), temporary = join(root, `.${randomUUID()}.tmp`);
-  const existing = await lstat(path).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
-  if (existing && (!existing.isFile() || existing.isSymbolicLink())) throw new Error('Invalid shared memory note');
-  try {
-    await writeFile(temporary, `# ${title}\n\n${args.content.trim()}\n`, { flag: 'wx', mode: 0o600 });
-    await rename(temporary, path);
-  } catch (error) { await rm(temporary, { force: true }); throw error; }
-  return `Shared note saved: ${title}`;
-}
-export async function executeTool(name, args, repositories, memoryDir, signal) {
+export async function executeTool(name, args, repositories, contextStore, signal) {
   signal?.throwIfAborted();
   if (!BASIC_TOOL_NAMES.includes(name)) throw new Error('Unknown tool');
-  if (name === 'agent_whisper' || name === 'agent_list') throw new Error('Tool must be handled by the chat server');
+  if (name === 'agent_whisper' || name === 'agent_list' || name === 'context_compress') throw new Error('Tool must be handled by the chat server');
   args ||= {};
-  if (MEMORY_TOOL_NAMES.includes(name)) return executeMemoryTool(name, args, memoryDir);
+  if (CONTEXT_TOOL_NAMES.includes(name)) return executeContextTool(name, args, contextStore);
   if (!Array.isArray(repositories) || !repositories.length) throw new Error('No repositories are allowed for this session');
   const raw = args.path ?? '.';
   if (typeof raw !== 'string' || raw.includes('\\') || raw.startsWith('/') || raw.split('/').includes('..')) throw new Error('Invalid repository path');

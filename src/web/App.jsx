@@ -58,7 +58,7 @@ function cancelChat(sessionId) {
     .catch(() => {}).finally(() => clearTimeout(timer));
 }
 function currentPage() {
-  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#dashboard' ? 'dashboard' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#memory' ? 'memory' : 'chat';
+  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#dashboard' ? 'dashboard' : location.hash === '#scheduled-job' ? 'scheduled-job' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
 }
 
 function greeting() {
@@ -270,7 +270,7 @@ export default function App() {
     return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(dashboardExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'dashboard' ? 'Dashboard' : page === 'scheduled-job' ? 'Scheduled job' : page === 'memory' ? 'Memory graph' : 'Chat'}`;
+    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'dashboard' ? 'Dashboard' : page === 'scheduled-job' ? 'Scheduled job' : page === 'context' ? 'Context' : 'Chat'}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
     if (page === 'editor') shell.current?.querySelector('#code-editor-title')?.focus();
@@ -278,7 +278,7 @@ export default function App() {
     else if (page === 'dashboard') shell.current?.querySelector('#dashboard-title')?.focus();
     else if (page === 'socials') shell.current?.querySelector('#socials-title')?.focus();
     else if (page === 'scheduled-job') shell.current?.querySelector('#scheduled-job-title')?.focus();
-    else if (page === 'memory') shell.current?.querySelector('#memory-title')?.focus();
+    else if (page === 'context') shell.current?.querySelector('#context-title')?.focus();
     else if (!mobile) promptInput.current?.focus();
   }, [page]);
   useEffect(() => {
@@ -579,7 +579,7 @@ export default function App() {
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
         <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
         <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" /><span>Socials</span></a>
-        <a class={`feature-heading feature-link memory-link${page === 'memory' ? ' active' : ''}`} id="memory-link" href="#memory" aria-current={page === 'memory' ? 'page' : undefined}><MenuIcon name="memory" /><span>Memory graph</span></a>
+        <a class={`feature-heading feature-link context-link${page === 'context' ? ' active' : ''}`} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" /><span>Context</span></a>
         <div class="sidebar-bottom"><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
         </div>
       </aside>
@@ -594,7 +594,7 @@ export default function App() {
         }} />}
         {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
-        {page === 'memory' && <Memory toast={toast} />}
+        {page === 'context' && <Memory toast={toast} />}
         {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>

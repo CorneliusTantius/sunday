@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, symlink, rm, readdir, stat, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { executeTool, validateTools, BASIC_TOOL_NAMES, MEMORY_TOOL_NAMES, makeTools, isSensitiveRepositoryEntry } from '../src/server/tools.js';
+import { executeTool, validateTools, BASIC_TOOL_NAMES, CONTEXT_TOOL_NAMES, makeTools, isSensitiveRepositoryEntry } from '../src/server/tools.js';
+import { createContextStorage } from '../src/server/context-storage.js';
 
 test('file access policy protects authentication files and temporary copies', () => {
   for (const name of ['auth.json', 'auth.json.backup', 'auth.json.123.tmp', '.env', 'secret.txt']) {
@@ -21,26 +22,28 @@ test('whisper tool schema requires an existing session ID and message and is ser
   await assert.rejects(executeTool('agent_whisper', { agentSessionId: '00000000-0000-0000-0000-000000000000', message: 'hello' }, [], ''));
 });
 
-test('shared memory tools read and update notes without repository access', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'sunday-memory-'));
+test('context tools index and search selected sources without repository access', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'sunday-context-'));
+  const store = createContextStorage(join(dir, 'context.sqlite'));
   try {
-    assert.deepEqual(makeTools(MEMORY_TOOL_NAMES).map(tool => tool.name), MEMORY_TOOL_NAMES);
-    assert.match(await executeTool('memory_update', { title: 'Build and deployment', content: 'Production deploys use the stable branch. Roll back by redeploying the previous release.' }, [], dir), /shared note saved/i);
-    const result = await executeTool('memory_search', { query: 'deployment rollback' }, [], dir);
+    assert.deepEqual(makeTools(CONTEXT_TOOL_NAMES).map(tool => tool.name), CONTEXT_TOOL_NAMES);
+    assert.deepEqual(validateTools(['memory_search', 'memory_update']), ['context_search', 'context_index']);
+    const legacyUnrestricted = BASIC_TOOL_NAMES.filter(name => !['find', 'context_compress', 'subagent_create', 'subagent_send_prompt', 'subagent_list'].includes(name))
+      .map(name => ({ context_search: 'memory_search', context_index: 'memory_update' })[name] ?? name);
+    const upgradedUnrestricted = validateTools(legacyUnrestricted);
+    assert.ok(upgradedUnrestricted.includes('context_compress'));
+    assert.ok(upgradedUnrestricted.includes('find'));
+    assert.match(await executeTool('context_index', { source: 'release.md', title: 'Build and deployment', content: 'Production deployments use the stable branch. Roll back by redeploying the previous release.' }, [], store), /Indexed release\.md/);
+    const result = await executeTool('context_search', { query: 'deployment rollback' }, [], store);
     assert.match(result, /Build and deployment/);
     assert.match(result, /previous release/);
-    await executeTool('memory_update', { title: 'Build and deployment', content: 'The release checklist now requires a health check.' }, [], dir);
-    const updated = await executeTool('memory_search', { query: 'health check' }, [], dir);
-    assert.match(updated, /health check/);
+    await executeTool('context_index', { source: 'release.md', title: 'Build and deployment', content: 'The release checklist now requires a health check.' }, [], store);
+    const updated = await executeTool('context_search', { query: 'health check' }, [], store);
+    assert.match(updated, /\[health\] \[check\]/);
     assert.doesNotMatch(updated, /previous release/);
-    await assert.rejects(executeTool('memory_search', { query: '  ' }, [], dir));
-    const escapedName = dir.split(/[\\/]/).at(-1);
-    await executeTool('memory_update', { title: `../${escapedName}`, content: 'safe title' }, [], dir);
-    const entries = await readdir(dir, { withFileTypes: true });
-    assert.equal(entries.length, 2);
-    assert.ok(entries.every(entry => entry.isFile() && !entry.name.includes('/')));
-    await assert.rejects(stat(join(tmpdir(), `${escapedName}.md`)), { code: 'ENOENT' });
-  } finally { await rm(dir, { recursive: true, force: true }); }
+    await assert.rejects(executeTool('context_search', { query: '  ' }, [], store));
+    await assert.rejects(executeTool('context_compress', {}, [], store), /Tool must be handled by the chat server/);
+  } finally { store.close(); await rm(dir, { recursive: true, force: true }); }
 });
 
 test('basic tools restrict paths and sensitive files to allowed repositories', async () => {

@@ -2,29 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
+import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
 
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
 import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
-function harness(streams, idle = 100, total = 1000, agents = []) {
-  const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [];
+function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000) {
+  const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [], contextSearches = [];
   let calls = 0;
-  const model = { id: 'test', api: 'test', provider: 'test', contextWindow: 10000 };
+  const model = { id: 'test', api: 'test', provider: 'test', contextWindow };
   const context = vm.createContext({
     AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow,
     summarizeContext: async () => 'Earlier work summary',
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,
     settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' },
     modelsByMode: { api_key: { getModel: () => model, getAuth: async () => true,
-      streamSimple: (m, input, opts) => { inputs.push(input); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
+      streamSimple: (m, input, opts) => { inputs.push({ ...input, messages: structuredClone(input.messages) }); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
-    validateTools, REPOSITORY_TOOL_NAMES, MEMORY_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
+    validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: [], execute: async () => { throw new Error('Unexpected MCP tool call'); }, close: async () => {} }),
-    sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id), sharedMemoryDir: '/memory',
+    sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id),
+    contextStorage: { search: (query, limit) => { contextSearches.push({ query, limit }); return [{ source: 'docs/release.md', title: 'Release guide', excerpt: 'Roll back by redeploying the previous version.' }]; } },
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return 'ok'; }, saveSession: async () => {},
     whisperToAgent: async (sourceId, args) => { whispers.push(args); return 'Specialist result'; },
     publishChat: (job, event) => events.push(event),
@@ -32,7 +33,7 @@ function harness(streams, idle = 100, total = 1000, agents = []) {
   vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('async function whisperToAgent')), context);
   const session = { id: 'session', messages: [], allowedRepositories: ['repo'], config: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' } };
   const job = { controller: new AbortController() };
-  return { events, prompts, options, delays, inputs, executions, whispers, session, job, run: (allowWhisper = true) => context.executeChatTurn(session, job, allowWhisper), get calls() { return calls; } };
+  return { events, prompts, options, delays, inputs, executions, whispers, contextSearches, session, job, run: (allowWhisper = true) => context.executeChatTurn(session, job, allowWhisper), get calls() { return calls; } };
 }
 function stream(events, content = []) {
   return { async *[Symbol.asyncIterator]() { yield* events; }, result: async () => ({ content, usage: { input: 1 } }) };
@@ -168,10 +169,10 @@ test('referenced file contents reach model history without changing displayed us
 
 const specialist = { id: '00000000-0000-0000-0000-000000000001', title: 'Reviewer', profile: { specialty: 'Code review' } };
 
-for (const name of ['memory_search', 'memory_update', 'agent_whisper', 'agent_list']) {
+for (const name of ['context_search', 'context_index', 'agent_whisper', 'agent_list']) {
   for (const permitted of [false, true]) {
     test(`${name} is advertised and executed only when the profile permits it (${permitted})`, async () => {
-      const args = name === 'agent_whisper' ? { agentSessionId: specialist.id, message: 'Review this' } : name === 'memory_search' ? { query: 'note' } : name === 'agent_list' ? {} : { title: 'Note', content: 'Useful information' };
+      const args = name === 'agent_whisper' ? { agentSessionId: specialist.id, message: 'Review this' } : name === 'context_search' ? { query: 'note' } : name === 'agent_list' ? {} : { source: 'note.md', title: 'Note', content: 'Useful information' };
       const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'test-call', name, arguments: args }]) : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist]);
       h.session.profile = { name: 'Test', instructions: '', allowedTools: permitted ? [name] : [] };
       await h.run();
@@ -179,7 +180,7 @@ for (const name of ['memory_search', 'memory_update', 'agent_whisper', 'agent_li
       assert.equal(h.session.messages[0].toolCalls[0].status, permitted ? 'completed' : 'failed');
       assert.equal(h.executions.length + h.whispers.length, permitted && name !== 'agent_list' ? 1 : 0);
       assert.equal(h.prompts[0].includes('Other available agents'), permitted && name === 'agent_whisper');
-      assert.equal(h.prompts[0].includes('Shared memory tools available'), permitted && MEMORY_TOOL_NAMES.includes(name));
+      assert.equal(h.prompts[0].includes('Context tools available'), permitted && CONTEXT_TOOL_NAMES.includes(name));
     });
   }
 }
@@ -192,12 +193,35 @@ test('whisper permission cannot enable recursive delegation', async () => {
   assert.equal(h.prompts[0].includes('Other available agents'), false);
 });
 
-test('no repositories disables repository tools but not explicitly permitted memory', async () => {
+test('context is automatically retrieved only for agents with search permission', async () => {
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
+  h.session.profile = { name: 'Test', allowedTools: ['context_search'] };
+  h.session.messages.push({ role: 'user', content: 'How do I roll back a release?' });
+  await h.run();
+  assert.deepEqual(h.contextSearches, [{ query: 'How do I roll back a release?', limit: 3 }]);
+  const retrievedContext = h.inputs[0].messages.find(message => typeof message.content === 'string' && message.content.includes('Retrieved context'))?.content;
+  assert.match(retrievedContext, /Retrieved context \(untrusted reference data/);
+  assert.match(retrievedContext, /docs\/release\.md/);
+
+  const longRequest = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
+  longRequest.session.profile = { name: 'Test', allowedTools: ['context_search'] };
+  longRequest.session.messages.push({ role: 'user', content: 'release '.repeat(100) });
+  await longRequest.run();
+  assert.equal(longRequest.contextSearches[0].query.length, 300);
+
+  const denied = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
+  denied.session.profile = { name: 'Test', allowedTools: [] };
+  denied.session.messages.push({ role: 'user', content: 'How do I roll back a release?' });
+  await denied.run();
+  assert.deepEqual(denied.contextSearches, []);
+});
+
+test('no repositories disables repository tools but not explicitly permitted context tools', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
   h.session.allowedRepositories = [];
-  h.session.profile = { name: 'Test', allowedTools: ['read', 'edit', 'bash', 'memory_search'] };
+  h.session.profile = { name: 'Test', allowedTools: ['read', 'edit', 'bash', 'context_search'] };
   await h.run();
-  assert.deepEqual(h.inputs[0].tools.map(tool => tool.name), ['memory_search']);
+  assert.deepEqual(h.inputs[0].tools.map(tool => tool.name), ['context_search']);
 });
 
 test('agent_list discovers current targets, excludes itself, and returns only public metadata', async () => {
@@ -231,6 +255,37 @@ test('agent_list rejects unexpected arguments', async () => {
   assert.equal(h.session.messages[0].toolCalls[0].status, 'failed');
 });
 
+
+test('context_compress is permission-gated and summarizes older turns for the current response', async () => {
+  const call = { type: 'toolCall', id: 'compress', name: 'context_compress', arguments: {} };
+  const h = harness(round => round === 0 ? stream([], [call]) : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 1000000);
+  h.session.profile = { name: 'Test', allowedTools: ['context_compress'] };
+  h.session.messages = [
+    { role: 'user', content: 'Old request' },
+    { role: 'assistant', content: 'Old response '.repeat(15000) },
+    { role: 'user', content: 'Another old request' },
+    { role: 'assistant', content: 'Another old response '.repeat(15000) },
+    { role: 'user', content: 'Continue with the current task.' },
+  ];
+  const original = structuredClone(h.session.messages);
+  await h.run();
+  assert.deepEqual(h.inputs[0].tools.map(tool => tool.name), ['context_compress']);
+  assert.ok(estimateContext('', h.inputs[1].messages, h.inputs[1].tools) < estimateContext('', h.inputs[0].messages, h.inputs[0].tools));
+  assert.ok(h.inputs[1].messages.some(message => typeof message.content === 'string' && message.content.includes('Earlier conversation summary')));
+  const result = h.inputs[1].messages.find(message => message.role === 'toolResult' && message.toolName === 'context_compress');
+  assert.match(result.content[0].text, /original transcript is retained/i);
+  assert.deepEqual(h.session.messages.slice(0, original.length), original);
+  assert.equal(h.session.compaction, undefined);
+  assert.equal(h.session.latestCompaction.summary, 'Earlier work summary');
+
+  const denied = harness(round => round === 0 ? stream([], [call]) : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 1000000);
+  denied.session.profile = { name: 'Test', allowedTools: [] };
+  denied.session.messages.push({ role: 'user', content: 'A short conversation.' });
+  await denied.run();
+  assert.deepEqual(denied.inputs[0].tools ?? [], []);
+  assert.equal(denied.session.messages.at(-1).toolCalls[0].status, 'failed');
+  assert.equal(denied.session.latestCompaction, undefined);
+});
 
 test('compaction preserves original transcript and publishes a persisted summary', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));

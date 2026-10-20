@@ -11,11 +11,11 @@
 
 - Server startup, HTTP routes, credentials, sessions, chat streaming: `src/server/index.js`; provider/model registries and mode-scoped credential adapters: `src/server/provider-models.js`.
 - JSON persistence: `src/server/storage.js`; focused tests beside the module.
-- Tool definitions, repository access policy, shared memory: `src/server/tools.js`.
+- Tool definitions and repository access policy: `src/server/tools.js`; SQLite context indexing/search: `src/server/context-storage.js`.
 - MCP configuration validation, transports, and tool connections: `src/server/mcp.js`; settings UI: `src/web/components/Settings.jsx`.
 - Prompts, context budgeting, thinking levels, repository status, session names: corresponding named modules in `src/server/`.
 - Frontend composition, navigation, chat streaming: `src/web/App.jsx`.
-- Feature UI: `src/web/components/` (SessionConfig = per-agent settings; Settings = global defaults).
+- Feature UI: `src/web/components/` (SessionConfig = per-agent settings; Settings = global defaults; Memory = Context index UI).
 - HTTP client: `src/web/api.js`; composer parsing: `src/web/composer.js`.
 - Shared and feature styles: `src/web/style.css`.
 - Behavioral and integration tests: `test/`, named by feature.

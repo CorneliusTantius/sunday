@@ -102,7 +102,8 @@ test('file references are restricted to permitted repository text and validated 
   }
   async function stop() { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited; }
   async function api(path, data, method = 'POST') {
-    const response = await fetch(`http://127.0.0.1:${port}${path}`, data === undefined ? {} : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const options = data === undefined ? { method: method === 'POST' ? 'GET' : method } : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, options);
     return { status: response.status, body: await response.json() };
   }
   try {
@@ -111,15 +112,21 @@ test('file references are restricted to permitted repository text and validated 
     assert.equal(settings.body.workspaceDir, join(home, 'sunday', 'workspace'));
     assert.ok((await stat(settings.body.workspaceDir)).isDirectory());
     const memoryDir = join(settings.body.workspaceDir, 'shared-memory');
-    await writeFile(join(memoryDir, 'architecture.md'), '# Architecture\n\nSee [[Deployment]] for rollout details.');
-    await writeFile(join(memoryDir, 'deployment.md'), '# Deployment\n\nRoll back through the previous release.');
-    const graph = await api('/api/memory/graph');
-    assert.equal(graph.status, 200);
-    assert.deepEqual(graph.body.nodes.map(node => node.title).sort(), ['Architecture', 'Deployment']);
-    assert.deepEqual(graph.body.edges, [{ source: 'architecture', target: 'deployment' }]);
-    const architecture = await api('/api/memory/notes/architecture');
-    assert.deepEqual(architecture.body.note, { id: 'architecture', title: 'Architecture', content: 'See [[Deployment]] for rollout details.' });
-    assert.equal((await api('/api/memory/notes/missing')).status, 404);
+    await mkdir(memoryDir, { recursive: true });
+    await writeFile(join(memoryDir, 'architecture.md'), '# Architecture\n\nLegacy Markdown is not imported.');
+    assert.deepEqual((await api('/api/context/sources')).body.sources, []);
+    const indexed = await api('/api/context/sources', { source: 'docs/deployment.md', title: 'Deployment', content: 'Roll back through the previous release.' });
+    assert.equal(indexed.status, 200);
+    assert.equal(indexed.body.result.indexed, true);
+    const sources = await api('/api/context/sources');
+    assert.deepEqual(sources.body.sources.map(item => item.title), ['Deployment']);
+    assert.match((await api('/api/context/search?q=rollback+release')).body.results[0].excerpt, /previous \[release\]/);
+    const sourceId = sources.body.sources[0].id;
+    assert.equal((await api(`/api/context/sources/${sourceId}`)).body.source.content, 'Roll back through the previous release.');
+    assert.equal((await api(`/api/context/sources/${sourceId}`, undefined, 'DELETE')).body.deleted, true);
+    assert.deepEqual((await api('/api/context/sources')).body.sources, []);
+    assert.equal((await api('/api/context/sources', { source: '', title: '', content: '' })).status, 400);
+    assert.equal((await api('/api/context/sources', null)).status, 400);
     const sourceRepo = join(home, 'sunday', 'workspace', 'repos', 'demo-repo');
     await mkdir(sourceRepo, { recursive: true });
     await writeFile(join(sourceRepo, 'readme.txt'), 'source version');
@@ -158,8 +165,10 @@ test('file references are restricted to permitted repository text and validated 
     assert.equal(response.status, 400); // No credentials; user message must still persist.
     const dataDirectory = join(home, 'sunday', 'data');
     const databasePath = join(dataDirectory, 'sessions.sqlite');
+    const contextDatabasePath = join(dataDirectory, 'context.sqlite');
     assert.equal((await stat(dataDirectory)).mode & 0o777, 0o700);
     assert.equal((await stat(databasePath)).mode & 0o777, 0o600);
+    assert.equal((await stat(contextDatabasePath)).mode & 0o777, 0o600);
     assert.equal(readStoredSession(home, id).messages[0].content, 'Remember this message');
     assert.equal((await api('/api/sessions/not-a-valid-id')).status, 400);
     const settingsPath = join(home, 'sunday', 'data', 'settings.json');
@@ -257,7 +266,7 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.equal((await stat(join(home, 'sunday', 'data', 'personas.json'))).mode & 0o777, 0o600);
     const created = await api('/api/personas', { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' }, 'POST');
     assert.equal(created.status, 201);
-    const permitted = ['memory_search', 'memory_update', 'agent_whisper'];
+    const permitted = ['context_search', 'context_index', 'agent_whisper'];
     assert.equal((await api(`/api/personas/${created.body.persona.id}`, { ...created.body.persona, allowedTools: permitted }, 'PATCH')).status, 200);
     const session = await api('/api/sessions', { personaId: created.body.persona.id }, 'POST');
     assert.deepEqual(session.body.session.profile.allowedTools, permitted);

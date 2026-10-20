@@ -6,7 +6,7 @@ const emptyProfile = () => ({ name: '', specialty: '', instructions: '', color: 
 const toolGroups = [
   { name: 'Repository files', tools: ['read', 'find', 'edit'] },
   { name: 'Subagents', tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list'] },
-  { name: 'Shared memory', tools: ['memory_search', 'memory_update'] },
+  { name: 'Context', tools: ['context_search', 'context_index', 'context_compress'] },
   { name: 'Agents', tools: ['agent_list', 'agent_whisper'] },
 ];
 

@@ -283,7 +283,7 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
   for (const names of [
     "tools: ['read', 'find', 'edit']",
     "tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list']",
-    "tools: ['memory_search', 'memory_update']",
+    "tools: ['context_search', 'context_index', 'context_compress']",
     "tools: ['agent_list', 'agent_whisper']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
   assert.match(source, /class="repository-checkbox persona-tool-group"/);
@@ -293,7 +293,7 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
 });
 
 test('persona initial load defaults to the loaded registry, not stale state', async () => {
-  const tools = [{ name: 'memory_search', description: 'Search notes' }, { name: 'agent_whisper', description: 'Delegate' }];
+  const tools = [{ name: 'context_search', description: 'Search indexed context' }, { name: 'agent_whisper', description: 'Delegate' }];
   const h = mount('Personas', { toast() {} }, async () => ({ tools, personas: [{ id: 'default', name: 'Default' }] }));
   await h.settle();
   assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));

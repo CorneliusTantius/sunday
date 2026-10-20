@@ -4,6 +4,13 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { runInNewContext } from 'node:vm';
 
+test('Context route supports the current and legacy hash', () => {
+  const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
+  const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function greeting'));
+  assert.equal(runInNewContext(`${currentPage}\ncurrentPage()`, { location: { hash: '#context' } }), 'context');
+  assert.equal(runInNewContext(`${currentPage}\ncurrentPage()`, { location: { hash: '#memory' } }), 'context');
+});
+
 test('Files route aliases preserve dirty and saving guards', () => {
   const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function greeting'));
