@@ -1,6 +1,6 @@
 import { useRef, useState } from 'preact/hooks';
 
-export default function McpServers({ config, busy, onSave, onLogin, loginBusy }) {
+export default function McpServers({ config, auth = {}, busy, onSave, onLogin, loginBusy }) {
   const dialog = useRef(null);
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState('');
@@ -46,7 +46,8 @@ export default function McpServers({ config, busy, onSave, onLogin, loginBusy })
     <div class="provider-list">
       {Object.entries(servers).map(([name, server]) => <div class="provider-card" key={name}>
         <strong>{name}</strong><span class="provider-status">{server.enabled === false ? 'Disabled' : 'Enabled'} · {server.url ? 'HTTP' : 'stdio'}</span>
-        <div><button class="secondary-button" disabled={busy} onClick={() => open(name)}>Edit</button>{server.url && <button class="secondary-button" disabled={busy || loginBusy || server.enabled === false} onClick={() => onLogin(name)}>Sign in</button>}<button class="text-button" disabled={busy} onClick={() => { if (window.confirm(`Remove MCP server ${name}?`)) { const next = { ...servers }; delete next[name]; onSave({ ...config, mcpServers: next }); } }}>Remove</button></div>
+        {server.url && <span class="provider-status" role="status" title="Stored OAuth credentials; access is checked when connecting.">{auth[name] ? 'Signed in' : 'Not signed in'}</span>}
+        <div><button class="secondary-button" disabled={busy} onClick={() => open(name)}>Edit</button>{server.url && <button class="secondary-button" disabled={busy || loginBusy || server.enabled === false} onClick={() => onLogin(name)}>{auth[name] ? 'Sign in again' : 'Sign in'}</button>}<button class="text-button" disabled={busy} onClick={() => { if (window.confirm(`Remove MCP server ${name}?`)) { const next = { ...servers }; delete next[name]; onSave({ ...config, mcpServers: next }); } }}>Remove</button></div>
       </div>)}
       {!Object.keys(servers).length && <p class="field-note">No MCP servers configured. Add a server to get started.</p>}
     </div>

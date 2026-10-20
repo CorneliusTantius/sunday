@@ -15,7 +15,7 @@ import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { createJsonStorage } from './storage.js';
 import { dispatchToolCalls } from './tool-dispatch.js';
-import { connectMcp, validateMcpConfig, createMcpLogin } from './mcp.js';
+import { connectMcp, validateMcpConfig, createMcpLogin, mcpAuthStatus } from './mcp.js';
 const mcpLogins = new Map();
 function mcpLoginState(id, login) { return { id, status: ['starting', 'waiting'].includes(login.status) ? 'pending' : login.status, url: login.url, error: login.error }; }
 import { providers, credentialId, createModelsByMode } from './provider-models.js';
@@ -801,6 +801,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.headers.host !== `127.0.0.1:${port}` && req.headers.host !== `localhost:${port}` && !isTailnetHost(req.headers.host)) return json(res, 403, { error: 'Invalid host' });
     if (req.headers.origin && !localOrigins.has(req.headers.origin) && !isTailnetOrigin(req.headers.origin)) return json(res, 403, { error: 'Invalid origin' });
+    if (url.pathname === '/api/mcp/auth' && req.method === 'GET') return json(res, 200, await mcpAuthStatus(mcpConfig));
     if (url.pathname === '/api/mcp' && req.method === 'GET') return json(res, 200, mcpConfig);
     if (url.pathname === '/api/mcp' && req.method === 'PUT') { const next = validateMcpConfig(await body(req)); await save('mcp.json', next); await chmod(join(dataDir, 'mcp.json'), 0o600); mcpConfig = next; return json(res, 200, mcpConfig); }
     if (url.pathname === '/api/mcp/login' && req.method === 'POST') {

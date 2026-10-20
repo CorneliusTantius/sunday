@@ -1,7 +1,21 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
+  getAgentDir,
   createAgentSession, createCodemodeExtension, createMcpExtension,
   createToolSearchExtension, DefaultResourceLoader, SessionManager, SettingsManager,
 } from '@earendil-works/pi-coding-agent';
+
+export async function mcpAuthStatus(config, agentDir = getAgentDir()) {
+  let states;
+  try { states = JSON.parse(await readFile(join(agentDir, 'mcp-auth.json'), 'utf8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; states = {}; }
+  return Object.fromEntries(Object.entries(config.mcpServers).filter(([, server]) => server.url).map(([name, server]) => {
+    const url = String(new URL(server.url));
+    const tokens = (states[`mcp__${name.replace(/-/g, '_')}|${url}`] ?? states[url])?.tokens;
+    return [name, Boolean(tokens?.access_token)];
+  }));
+}
 
 export function validateMcpConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config) || !config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) throw new Error('Invalid MCP config');

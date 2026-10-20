@@ -43,6 +43,15 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpSaving, setMcpSaving] = useState(false);
   const [mcpLogin, setMcpLogin] = useState(null);
+  const [mcpAuth, setMcpAuth] = useState({});
+  useEffect(() => {
+    if (page !== 'mcp') return;
+    let active = true;
+    setMcpAuth({});
+    request('/api/mcp/auth').then(data => { if (active) setMcpAuth(data); })
+      .catch(error => { if (active) setError(error.message); });
+    return () => { active = false; };
+  }, [page, mcpConfig, mcpLogin?.status]);
   const [mcpRedirect, setMcpRedirect] = useState('');
   const [mcpLoginBusy, setMcpLoginBusy] = useState(false);
   const backdrop = useRef(null);
@@ -425,7 +434,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <button class="primary-button" disabled={saving} onClick={async () => { setSaving(true); setError(''); try { await jsonRequest('/api/settings/subagents', 'PUT', subagents); await onReload?.(); toast('Subagent settings saved'); } catch (error) { setError(error.message); } finally { setSaving(false); } }}>Save subagent settings</button>
           </section>
           <section inert={page !== 'mcp'} id="settings-mcp-page" class={`settings-section${page === 'mcp' ? '' : ' hidden'}`}>
-            {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
+            {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} auth={mcpAuth} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
             {mcpLogin && <div class="mcp-login" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="field-label" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="text-input" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="secondary-button" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="text-button" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
           </section>
           <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
