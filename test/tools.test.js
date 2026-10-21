@@ -45,10 +45,12 @@ test('context tools index and search selected sources without repository access'
     assert.doesNotMatch(updated, /previous release/);
     await executeTool('context_index', { source: 'architecture.md', title: 'Architecture', content: 'Services communicate through events.' }, [], store);
     assert.deepEqual(JSON.parse(await executeTool('context_link', { source: 'release.md', target: 'architecture.md', relation: 'documents' }, [], store)), { source: 'release.md', target: 'architecture.md', relation: 'documents' });
-    assert.deepEqual(JSON.parse(await executeTool('context_links', { source: 'release.md' }, [], store)), {
+    const graphLinks = JSON.parse(await executeTool('context_links', { source: 'release.md' }, [], store));
+    assert.deepEqual(graphLinks, {
       nodes: [{ source: 'architecture.md', title: 'Architecture' }],
       links: [{ source: 'release.md', target: 'architecture.md', relation: 'documents' }],
     });
+    assert.match(await executeTool('context_search', { query: graphLinks.nodes[0].title }, [], store), /Architecture/);
     assert.deepEqual(JSON.parse(await executeTool('context_unlink', { source: 'release.md', target: 'architecture.md' }, [], store)), { source: 'release.md', target: 'architecture.md', deleted: true });
     await assert.rejects(executeTool('context_search', { query: '  ' }, [], store));
     await assert.rejects(executeTool('context_compress', {}, [], store), /Tool must be handled by the chat server/);

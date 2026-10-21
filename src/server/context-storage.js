@@ -4,8 +4,9 @@ import { createHash } from 'node:crypto';
 const MAX_SOURCE_LENGTH = 300;
 const MAX_TITLE_LENGTH = 120;
 const MAX_CONTENT_LENGTH = 1_000_000;
-const MAX_CHUNK_LENGTH = 3000;
+const MAX_CHUNK_LENGTH = 5000;
 const CHUNK_OVERLAP = 250;
+const CHUNK_VERSION = '5000-250-v1';
 const hash = value => createHash('sha256').update(value).digest('hex');
 
 function splitChunks(content) {
@@ -61,6 +62,10 @@ export function createContextStorage(path) {
       CHECK(source_id != target_id)
     );
     CREATE INDEX IF NOT EXISTS context_links_target_idx ON context_links(target_id);
+    CREATE TABLE IF NOT EXISTS context_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
     CREATE VIRTUAL TABLE IF NOT EXISTS context_search USING fts5(
       title, content, tokenize = 'porter unicode61'
     );
@@ -80,6 +85,26 @@ export function createContextStorage(path) {
   const updateSearch = database.prepare('UPDATE context_search SET title = ?, content = ? WHERE rowid = ?');
   const deleteSearch = database.prepare('DELETE FROM context_search WHERE rowid = ?');
   const deleteChunk = database.prepare('DELETE FROM context_chunks WHERE id = ?');
+  const chunkVersion = database.prepare('SELECT value FROM context_metadata WHERE key = ?');
+  if (chunkVersion.get('chunk_version')?.value !== CHUNK_VERSION) {
+    const sources = database.prepare('SELECT id, title, content FROM context_sources').all();
+    database.exec('BEGIN IMMEDIATE');
+    try {
+      database.exec('DELETE FROM context_search; DELETE FROM context_chunks;');
+      for (const source of sources) {
+        for (const [position, chunk] of splitChunks(source.content).entries()) {
+          const result = insertChunk.run(source.id, position, chunk.content, chunk.hash);
+          insertSearch.run(result.lastInsertRowid, source.title, chunk.content);
+        }
+      }
+      database.prepare(`INSERT INTO context_metadata (key, value) VALUES ('chunk_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(CHUNK_VERSION);
+      database.exec('COMMIT');
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
+  }
 
   function index(source, title, rawContent) {
     if (typeof source !== 'string' || !source.trim() || source.trim().length > MAX_SOURCE_LENGTH ||

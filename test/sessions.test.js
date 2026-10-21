@@ -245,10 +245,9 @@ test('file references are restricted to permitted repository text and validated 
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     const other = await api('/api/sessions', {});
     assert.ok(!titles.includes(other.body.session.title));
-    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: `- Answer directly with structure and detail suited to the user’s goal.
-- Be accurate; distinguish facts from assumptions and state uncertainty.
-- Ask clarifying questions only when needed.
-- Carry tasks through to a useful result and include important next steps.
+    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: `- Own the user’s goal from clarification through a verified outcome; keep scope and success criteria explicit.
+- Delegate substantial independent work as bounded concurrent tasks when useful; keep dependent work ordered and small tasks direct.
+- Track children, synthesize their evidence, verify the result against the goal, and surface blockers or uncertainty.
 - Explain technical topics clearly, at a level a junior engineer can understand.` });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);
@@ -306,6 +305,36 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.equal((await api(`/api/personas/${created.body.persona.id}`)).status, 404);
     assert.equal((await api(`/api/personas/${created.body.persona.id}`, undefined, 'DELETE')).body.deleted, true);
     assert.equal((await api('/api/sessions', { personaId: 'missing' }, 'POST')).status, 400);
+  } finally {
+    const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited;
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test('startup migrates only untouched built-in persona instructions and preserves custom edits', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'sunday-persona-instructions-'));
+  const dataDir = join(home, 'sunday', 'data');
+  const personasPath = join(dataDir, 'personas.json');
+  const port = 32000 + Math.floor(Math.random() * 20000);
+  const previousSunday = `- Answer directly with structure and detail suited to the user’s goal.\n- Be accurate; distinguish facts from assumptions and state uncertainty.\n- Ask clarifying questions only when needed.\n- Carry tasks through to a useful result and include important next steps.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
+  const previousCoder = `- Inspect relevant files and follow existing conventions before changing code.\n- Make the smallest correct change that fixes the root cause.\n- Consider validation, security, and edge cases.\n- Run appropriate tests when possible.\n- Explain key trade-offs, report checks not run, and state uncertainty rather than inventing behavior.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(personasPath, JSON.stringify([
+    { id: 'sunday', name: 'Sunday', specialty: 'General assistance', instructions: previousSunday },
+    { id: 'coding-agent', name: 'Coding Agent', specialty: 'Software development', instructions: previousCoder },
+    { id: 'custom-sunday', name: 'Sunday', specialty: 'Custom', instructions: 'Keep my customized instructions.' },
+    { id: 'custom-coder', name: 'Coding Agent', specialty: 'Custom', instructions: 'Keep my other customized instructions.' },
+    { id: 'customized-builtin', name: 'Custom Sunday', specialty: 'General assistance', instructions: 'User-edited built-in instructions.' },
+  ]));
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  try {
+    await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
+    const saved = JSON.parse(await readFile(personasPath, 'utf8'));
+    assert.ok(saved.find(persona => persona.id === 'sunday').instructions.includes('Own the user’s goal'));
+    assert.ok(saved.find(persona => persona.id === 'coding-agent').instructions.includes('trace the root cause'));
+    assert.equal(saved.find(persona => persona.id === 'custom-sunday').instructions, 'Keep my customized instructions.');
+    assert.equal(saved.find(persona => persona.id === 'custom-coder').instructions, 'Keep my other customized instructions.');
+    assert.equal(saved.find(persona => persona.id === 'customized-builtin').instructions, 'User-edited built-in instructions.');
   } finally {
     const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited;
     await rm(home, { recursive: true, force: true });

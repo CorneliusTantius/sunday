@@ -3,13 +3,23 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createContextStorage } from '../src/server/context-storage.js';
 
 async function withStore(run) {
   const dir = await mkdtemp(join(tmpdir(), 'sunday-context-'));
-  const store = createContextStorage(join(dir, 'context.sqlite'));
-  try { await run(store); }
+  const path = join(dir, 'context.sqlite');
+  const store = createContextStorage(path);
+  try { await run(store, path); }
   finally { store.close(); await rm(dir, { recursive: true, force: true }); }
+}
+
+function storedChunks(path, source) {
+  const database = new DatabaseSync(path);
+  try {
+    return database.prepare(`SELECT c.content FROM context_chunks c
+      JOIN context_sources s ON s.id = c.source_id WHERE s.source = ? ORDER BY c.position`).all(source).map(row => row.content);
+  } finally { database.close(); }
 }
 
 test('context sources are chunked, searchable with stemming, and re-indexed incrementally', async () => withStore(store => {
@@ -17,7 +27,8 @@ test('context sources are chunked, searchable with stemming, and re-indexed incr
   const first = store.index('deploy/release.md', 'Release guide', content);
   assert.equal(first.indexed, true);
   assert.ok(first.added > 1);
-  assert.deepEqual(store.search('deployment', 3).map(result => result.source), Array(3).fill('deploy/release.md'));
+  assert.ok(store.search('deployment', 3).length > 0);
+  assert.ok(store.search('deployment', 3).every(result => result.source === 'deploy/release.md'));
   assert.equal(store.search('rollback')[0].scope, 'shared');
 
   const unchanged = store.index('deploy/release.md', 'Release guide', content);
@@ -31,6 +42,64 @@ test('context sources are chunked, searchable with stemming, and re-indexed incr
   assert.ok(store.search('redeploying previous').length > 0);
   assert.equal(store.getSource(store.listSources()[0].id).content, changedContent);
 }));
+
+test('context chunks target 5,000 characters and retain overlap', async () => withStore((store, path) => {
+  const content = 'stable release rollback checklist '.repeat(500);
+  store.index('docs/large.md', 'Large guide', content);
+  const chunks = storedChunks(path, 'docs/large.md');
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every(chunk => chunk.length <= 5000));
+  assert.ok(chunks.reduce((total, chunk) => total + chunk.length, 0) > content.trim().length);
+}));
+
+test('legacy context chunks are rebuilt on open without losing source data or graph links', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'sunday-context-migration-'));
+  const path = join(dir, 'context.sqlite');
+  const content = 'legacy migration anchor release checklist '.repeat(500);
+  const initial = createContextStorage(path);
+  initial.index('docs/large.md', 'Large guide', content);
+  initial.index('docs/related.md', 'Related guide', 'Related release architecture details.');
+  initial.linkSources('docs/large.md', 'docs/related.md', 'documents');
+  const sourceId = initial.listSources().find(source => source.source === 'docs/large.md').id;
+  initial.close();
+
+  const database = new DatabaseSync(path);
+  let legacyCount;
+  try {
+    const oldChunks = database.prepare('SELECT id FROM context_chunks WHERE source_id = ?').all(sourceId);
+    for (const chunk of oldChunks) database.prepare('DELETE FROM context_search WHERE rowid = ?').run(chunk.id);
+    database.prepare('DELETE FROM context_chunks WHERE source_id = ?').run(sourceId);
+    const insertChunk = database.prepare('INSERT INTO context_chunks (source_id, position, content, content_hash) VALUES (?, ?, ?, ?)');
+    const insertSearch = database.prepare('INSERT INTO context_search (rowid, title, content) VALUES (?, ?, ?)');
+    let start = 0, position = 0;
+    while (start < content.length) {
+      let end = Math.min(start + 3000, content.length);
+      if (end < content.length) {
+        const boundary = Math.max(content.lastIndexOf('\\n', end), content.lastIndexOf(' ', end));
+        if (boundary > start + 1950) end = boundary;
+      }
+      const chunk = content.slice(start, end).trim();
+      if (chunk) {
+        const row = insertChunk.run(sourceId, position++, chunk, 'legacy');
+        insertSearch.run(row.lastInsertRowid, 'Large guide', chunk);
+      }
+      start = end >= content.length ? content.length : Math.max(start + 1, end - 250);
+    }
+    legacyCount = position;
+    database.prepare("UPDATE context_metadata SET value = '3000-250-v1' WHERE key = 'chunk_version'").run();
+  } finally { database.close(); }
+
+  const migrated = createContextStorage(path);
+  try {
+    const chunks = storedChunks(path, 'docs/large.md');
+    assert.ok(chunks.length < legacyCount);
+    assert.ok(chunks.every(chunk => chunk.length <= 5000));
+    assert.equal(migrated.getSource(sourceId).content, content.trim());
+    assert.ok(migrated.search('legacy migration anchor').length > 0);
+    assert.deepEqual(migrated.links('docs/large.md').nodes, [{ source: 'docs/related.md', title: 'Related guide' }]);
+    assert.equal(migrated.index('docs/large.md', 'Large guide', content).chunks, chunks.length);
+  } finally { migrated.close(); await rm(dir, { recursive: true, force: true }); }
+});
 
 test('context links are directed, upsert relations, validate sources, and cascade on deletion', async () => withStore(store => {
   store.index('notes/a.md', 'A', 'Note A');

@@ -6,16 +6,16 @@ test('delegations overlap, join before other tools, and preserve result order', 
   const events = [];
   let release;
   const gate = new Promise(resolve => { release = resolve; });
-  const calls = ['read', 'subagent_create', 'subagent_send_prompt', 'edit'].map((name, id) => ({ name, id }));
+  const calls = ['read', 'subagent_create', 'context_search', 'subagent_send_prompt', 'edit'].map((name, id) => ({ name, id }));
   const results = await dispatchToolCalls(calls, async ({ id }) => {
     events.push(`start:${id}`);
     if (id === 1) await gate;
-    if (id === 2) release();
+    if (id === 3) release();
     events.push(`end:${id}`);
     return id;
   });
-  assert.deepEqual(results, [0, 1, 2, 3]);
-  assert.deepEqual(events, ['start:0', 'end:0', 'start:1', 'start:2', 'end:2', 'end:1', 'start:3', 'end:3']);
+  assert.deepEqual(results, [0, 1, 2, 3, 4]);
+  assert.deepEqual(events, ['start:0', 'end:0', 'start:1', 'start:3', 'end:3', 'end:1', 'start:2', 'end:2', 'start:4', 'end:4']);
 });
 
 test('failed batches wait for all children and do not start later tools', async () => {

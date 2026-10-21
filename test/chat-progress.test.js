@@ -10,7 +10,7 @@ import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
 import { TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT } from '../src/server/tool-output-storage.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
-function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000, { mcpTools = [], nativeOutput = 'ok', mcpOutput = 'MCP result', outputStorageError = null } = {}) {
+function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000, { mcpTools = [], nativeOutput = 'ok', mcpOutput = 'MCP result', outputStorageError = null, contextOverrides = {} } = {}) {
   const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [], contextSearches = [], outputs = [];
   let calls = 0;
   const outputStorage = {
@@ -48,6 +48,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return nativeOutput; }, saveSession: async () => {},
     whisperToAgent: async (sourceId, args) => { whispers.push(args); return 'Specialist result'; },
     publishChat: (job, event) => events.push(event),
+    ...contextOverrides,
   });
   vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('async function whisperToAgent')), context);
   const session = { id: 'session', messages: [], allowedRepositories: ['repo'], config: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' } };
@@ -156,6 +157,81 @@ test('chat completes tasks requiring more than three tool rounds', async () => {
   const h = harness(round => round < 5 ? stream([], [{ type: 'toolCall', id: `call-${round}`, name: 'bash', arguments: { command: 'pwd' } }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
   assert.equal(await h.run(), 'Done');
   assert.equal(h.calls, 6);
+});
+
+test('independent subagent assignments overlap end-to-end and duplicate prompts respect busy locks', async () => {
+  const sessions = new Map(), sessionLocks = new Map();
+  let queue = Promise.resolve(), activeChildren = 0, maximumActiveChildren = 0, releaseChildren;
+  const childrenMayFinish = new Promise(resolve => { releaseChildren = resolve; });
+  const fallback = setTimeout(releaseChildren, 250);
+  const existingChildId = '00000000-0000-4000-8000-999999999999';
+  const assignments = [
+    { type: 'toolCall', id: 'delegate-a', name: 'subagent_create', arguments: { prompt: 'Inspect alpha independently.' } },
+    { type: 'toolCall', id: 'delegate-b', name: 'subagent_create', arguments: { prompt: 'Inspect beta independently.' } },
+    { type: 'toolCall', id: 'delegate-c', name: 'subagent_send_prompt', arguments: { sessionId: existingChildId, prompt: 'Inspect gamma independently.' } },
+    { type: 'toolCall', id: 'delegate-d', name: 'subagent_send_prompt', arguments: { sessionId: existingChildId, prompt: 'Duplicate gamma assignment.' } },
+  ];
+  const childStream = () => ({
+    async *[Symbol.asyncIterator]() {
+      activeChildren++;
+      maximumActiveChildren = Math.max(maximumActiveChildren, activeChildren);
+      if (activeChildren === 3) { clearTimeout(fallback); releaseChildren(); }
+      await childrenMayFinish;
+      activeChildren--;
+      yield { type: 'text_delta', delta: 'Child work complete.' };
+    },
+    result: async () => ({ content: [{ type: 'text', text: 'Child work complete.' }], usage: { input: 1 } }),
+  });
+  const h = harness(round => round === 0 ? stream([], assignments) : round < 4 ? childStream() : stream([{ type: 'text_delta', delta: 'All work complete.' }]), 1000, 5000, [], 10000, {
+    contextOverrides: {
+      structuredClone,
+      validSessionId: id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id),
+      activeChats: new Map(),
+      sessionLocks,
+      withSessionLock: (id, fn) => {
+        const previous = sessionLocks.get(id) || Promise.resolve();
+        const current = previous.catch(() => {}).then(fn);
+        sessionLocks.set(id, current);
+        return current.finally(() => { if (sessionLocks.get(id) === current) sessionLocks.delete(id); });
+      },
+      settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off', subagents: { enabled: true, maxChildren: 3 } },
+      sessionStorage: {
+        listIds: parentId => [...sessions.values()].filter(session => session.parentSessionId === parentId).map(session => session.id),
+        save: session => sessions.set(session.id, session),
+      },
+      readSession: async id => sessions.get(id) || null,
+      persistSession: session => sessions.set(session.id, session),
+      saveSession: async session => sessions.set(session.id, session),
+      syncAgentWorkspace: async session => `/workspace/${session.id}`,
+      serialize: fn => { const next = queue.then(fn); queue = next.catch(() => {}); return next; },
+      personas: [],
+      BIRD_NAMES: ['Wren', 'Robin', 'Finch'],
+      uniqueSessionName: (used, names) => names.find(name => !used.includes(name)) || `Agent ${used.length + 1}`,
+      clampThinkingLevel: (_model, level) => level,
+      randomUUID: (() => { let id = 0; return () => `00000000-0000-4000-8000-${String(++id).padStart(12, '0')}`; })(),
+    },
+  });
+  h.session.profile = { name: 'Sunday', specialty: 'Chief', instructions: 'Delegate independent work.', allowedTools: ['subagent_create', 'subagent_send_prompt'] };
+  h.session.allowedRepositories = [];
+  h.session.messages.push({ role: 'user', content: 'Investigate independent areas.' });
+  sessions.set(h.session.id, h.session);
+  sessions.set(existingChildId, {
+    id: existingChildId, parentSessionId: h.session.id, title: 'Existing child', titleEdited: true, createdAt: 1, updatedAt: 1,
+    messages: [], profile: structuredClone(h.session.profile), config: structuredClone(h.session.config), allowedRepositories: [],
+  });
+
+  try {
+    assert.equal(await h.run(), 'All work complete.');
+  } finally {
+    clearTimeout(fallback);
+    releaseChildren();
+  }
+  assert.equal(maximumActiveChildren, 3);
+  assert.deepEqual([...sessions.values()].filter(session => session.parentSessionId === h.session.id).map(session => session.messages.find(message => message.role === 'user')?.content).sort(), [
+    'Inspect alpha independently.', 'Inspect beta independently.', 'Inspect gamma independently.',
+  ].sort());
+  const parentCalls = h.session.messages.findLast(message => message.role === 'assistant' && message.toolCalls)?.toolCalls;
+  assert.ok(parentCalls.some(call => call.name === 'subagent_send_prompt' && call.status === 'failed' && call.result.includes('Subagent is busy')));
 });
 
 test('idle provider that ignores abort cannot keep chat pending', async () => {
@@ -320,13 +396,17 @@ test('whisper permission cannot enable recursive delegation', async () => {
 
 test('context is automatically retrieved only for agents with search permission', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
-  h.session.profile = { name: 'Test', allowedTools: ['context_search'] };
+  h.session.profile = { name: 'Test', allowedTools: ['context_search', 'context_index', 'context_links', 'context_link'] };
   h.session.messages.push({ role: 'user', content: 'How do I roll back a release?' });
   await h.run();
   assert.deepEqual(h.contextSearches, [{ query: 'How do I roll back a release?', limit: 3 }]);
   const retrievedContext = h.inputs[0].messages.find(message => typeof message.content === 'string' && message.content.includes('Retrieved context'))?.content;
   assert.match(retrievedContext, /Retrieved context \(untrusted reference data/);
   assert.match(retrievedContext, /docs\/release\.md/);
+  assert.match(h.prompts[0], /inspect context_links and follow useful connections by searching linked notes/);
+  assert.match(h.prompts[0], /save or update it with context_index/);
+  assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_links'));
+  assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_link'));
 
   const longRequest = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
   longRequest.session.profile = { name: 'Test', allowedTools: ['context_search'] };

@@ -38,15 +38,23 @@ test('delegation prioritizes small concurrent assignments on every round', () =>
   assert.ok(prompt.includes('Calls wait for the whole batch'));
 });
 
-test('Coding Agent system prompt includes the minimalist developer instruction', () => {
-  const instruction = 'Act as an aggressive minimalist developer: use existing code, native platform capabilities, or a single-line expression to deliver the absolute bare minimum, production-ready code with zero commentary.';
-  for (const profile of [
-    { name: 'Coding Agent', specialty: 'Software development', instructions: 'Run tests.' },
-    { name: 'Renamed Coder', personaId: 'coding-agent', specialty: 'Software development', instructions: 'Run tests.' },
-  ]) {
-    assert.ok(buildSystemPrompt(profile).includes(instruction));
-  }
-  assert.ok(!buildSystemPrompt({ name: 'Other', instructions: '' }).includes(instruction));
+test('Coding Agent system prompt requires scoped root-cause changes and verified reporting', () => {
+  const profile = { name: 'Renamed Coder', personaId: 'coding-agent', specialty: 'Software development', instructions: 'Preserve our team-specific workflow.' };
+  const prompt = buildSystemPrompt(profile);
+  assert.ok(prompt.includes('trace the root cause and make the smallest complete change that follows existing patterns'));
+  assert.ok(prompt.includes('Preserve our team-specific workflow.'));
+  assert.ok(prompt.includes('report only verified results, including checks not run or blockers'));
+  assert.ok(!buildSystemPrompt({ name: 'Coding Agent', instructions: 'Custom persona.' }).includes('Coding Agent instructions:'));
+  assert.ok(!buildSystemPrompt({ name: 'Coding Agent', personaId: 'custom-coder', instructions: 'Custom persona.' }).includes('Coding Agent instructions:'));
+});
+
+test('Sunday system prompt owns outcomes and coordinates bounded parallel work', () => {
+  const prompt = buildSystemPrompt({ name: 'Sunday', personaId: 'sunday', instructions: 'Use my customized voice.' });
+  assert.ok(prompt.includes('Own the user’s objective from clarification through a verified outcome'));
+  assert.ok(prompt.includes('delegate substantial independent work as bounded concurrent tasks'));
+  assert.ok(prompt.includes('synthesize their evidence, and verify the result against the user’s goal'));
+  assert.ok(prompt.includes('Use my customized voice.'));
+  assert.ok(!buildSystemPrompt({ name: 'Sunday', personaId: 'my-custom-persona', instructions: '' }).includes('Sunday chief instructions:'));
 });
 
 test('repository prompts prioritize independent read batches without requiring concurrency', () => {
@@ -57,11 +65,18 @@ test('repository prompts prioritize independent read batches without requiring c
   assert.ok(!buildSystemPrompt({ name: 'Agent' }).includes(instruction));
 });
 
-test('context link instructions appear only for enabled link tools', () => {
-  const prompt = buildSystemPrompt({ name: 'Agent' }, { contextTools: ['context_links', 'context_link', 'context_unlink'] });
-  assert.ok(prompt.includes('Use context_links to inspect incoming and outgoing links for an indexed note.'));
-  assert.ok(prompt.includes('Use context_link to create or update meaningful directed links between indexed notes.'));
+test('agents actively search memory, follow useful graph links, and save durable discoveries', () => {
+  const prompt = buildSystemPrompt({ name: 'Agent' }, {
+    contextTools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink'],
+  });
+  assert.ok(prompt.includes('At the start of a task that may benefit from prior knowledge, search context'));
+  assert.ok(prompt.includes('inspect context_links and follow useful connections by searching linked notes'));
+  assert.ok(prompt.includes('save or update it with context_index'));
+  assert.ok(prompt.includes('Do not save transient status, unverified speculation, secrets, or sensitive personal data.'));
+  assert.ok(prompt.includes('Use context_links to inspect incoming and outgoing links for a relevant indexed note.'));
+  assert.ok(prompt.includes('Use context_link to connect a newly indexed or updated note to relevant existing notes.'));
   assert.ok(prompt.includes('Use context_unlink to remove a directed link between indexed notes.'));
+  assert.equal(prompt.match(/Use context_unlink to remove a directed link/g)?.length, 1);
   assert.ok(!buildSystemPrompt({ name: 'Agent' }, { contextTools: ['context_search'] }).includes('Use context_link'));
 });
 
