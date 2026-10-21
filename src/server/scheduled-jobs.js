@@ -31,7 +31,7 @@ function validateSchedule(schedule) {
   return value;
 }
 
-export function validateScheduledJob(input, { personas, repositories, existing, now = Date.now() }) {
+export function validateScheduledJob(input, { personas, repositories, models = [], defaultModel, existing, now = Date.now() }) {
   if (!isObject(input)) throw new Error('Invalid scheduled job');
   const name = input.name;
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) throw new Error('Job name must be 1–120 characters');
@@ -41,6 +41,23 @@ export function validateScheduledJob(input, { personas, repositories, existing, 
   const allowedRepositories = [...new Set(input.allowedRepositories)];
   if (allowedRepositories.some(name => !repositories.has(name))) throw new Error('Repository not found');
   if (input.enabled !== undefined && typeof input.enabled !== 'boolean') throw new Error('Invalid enabled state');
+  const model = Object.hasOwn(input, 'model') ? input.model : existing?.model ?? null;
+  const provider = Object.hasOwn(input, 'provider') ? input.provider : existing?.provider ?? null;
+  const mode = Object.hasOwn(input, 'mode') ? input.mode : existing?.mode ?? null;
+  const thinkingLevel = Object.hasOwn(input, 'thinkingLevel') ? input.thinkingLevel : existing?.thinkingLevel ?? null;
+  if (model === '') throw new Error('Invalid model');
+  if (provider === '') throw new Error('Invalid provider');
+  if (mode === '') throw new Error('Invalid authorization mode');
+  if (model !== null && (typeof model !== 'string' || !models.some(item => item.id === model && item.provider === provider && item.mode === mode))) throw new Error('Invalid model or provider not connected');
+  if (model === null && (provider !== null || mode !== null)) throw new Error('Provider and mode require a model');
+  if (model !== null && (typeof provider !== 'string' || !['api_key', 'oauth'].includes(mode))) throw new Error('Invalid model selection');
+  if (thinkingLevel !== null && (typeof thinkingLevel !== 'string' || !['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(thinkingLevel))) throw new Error('Invalid thinking level');
+  if (thinkingLevel) {
+    const effectiveModel = model
+      ? models.find(item => item.id === model && item.provider === provider && item.mode === mode)
+      : models.find(item => item.id === defaultModel?.id && item.provider === defaultModel?.provider && item.mode === defaultModel?.mode);
+    if (!effectiveModel?.thinkingLevels.includes(thinkingLevel)) throw new Error('Unsupported thinking level for this model');
+  }
 
   return {
     id: existing?.id ?? input.id,
@@ -49,6 +66,8 @@ export function validateScheduledJob(input, { personas, repositories, existing, 
     task: input.task.trim(),
     allowedRepositories,
     schedule: validateSchedule(input.schedule),
+    ...(model ? { model, provider, mode } : {}),
+    ...(thinkingLevel ? { thinkingLevel } : {}),
     enabled: input.enabled ?? existing?.enabled ?? true,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

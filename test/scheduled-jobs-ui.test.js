@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { build } from 'vite';
 import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 
 let bundle;
 before(async () => {
@@ -29,6 +30,8 @@ async function mount(t) {
   t.after(() => dom.window.close());
   const { window } = dom;
   window.confirm = () => true;
+  window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  window.HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new window.Event('close')); };
   const personas = [{ id: 'persona-a', name: 'Code reviewer' }];
   const repos = [{ name: 'repo-a' }, { name: 'repo-b' }];
   const jobs = [];
@@ -42,11 +45,16 @@ async function mount(t) {
     if (url === '/api/scheduled-jobs' && method === 'GET') return response({ jobs: [...jobs] });
     if (url === '/api/personas') return response({ personas });
     if (url === '/api/repos') return response({ repos });
+    if (url === '/api/settings') return response({ model: 'model-a', thinkingLevel: 'off', selectedProvider: 'openai', selectedMode: 'api_key', connectedModels: [
+      { id: 'model-a', name: 'Model A', provider: 'openai', providerName: 'OpenAI', mode: 'api_key', thinkingLevels: ['off', 'high'] },
+      { id: 'model-b', name: 'Model B', provider: 'anthropic', providerName: 'Anthropic', mode: 'api_key', thinkingLevels: ['off', 'high'] },
+    ] });
+    if (url === '/api/sessions/session-run') return response({ session: { messages: [{ role: 'user', content: 'Review it' }, { role: 'assistant', content: 'Reviewed.' }] } });
     if (url === '/api/scheduled-jobs' && method === 'POST') {
       const job = { ...body, id: `job-${jobs.length + 1}`, enabled: true, createdAt: 1000, updatedAt: 1000 };
       jobs.unshift(job);
       histories[job.id] = [
-        { id: 'run-ok', status: 'completed', scheduledFor: 1700000000000, result: 'Review completed successfully.', error: null },
+        { id: 'run-ok', status: 'completed', scheduledFor: 1700000000000, sessionId: 'session-run', result: 'Review completed successfully.', error: null },
         { id: 'run-error', status: 'failed', scheduledFor: 1690000000000, result: null, error: 'Provider is not connected.' },
       ];
       return response({ job }, 201);
@@ -84,11 +92,17 @@ async function mount(t) {
 }
 
 test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays run history', async t => {
+  const css = await readFile(new URL('../src/web/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.scheduled-jobs-page\s*\{[^}]*scrollbar-width:\s*none/s);
+  assert.match(css, /\.scheduled-jobs-page::-webkit-scrollbar\s*\{\s*display:\s*none;/);
+  assert.match(css, /\.scheduled-jobs-page\s*\{[^}]*width:\s*min\(1280px,/s);
   const h = await mount(t);
   const { window, $, click, setValue, calls, jobs } = h;
 
   await setValue($('#scheduled-job-name'), 'Weekly repository review');
   await setValue($('#scheduled-job-agent'), 'persona-a', 'change');
+  await setValue($('#scheduled-job-model'), 'api_key:anthropic:model-b', 'change');
+  await setValue($('#scheduled-job-thinking'), 'high', 'change');
   await setValue($('#scheduled-job-task'), 'Review changes in the selected repository.');
   await setValue($('#scheduled-job-frequency'), 'weekly', 'change');
   await waitFor(() => assert.ok($('#scheduled-job-day')));
@@ -103,6 +117,7 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
   assert.deepEqual(calls.find(call => call.method === 'POST').body, {
     name: 'Weekly repository review', personaId: 'persona-a', task: 'Review changes in the selected repository.',
     allowedRepositories: ['repo-a'], schedule: { type: 'weekly', timezone: 'America/New_York', time: '08:15', weekday: 5 },
+    model: 'model-b', provider: 'anthropic', mode: 'api_key', thinkingLevel: 'high',
   });
 
   await waitFor(() => assert.ok($('.scheduled-job-card')));
@@ -112,9 +127,16 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
   assert.match(card.textContent, /completed/);
   assert.match(card.textContent, /Provider is not connected\./);
   assert.match(card.textContent, /failed/);
+  click([...card.querySelectorAll('.scheduled-job-run-open')].find(button => !button.disabled));
+  await waitFor(() => assert.equal($('.scheduled-job-transcript-dialog').open, true));
+  await waitFor(() => assert.match($('.scheduled-job-transcript-content').textContent, /Reviewed\./));
+  click($('.scheduled-job-transcript-dialog [aria-label="Close transcript"]'));
+  await waitFor(() => assert.equal($('.scheduled-job-transcript-dialog').open, false));
 
   click([...card.querySelectorAll('button')].find(button => button.textContent === 'Edit'));
   await waitFor(() => assert.equal($('#scheduled-job-name').value, 'Weekly repository review'));
+  assert.equal($('#scheduled-job-model').value, 'api_key:anthropic:model-b');
+  assert.equal($('#scheduled-job-thinking').value, 'high');
   await setValue($('#scheduled-job-name'), 'Monthly repository review');
   await setValue($('#scheduled-job-frequency'), 'monthly', 'change');
   await waitFor(() => assert.ok($('#scheduled-job-day-of-month')));
@@ -132,6 +154,8 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
   const update = calls.filter(call => call.method === 'PATCH').at(-1);
   assert.equal(update.body.schedule.type, 'monthly');
   assert.equal(update.body.schedule.dayOfMonth, 31);
+  assert.equal(update.body.model, 'model-b');
+  assert.equal(update.body.thinkingLevel, 'high');
 
   card = $('.scheduled-job-card');
   click([...card.querySelectorAll('button')].find(button => button.textContent === 'Disable'));

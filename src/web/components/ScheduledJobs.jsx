@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const defaultTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const emptyDraft = () => ({
-  name: '', personaId: '', task: '', allowedRepositories: [],
+  name: '', personaId: '', task: '', allowedRepositories: [], model: '', provider: '', mode: '', thinkingLevel: '',
   schedule: { type: 'daily', time: '09:00', timezone: defaultTimezone() },
 });
 const scheduleTypes = [
@@ -27,10 +27,23 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
+function modelKey(model) { return `${model.mode}:${model.provider}:${model.id}`; }
+function messageText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map(part => typeof part === 'string' ? part : part?.text || (part?.type === 'text' ? part.text : '')).filter(Boolean).join('\n');
+  return content == null ? '' : JSON.stringify(content, null, 2);
+}
+
 export default function ScheduledJobs() {
   const [jobs, setJobs] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [repositories, setRepositories] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [selectedRun, setSelectedRun] = useState(null);
+  const [transcript, setTranscript] = useState(null);
+  const [transcriptError, setTranscriptError] = useState('');
+  const transcriptDialog = useRef(null);
+  const transcriptRequest = useRef(0);
   const [draft, setDraft] = useState(emptyDraft);
   const [editingId, setEditingId] = useState('');
   const [history, setHistory] = useState({});
@@ -42,13 +55,20 @@ export default function ScheduledJobs() {
   const [status, setStatus] = useState('');
 
   useEffect(() => {
+    const dialog = transcriptDialog.current;
+    if (selectedRun && dialog && !dialog.open) dialog.showModal();
+    else if (!selectedRun && dialog?.open) dialog.close();
+  }, [selectedRun]);
+
+  useEffect(() => {
     let active = true;
-    Promise.all([request('/api/scheduled-jobs'), request('/api/personas'), request('/api/repos')])
-      .then(([jobData, personaData, repoData]) => {
+    Promise.all([request('/api/scheduled-jobs'), request('/api/personas'), request('/api/repos'), request('/api/settings')])
+      .then(([jobData, personaData, repoData, settingsData]) => {
         if (!active) return;
         setJobs(jobData.jobs || []);
         setPersonas(personaData.personas || []);
         setRepositories(repoData.repos || []);
+        setSettings(settingsData);
         setError('');
       })
       .catch(reason => { if (active) setError(reason.message); })
@@ -86,7 +106,7 @@ export default function ScheduledJobs() {
   function editJob(job) {
     setDraft({
       name: job.name, personaId: job.personaId, task: job.task,
-      allowedRepositories: [...job.allowedRepositories],
+      allowedRepositories: [...job.allowedRepositories], model: job.model || '', provider: job.provider || '', mode: job.mode || '', thinkingLevel: job.thinkingLevel || '',
       schedule: { ...job.schedule },
     });
     setEditingId(job.id);
@@ -103,6 +123,8 @@ export default function ScheduledJobs() {
       const payload = {
         name: draft.name.trim(), personaId: draft.personaId, task: draft.task.trim(),
         allowedRepositories: draft.allowedRepositories, schedule: draft.schedule,
+        model: draft.model || null, provider: draft.provider || null, mode: draft.mode || null,
+        thinkingLevel: draft.thinkingLevel || null,
       };
       const data = await jsonRequest(editingId ? `/api/scheduled-jobs/${editingId}` : '/api/scheduled-jobs', editingId ? 'PATCH' : 'POST', payload);
       setJobs(previous => editingId
@@ -156,6 +178,29 @@ export default function ScheduledJobs() {
   }
 
   const canSave = !loading && !saving && personas.length > 0;
+  const connectedModels = settings?.connectedModels || [];
+  const selectedModelKey = draft.model ? modelKey({ id: draft.model, provider: draft.provider, mode: draft.mode }) : '';
+  const defaultModel = connectedModels.find(item => item.id === settings?.model && item.provider === settings?.selectedProvider && item.mode === settings?.selectedMode);
+  const effectiveModel = connectedModels.find(item => modelKey(item) === selectedModelKey) || defaultModel;
+  const thinkingLevels = effectiveModel?.thinkingLevels || ['off'];
+
+  function closeTranscript() {
+    transcriptRequest.current++;
+    transcriptDialog.current?.close();
+    setSelectedRun(null);
+  }
+
+  async function openTranscript(run) {
+    if (!run.sessionId) return;
+    const requestId = ++transcriptRequest.current;
+    setSelectedRun(run); setTranscript(null); setTranscriptError('');
+    try {
+      const data = await request(`/api/sessions/${encodeURIComponent(run.sessionId)}`);
+      if (requestId === transcriptRequest.current) setTranscript(data.session?.messages || []);
+    } catch (reason) {
+      if (requestId === transcriptRequest.current) setTranscriptError(reason.message);
+    }
+  }
 
   return <section class="scheduled-jobs-page" aria-labelledby="scheduled-job-title">
     <header class="scheduled-job-header">
@@ -182,6 +227,26 @@ export default function ScheduledJobs() {
             <select class="select" id="scheduled-job-agent" required value={draft.personaId} disabled={loading || saving || !personas.length} onChange={event => change('personaId', event.currentTarget.value)}>
               <option value="" disabled>{personas.length ? 'Choose a persona' : 'Create a persona first'}</option>
               {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
+            </select>
+          </div>
+          <div class="scheduled-job-field">
+            <label class="field-label" for="scheduled-job-model">Model</label>
+            <select class="select" id="scheduled-job-model" value={selectedModelKey} disabled={loading || saving || !connectedModels.length} onChange={event => {
+              const selected = connectedModels.find(item => modelKey(item) === event.currentTarget.value);
+              change('model', selected?.id || '');
+              change('provider', selected?.provider || '');
+              change('mode', selected?.mode || '');
+              change('thinkingLevel', '');
+            }}>
+              <option value="">Use default</option>
+              {connectedModels.map(item => <option key={modelKey(item)} value={modelKey(item)}>{item.name || item.id} · {item.providerName}</option>)}
+            </select>
+          </div>
+          <div class="scheduled-job-field">
+            <label class="field-label" for="scheduled-job-thinking">Thinking level</label>
+            <select class="select" id="scheduled-job-thinking" value={draft.thinkingLevel} disabled={loading || saving || !thinkingLevels.length} onChange={event => change('thinkingLevel', event.currentTarget.value)}>
+              <option value="">Use default</option>
+              {thinkingLevels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}
             </select>
           </div>
           <div class="scheduled-job-field scheduled-job-field-wide">
@@ -265,9 +330,11 @@ export default function ScheduledJobs() {
                 {!Object.hasOwn(history, job.id) && <p class="field-note" role="status">Loading run history…</p>}
                 {history[job.id]?.length === 0 && <p class="field-note">No runs yet.</p>}
                 {history[job.id]?.map(run => <article class="scheduled-job-run" key={run.id}>
-                  <div><strong class={`scheduled-job-run-status ${run.status}`}>{run.status}</strong><time>{formatDate(run.scheduledFor)}</time></div>
-                  {run.result && <p class="scheduled-job-run-result">{run.result}</p>}
-                  {run.error && <p class="scheduled-job-run-error">{run.error}</p>}
+                  <button class="scheduled-job-run-open" type="button" disabled={!run.sessionId} aria-haspopup="dialog" onClick={() => openTranscript(run)}>
+                    <span><strong class={`scheduled-job-run-status ${run.status}`}>{run.status}</strong><time>{formatDate(run.scheduledFor)}</time></span>
+                    {run.result && <span class="scheduled-job-run-result">{run.result}</span>}
+                    {run.error && <span class="scheduled-job-run-error">{run.error}</span>}
+                  </button>
                 </article>)}
               </section>}
             </article>;
@@ -275,5 +342,11 @@ export default function ScheduledJobs() {
         </section>
       </aside>
     </div>
+    <dialog class="scheduled-job-transcript-dialog" ref={transcriptDialog} aria-labelledby="scheduled-job-transcript-title" onClose={() => { transcriptRequest.current++; setSelectedRun(null); }} onCancel={event => { event.preventDefault(); closeTranscript(); }} onClick={event => { if (event.target === transcriptDialog.current) closeTranscript(); }}>
+      <header class="scheduled-job-transcript-header"><div><p class="eyebrow">RUN TRANSCRIPT</p><h2 id="scheduled-job-transcript-title">{selectedRun ? formatDate(selectedRun.scheduledFor) : 'Run transcript'}</h2></div><button class="icon-button" type="button" aria-label="Close transcript" onClick={closeTranscript}>×</button></header>
+      {transcriptError && <p class="form-error" role="alert">{transcriptError}</p>}
+      {!transcript && !transcriptError && <p class="field-note" role="status">Loading transcript…</p>}
+      {transcript && <div class="scheduled-job-transcript-content">{transcript.map((message, index) => <article class={`scheduled-job-transcript-message ${message.role}`} key={index}><h3>{message.role === 'assistant' ? 'Assistant' : message.role === 'user' ? 'You' : message.role}</h3><pre>{messageText(message.content)}</pre></article>)}</div>}
+    </dialog>
   </section>;
 }

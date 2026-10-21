@@ -27,6 +27,23 @@ test('scheduled job validation normalizes persisted fields and preserves identit
   assert.equal(updated.enabled, false);
 });
 
+test('scheduled jobs validate optional connected model and thinking overrides', () => {
+  const models = [
+    { id: 'model-a', provider: 'openai', mode: 'api_key', thinkingLevels: ['off', 'high'] },
+    { id: 'model-a', provider: 'openai', mode: 'oauth', thinkingLevels: ['off'] },
+    { id: 'default', provider: 'openai', mode: 'api_key', thinkingLevels: ['off'] },
+  ];
+  const custom = validateScheduledJob({ ...base, model: 'model-a', provider: 'openai', mode: 'api_key', thinkingLevel: 'high' }, { personas, repositories, models });
+  assert.equal(custom.model, 'model-a');
+  assert.equal(custom.thinkingLevel, 'high');
+  const cleared = validateScheduledJob({ ...base, model: null, provider: null, mode: null, thinkingLevel: null }, { personas, repositories, models, existing: custom });
+  assert.equal(Object.hasOwn(cleared, 'model'), false);
+  assert.equal(Object.hasOwn(cleared, 'thinkingLevel'), false);
+  assert.throws(() => validateScheduledJob({ ...base, model: 'missing', provider: 'openai', mode: 'api_key' }, { personas, repositories, models }), /Invalid model/);
+  assert.throws(() => validateScheduledJob({ ...base, model: 'model-a', provider: 'openai', mode: 'oauth', thinkingLevel: 'high' }, { personas, repositories, models }), /Unsupported thinking level/);
+  assert.throws(() => validateScheduledJob({ ...base, thinkingLevel: 'high' }, { personas, repositories, models, defaultModel: { id: 'default', provider: 'openai', mode: 'api_key' } }), /Unsupported thinking level/);
+});
+
 test('scheduled jobs accept every supported cadence with timezone-aware fields', () => {
   for (const schedule of [
     { type: 'daily', time: '00:00', timezone: 'UTC' },

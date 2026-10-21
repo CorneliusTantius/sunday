@@ -18,7 +18,9 @@ test('scheduled job and run storage survive reopening and cascade on job deletio
   const path = join(directory, 'scheduled-jobs.sqlite');
   let storage = createScheduledJobsStorage(path);
   try {
-    const scheduledJob = job();
+    const scheduledJob = {
+      ...job(), model: 'gpt-5', provider: 'openai', mode: 'api_key', thinkingLevel: 'high',
+    };
     storage.saveJob(scheduledJob);
     assert.deepEqual(storage.getJob(scheduledJob.id), scheduledJob);
     assert.deepEqual(storage.listJobs(), [scheduledJob]);

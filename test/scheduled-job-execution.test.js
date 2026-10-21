@@ -105,6 +105,11 @@ test('scheduled runs isolate sessions and finalize during graceful shutdown and 
   try {
     await start();
     await api('/api/settings', { provider: 'openai', mode: 'api_key', apiKey: 'scheduled-test-key' }, 'PUT');
+    const settings = (await api('/api/settings')).body;
+    const customModel = settings.connectedModels.find(model => model.provider === 'openai' && model.mode === 'api_key' && model.thinkingLevels.includes('high'))
+      || settings.connectedModels.find(model => model.provider === 'openai' && model.mode === 'api_key');
+    assert.ok(customModel, 'an OpenAI API-key model should be available');
+    const thinkingLevel = customModel.thinkingLevels.includes('high') ? 'high' : undefined;
     const createdPersona = await api('/api/personas', {
       name: 'Repo-limited persona', specialty: 'Review', instructions: 'Review the allowed repository.', allowedTools: ['read', 'find'],
     });
@@ -112,6 +117,8 @@ test('scheduled runs isolate sessions and finalize during graceful shutdown and 
     const createdJob = await api('/api/scheduled-jobs', {
       name: 'Scheduled review', personaId: createdPersona.body.persona.id, task: 'Review the selected repository.',
       allowedRepositories: ['allowed-repo'],
+      model: customModel.id, provider: customModel.provider, mode: customModel.mode,
+      ...(thinkingLevel ? { thinkingLevel } : {}),
       schedule: { type: 'daily', time: '12:01', timezone: 'UTC' },
     });
     assert.equal(createdJob.status, 201);
@@ -135,6 +142,10 @@ test('scheduled runs isolate sessions and finalize during graceful shutdown and 
     assert.equal(session.profile.personaId, createdPersona.body.persona.id);
     assert.equal(session.profile.name, 'Repo-limited persona');
     assert.equal(session.messages[0].content, 'Review the selected repository.');
+    assert.equal(session.config.model, customModel.id);
+    assert.equal(session.config.provider, customModel.provider);
+    assert.equal(session.config.mode, customModel.mode);
+    if (thinkingLevel) assert.equal(session.config.thinkingLevel, thinkingLevel);
     assert.deepEqual(session.allowedRepositories, ['allowed-repo']);
     assert.deepEqual(await readdir(join(home, 'sunday', 'workspace-agents', session.workspaceName)), ['allowed-repo']);
 

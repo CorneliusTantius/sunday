@@ -846,7 +846,13 @@ async function executeScheduledJob(job, run, shutdownSignal) {
       id: randomUUID(), createdAt, title, titleEdited: true, updatedAt: createdAt,
       messages: [{ role: 'user', content: job.task }],
       profile: { ...validateProfile(persona), personaId: persona.id },
-      config: sessionConfig(),
+      config: job.model ? {
+        provider: job.provider, mode: job.mode, model: job.model,
+        thinkingLevel: job.thinkingLevel || clampThinkingLevel(modelsByMode[job.mode].getModel(job.provider, job.model), settings.thinkingLevel),
+      } : job.thinkingLevel ? {
+        ...sessionConfig(),
+        thinkingLevel: clampThinkingLevel(modelsByMode[settings.mode].getModel(settings.provider, settings.model), job.thinkingLevel),
+      } : sessionConfig(),
       allowedRepositories: [...job.allowedRepositories],
     };
     await syncAgentWorkspace(session, session.allowedRepositories);
@@ -1065,9 +1071,11 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET') return json(res, 200, { jobs: scheduledJobStorage.listJobs() });
       if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
       const input = await body(req);
+      const connectedModels = (await publicSettings()).connectedModels;
+      const defaultModel = { id: settings.model, provider: settings.provider, mode: settings.mode };
       return await serialize(async () => {
         const repositories = new Set((await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name));
-        const job = validateScheduledJob(input, { personas, repositories });
+        const job = validateScheduledJob(input, { personas, repositories, models: connectedModels, defaultModel });
         job.id = randomUUID();
         scheduledJobStorage.saveJob(job);
         return json(res, 201, { job });
@@ -1093,11 +1101,13 @@ const server = http.createServer(async (req, res) => {
           ? json(res, 200, { deleted: true }) : json(res, 404, { error: 'Scheduled job not found' }));
       }
       const input = await body(req);
+      const connectedModels = (await publicSettings()).connectedModels;
+      const defaultModel = { id: settings.model, provider: settings.provider, mode: settings.mode };
       return await serialize(async () => {
         const existing = scheduledJobStorage.getJob(id);
         if (!existing) return json(res, 404, { error: 'Scheduled job not found' });
         const repositories = new Set((await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name));
-        const job = validateScheduledJob({ ...existing, ...input }, { personas, repositories, existing });
+        const job = validateScheduledJob({ ...existing, ...input }, { personas, repositories, models: connectedModels, defaultModel, existing });
         scheduledJobStorage.saveJob(job);
         return json(res, 200, { job });
       });
