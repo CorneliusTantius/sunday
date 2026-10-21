@@ -23,11 +23,15 @@ export default function ToolCalls({ calls = [] }) {
   const close = () => setClosing(true);
   if (!calls.length) return null;
   const running = calls.some(call => call.status === 'running');
-  const names = [...new Set(calls.map(call => call.name))].join(', ');
+  const uniqueNames = [...new Set(calls.map(call => call.name))];
+  const names = uniqueNames.join(', ');
+  const compactNames = uniqueNames.slice(0, 3).join(', ');
+  const remainingNames = uniqueNames.length - 3;
   return <>
-    <button class="toolcalls-row" type="button" onClick={() => setOpen(true)} aria-label={`Show ${calls.length} tool ${calls.length === 1 ? 'call' : 'calls'}`}>
+    <button class="toolcalls-row" type="button" onClick={() => setOpen(true)} aria-label={`Show ${calls.length} tool ${calls.length === 1 ? 'call' : 'calls'}: ${names}`}>
       <span class="toolcalls-indicator" aria-hidden="true">⌘</span>
-      <span>{running ? 'Using' : 'Used'} {names}</span>
+      <span class="toolcalls-label">{running ? 'Using' : 'Used'} {names}</span>
+      <span class="toolcalls-label-mobile" aria-hidden="true">{compactNames}{remainingNames > 0 ? `, +${remainingNames}` : ''}</span>
       <span class="toolcalls-count">{calls.length}</span>
       <span class="toolcalls-open">Details</span>
     </button>
