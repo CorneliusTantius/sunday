@@ -108,6 +108,25 @@ test('Settings saves chat defaults without closing and shows a toast', async () 
   h.unmount();
 });
 
+test('Repositories Pull all attempts every repository and reports partial failures', async () => {
+  const source = readFileSync(new URL('../src/web/components/Repositories.jsx', import.meta.url), 'utf8');
+  assert.match(source, /id="pull-all-repos"/);
+  assert.match(source, /onClick=\{syncAll\}/);
+  const repos = [{ name: 'one' }, { name: 'two' }], pulls = [], toasts = [];
+  const h = mount('Repositories', { toast(message) { toasts.push(message); } }, async () => ({ repos }), async (url, method, body) => {
+    pulls.push({ url, method, body });
+    if (pulls.length === 1) throw new Error('No upstream');
+    return {};
+  });
+  await h.settle();
+  await h.view.syncAll(); await h.settle();
+  assert.deepEqual(pulls.map(pull => pull.url), ['/api/repos/one/pull', '/api/repos/two/pull']);
+  assert.equal(h.view.status, 'Could not pull one: No upstream');
+  assert.equal(h.view.syncingAll, false);
+  assert.deepEqual(toasts, ['Pulled 1 of 2 repositories']);
+  h.unmount();
+});
+
 test('Settings exposes an Update action that only posts to the pull endpoint', () => {
   const source = readFileSync(new URL('../src/web/components/Settings.jsx', import.meta.url), 'utf8');
   assert.match(source, /id="settings-update-nav"/);
