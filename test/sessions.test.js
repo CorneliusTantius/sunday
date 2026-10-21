@@ -246,9 +246,10 @@ test('file references are restricted to permitted repository text and validated 
     const other = await api('/api/sessions', {});
     assert.ok(!titles.includes(other.body.session.title));
     assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: `- Own the user’s goal from clarification through a verified outcome; keep scope and success criteria explicit.
+- Give a useful direct answer, distinguish facts from assumptions, and ask questions only when a missing detail blocks safe or correct progress.
 - Delegate substantial independent work as bounded concurrent tasks when useful; keep dependent work ordered and small tasks direct.
-- Track children, synthesize their evidence, verify the result against the goal, and surface blockers or uncertainty.
-- Explain technical topics clearly, at a level a junior engineer can understand.` });
+- Track children, synthesize their evidence, verify the result against the goal, and finish with relevant next steps and any blockers or uncertainty. Never claim completion from delegation alone.
+- Explain technical topics in clear, plain language a junior engineer can follow. Briefly define unfamiliar terms, explain why key steps matter, and avoid unexplained jargon.` });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
@@ -318,10 +319,14 @@ test('startup migrates only untouched built-in persona instructions and preserve
   const port = 32000 + Math.floor(Math.random() * 20000);
   const previousSunday = `- Answer directly with structure and detail suited to the user’s goal.\n- Be accurate; distinguish facts from assumptions and state uncertainty.\n- Ask clarifying questions only when needed.\n- Carry tasks through to a useful result and include important next steps.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
   const previousCoder = `- Inspect relevant files and follow existing conventions before changing code.\n- Make the smallest correct change that fixes the root cause.\n- Consider validation, security, and edge cases.\n- Run appropriate tests when possible.\n- Explain key trade-offs, report checks not run, and state uncertainty rather than inventing behavior.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
+  const deployedSunday = `- Own the user’s goal from clarification through a verified outcome; keep scope and success criteria explicit.\n- Delegate substantial independent work as bounded concurrent tasks when useful; keep dependent work ordered and small tasks direct.\n- Track children, synthesize their evidence, verify the result against the goal, and surface blockers or uncertainty.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
+  const deployedCoder = `- Inspect relevant source, tests, and project guidance; trace the root cause before editing.\n- Make the smallest complete change that follows existing patterns while preserving correctness, security, validation, and accessibility.\n- Add focused regression coverage and run suitable checks; review the resulting changes.\n- Report only verified results, including checks not run or blockers.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
   await mkdir(dataDir, { recursive: true });
   await writeFile(personasPath, JSON.stringify([
     { id: 'sunday', name: 'Sunday', specialty: 'General assistance', instructions: previousSunday },
     { id: 'coding-agent', name: 'Coding Agent', specialty: 'Software development', instructions: previousCoder },
+    { id: 'deployed-sunday', personaId: 'sunday', name: 'Sunday', specialty: 'General assistance', instructions: deployedSunday },
+    { id: 'deployed-coder', personaId: 'coding-agent', name: 'Coding Agent', specialty: 'Software development', instructions: deployedCoder },
     { id: 'custom-sunday', name: 'Sunday', specialty: 'Custom', instructions: 'Keep my customized instructions.' },
     { id: 'custom-coder', name: 'Coding Agent', specialty: 'Custom', instructions: 'Keep my other customized instructions.' },
     { id: 'customized-builtin', name: 'Custom Sunday', specialty: 'General assistance', instructions: 'User-edited built-in instructions.' },
@@ -332,6 +337,9 @@ test('startup migrates only untouched built-in persona instructions and preserve
     const saved = JSON.parse(await readFile(personasPath, 'utf8'));
     assert.ok(saved.find(persona => persona.id === 'sunday').instructions.includes('Own the user’s goal'));
     assert.ok(saved.find(persona => persona.id === 'coding-agent').instructions.includes('trace the root cause'));
+    const juniorExplanation = 'Explain technical topics in clear, plain language a junior engineer can follow.';
+    assert.ok(saved.find(persona => persona.id === 'deployed-sunday').instructions.includes(juniorExplanation));
+    assert.ok(saved.find(persona => persona.id === 'deployed-coder').instructions.includes(juniorExplanation));
     assert.equal(saved.find(persona => persona.id === 'custom-sunday').instructions, 'Keep my customized instructions.');
     assert.equal(saved.find(persona => persona.id === 'custom-coder').instructions, 'Keep my other customized instructions.');
     assert.equal(saved.find(persona => persona.id === 'customized-builtin').instructions, 'User-edited built-in instructions.');

@@ -41,9 +41,10 @@ test('delegation prioritizes small concurrent assignments on every round', () =>
 test('Coding Agent system prompt requires scoped root-cause changes and verified reporting', () => {
   const profile = { name: 'Renamed Coder', personaId: 'coding-agent', specialty: 'Software development', instructions: 'Preserve our team-specific workflow.' };
   const prompt = buildSystemPrompt(profile);
-  assert.ok(prompt.includes('trace the root cause and make the smallest complete change that follows existing patterns'));
+  assert.ok(prompt.includes('trace the root cause. Make the smallest complete change that follows existing patterns'));
+  assert.ok(prompt.includes('Preserve correctness, security, validation, and accessibility'));
   assert.ok(prompt.includes('Preserve our team-specific workflow.'));
-  assert.ok(prompt.includes('report only verified results, including checks not run or blockers'));
+  assert.ok(prompt.includes('Report only verified results, including checks not run or blockers'));
   assert.ok(!buildSystemPrompt({ name: 'Coding Agent', instructions: 'Custom persona.' }).includes('Coding Agent instructions:'));
   assert.ok(!buildSystemPrompt({ name: 'Coding Agent', personaId: 'custom-coder', instructions: 'Custom persona.' }).includes('Coding Agent instructions:'));
 });
@@ -51,10 +52,20 @@ test('Coding Agent system prompt requires scoped root-cause changes and verified
 test('Sunday system prompt owns outcomes and coordinates bounded parallel work', () => {
   const prompt = buildSystemPrompt({ name: 'Sunday', personaId: 'sunday', instructions: 'Use my customized voice.' });
   assert.ok(prompt.includes('Own the user’s objective from clarification through a verified outcome'));
-  assert.ok(prompt.includes('delegate substantial independent work as bounded concurrent tasks'));
+  assert.ok(prompt.includes('distinguish facts from assumptions'));
+  assert.ok(prompt.includes('Delegate substantial independent work as bounded concurrent tasks'));
   assert.ok(prompt.includes('synthesize their evidence, and verify the result against the user’s goal'));
   assert.ok(prompt.includes('Use my customized voice.'));
   assert.ok(!buildSystemPrompt({ name: 'Sunday', personaId: 'my-custom-persona', instructions: '' }).includes('Sunday chief instructions:'));
+});
+
+test('Sunday and Coding Agent system prompts explain technical topics in junior engineer language', () => {
+  const explanation = 'Explain technical topics in clear, plain language a junior engineer can follow. Briefly define unfamiliar terms, explain why key steps matter, and avoid unexplained jargon.';
+  for (const personaId of ['sunday', 'coding-agent']) {
+    const prompt = buildSystemPrompt({ name: personaId, personaId, instructions: 'Custom instructions.' });
+    assert.ok(prompt.includes(explanation), `${personaId} missing junior engineer explanation guidance`);
+  }
+  assert.ok(!buildSystemPrompt({ name: 'Other', personaId: 'custom' }).includes(explanation));
 });
 
 test('repository prompts prioritize independent read batches without requiring concurrency', () => {
