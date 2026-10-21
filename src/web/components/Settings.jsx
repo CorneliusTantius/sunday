@@ -28,6 +28,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [connectedModels, setConnectedModels] = useState(initial.connectedModels || []);
   const [model, setModel] = useState(initial.model || initial.models?.[0]?.id || '');
   const [thinking, setThinking] = useState(initial.thinkingLevel || 'off');
+  const [defaultPersonaId, setDefaultPersonaId] = useState(initial.defaultPersonaId || 'sunday');
+  const personas = initial.personas || [];
   const [details, setDetails] = useState(initial);
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
@@ -115,7 +117,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   }, []);
 
   useEffect(() => {
-    if (settings) { defaults.current = settings; setProviders(settings.providers || []); setConnectedModels(settings.connectedModels || []); }
+    if (settings) { defaults.current = settings; setProviders(settings.providers || []); setConnectedModels(settings.connectedModels || []); setDefaultPersonaId(settings.defaultPersonaId || 'sunday'); }
   }, [settings]);
 
   const available = providers.filter(connected);
@@ -347,7 +349,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         if (!alive.current) return;
         setApiKey(''); navigate('providers'); toast('Provider connected');
       } else {
-        const payload = { provider, mode };
+        const payload = { provider, mode, defaultPersonaId };
         if (model) { payload.model = model; payload.thinkingLevel = thinkingLevel; }
         await jsonRequest('/api/settings', 'PUT', payload);
         await reload();
@@ -436,8 +438,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <section inert={page !== 'config'} id="settings-config-page" class={`settings-section${page === 'config' ? '' : ' hidden'}`}><h3>Chat defaults</h3>
             <div class="settings-select-row"><label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={`${provider}:${mode}:${model}`} disabled={loading || saving || !connectedModels.length} onChange={event => chooseDefaultModel(event.currentTarget.value)}>{connectedModels.length ? connectedModels.map(item => <option key={`${item.provider}:${item.mode}:${item.id}`} value={`${item.provider}:${item.mode}:${item.id}`}>{item.name || item.id} · {item.providerName}{item.mode === 'oauth' ? ' (ChatGPT)' : ''}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
             <div class="settings-select-row"><label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
-            <p class="field-note">Choose from models available through connected providers. These defaults apply only to new sessions. Existing sessions keep their own model and thinking level.</p>
-            <button class="primary-button settings-section-save" id="save-chat-defaults" disabled={saving || loading || !connectedModels.length} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
+            <div class="settings-select-row"><label class="field-label model-field" for="default-persona">Default persona</label><select id="default-persona" class="select" value={defaultPersonaId} disabled={saving} onChange={event => setDefaultPersonaId(event.currentTarget.value)}>{personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}</select></div>
+            <p class="field-note">These defaults apply only to new sessions. Existing sessions keep their own model, thinking level, and persona.</p>
+            <button class="primary-button settings-section-save" id="save-chat-defaults" disabled={saving || loading} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
             <div class="settings-subagent-config">
             <h3>Subagent defaults</h3>
             <div class="settings-select-row"><label class="field-label" for="subagent-limit">Maximum children per agent</label><select id="subagent-limit" class="select" value={subagents.maxChildren} disabled={saving} onChange={event => setSubagents({ ...subagents, maxChildren: Number(event.currentTarget.value) })}>{[1, 2, 3].map(limit => <option key={limit} value={limit}>{limit}</option>)}</select></div>

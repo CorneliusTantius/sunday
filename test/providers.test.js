@@ -57,9 +57,17 @@ test('provider credentials and model catalogs are isolated and persist', async (
     assert.deepEqual(new Set(settings.body.connectedModels.map(model => model.provider)), new Set(['openai', 'anthropic', 'google']));
     assert.ok(settings.body.connectedModels.every(model => model.providerName && model.mode === 'api_key' && Array.isArray(model.thinkingLevels)));
 
-    const defaults = settings.body;
+    assert.equal(settings.body.defaultPersonaId, 'sunday');
+    assert.ok(settings.body.personas.some(persona => persona.id === 'coding-agent'));
+    const selectedPersona = await api('/api/settings', { defaultPersonaId: 'coding-agent' }, 'PUT');
+    assert.equal(selectedPersona.body.defaultPersonaId, 'coding-agent');
+    assert.equal((await api('/api/settings', { defaultPersonaId: 'missing' }, 'PUT')).status, 400);
+    assert.equal((await api('/api/settings')).body.defaultPersonaId, 'coding-agent');
+    const defaults = selectedPersona.body;
     const first = (await api('/api/sessions', {})).body.session;
     const second = (await api('/api/sessions', {})).body.session;
+    assert.equal(first.profile.personaId, 'coding-agent');
+    assert.equal(second.profile.personaId, 'coding-agent');
     assert.equal(first.config.model, defaults.model);
     assert.equal(first.config.thinkingLevel, defaults.thinkingLevel);
     const alternative = first.models.find(model => model.id !== defaults.model);
@@ -82,6 +90,7 @@ test('provider credentials and model catalogs are isolated and persist', async (
     assert.equal((await api(`/api/sessions/${second.id}`)).body.session.config.provider, 'openai');
     await stop();
     await start();
+    assert.equal((await api('/api/settings')).body.defaultPersonaId, 'coding-agent');
     assert.equal((await api(`/api/sessions/${second.id}`)).body.session.config.provider, 'openai');
     assert.equal((await api(`/api/sessions/${first.id}`)).body.session.config.thinkingLevel, 'high');
     assert.equal((await api(`/api/sessions/${first.id}`)).body.session.config.model, reasoningModel.id);

@@ -155,7 +155,7 @@ async function publicSettings(provider = settings.provider, mode) {
   const modelId = provider === settings.provider && mode === settings.mode ? settings.model : defaultModel(provider, mode, available);
   const model = available.find(m => m.id === modelId) || available.find(m => m.id === defaultModel(provider, mode, available));
   const status = statuses.find(p => p.id === provider);
-  return { subagentPersonas: personas.map(({ id, name }) => ({ id, name })), subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), connectedModels, dataDir, workspaceDir };
+  return { personas: personas.map(({ id, name }) => ({ id, name })), defaultPersonaId: defaultPersona().id, subagentPersonas: personas.map(({ id, name }) => ({ id, name })), subagents: settings.subagents ?? { enabled: true, maxChildren: 3 }, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), connectedModels, dataDir, workspaceDir };
 }
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 let login = { status: 'idle', events: [] }, loginAttempt;
@@ -736,7 +736,7 @@ async function whisperToAgent(sourceId, args, signal) {
     }
   });
 }
-const defaultPersona = () => personas.find(item => item.id === 'sunday') || personas[0] || { id: 'sunday', name: 'Sunday', specialty: '', instructions: '', color: 'cyan', emoji: 'normal' };
+const defaultPersona = () => personas.find(item => item.id === settings.defaultPersonaId) || personas.find(item => item.id === 'sunday') || personas[0] || { id: 'sunday', name: 'Sunday', specialty: '', instructions: '', color: 'cyan', emoji: 'normal' };
 const defaultProfile = () => ({ ...validateProfile(defaultPersona()), personaId: defaultPersona().id, color: defaultPersona().color, emoji: defaultPersona().emoji });
 function validateProfile(profile) {
   if (!profile || typeof profile !== 'object' || Array.isArray(profile) ||
@@ -1225,6 +1225,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/settings' && req.method === 'PUT') {
       const input = await body(req);
+      if (input.defaultPersonaId !== undefined && (typeof input.defaultPersonaId !== 'string' || !personas.some(persona => persona.id === input.defaultPersonaId))) throw new Error('Persona not found');
       const { provider, mode } = selection(input.provider ?? settings.provider, input.mode);
       if (input.apiKey !== undefined && (mode !== 'api_key' || typeof input.apiKey !== 'string' || !input.apiKey.trim() || input.apiKey.length > 4096)) throw new Error('Invalid API key or authorization mode');
       // A new key unlocks the static catalog before it is persisted. Validate
@@ -1239,7 +1240,7 @@ const server = http.createServer(async (req, res) => {
       const thinkingLevel = input.thinkingLevel ?? clampThinkingLevel(selectedModel, settings.thinkingLevel);
       await serialize(async () => {
         if (input.apiKey !== undefined) { const nextAuth = { ...auth, [credentialId(provider, mode)]: { type: 'api_key', key: input.apiKey.trim() } }; await save('auth.json', nextAuth); auth = nextAuth; }
-        const next = { ...settings, provider, mode, model, thinkingLevel }; await save('settings.json', next); settings = next;
+        const next = { ...settings, provider, mode, model, thinkingLevel, ...(input.defaultPersonaId === undefined ? {} : { defaultPersonaId: input.defaultPersonaId }) }; await save('settings.json', next); settings = next;
       });
       return json(res, 200, await publicSettings());
     }
