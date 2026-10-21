@@ -529,9 +529,10 @@ export default function App() {
   const thinking = levels.includes(sessionConfig?.thinkingLevel) ? sessionConfig.thinkingLevel : levels[0];
   const { measuredUsage, contextWindow, contextTokens, contextPercent } = getContextMetrics(contextUsage, sessionConfig, messages, prompt, selectedModel?.contextWindow);
   const closeSidebar = () => { setSidebarOpen(false); menu.current?.focus(); };
-  const pinnedSessions = pinnedAgentIds.map(id => sessions.find(session => session.id === id)).filter(session => session && !session.parentSessionId);
+  const sidebarSessions = sessions.filter(session => !session.scheduledJobId);
+  const pinnedSessions = pinnedAgentIds.map(id => sidebarSessions.find(session => session.id === id)).filter(session => session && !session.parentSessionId);
   const pinnedIds = new Set(pinnedSessions.map(session => session.id));
-  const unpinnedSessions = sessions.filter(session => !session.parentSessionId && !pinnedIds.has(session.id));
+  const unpinnedSessions = sidebarSessions.filter(session => !session.parentSessionId && !pinnedIds.has(session.id));
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
     return <div class={`session-row${session.parentSessionId ? ' subagent-row' : ''}`} key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>

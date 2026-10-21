@@ -849,7 +849,7 @@ async function executeScheduledJob(job, run, shutdownSignal) {
     const stamp = new Date(run.scheduledFor).toISOString().slice(0, 16).replace('T', ' ');
     const title = uniqueSessionName(titles, [`${job.name.slice(0, 90)} — ${stamp} UTC`]);
     const session = {
-      id: randomUUID(), createdAt, title, titleEdited: true, updatedAt: createdAt,
+      id: randomUUID(), createdAt, title, titleEdited: true, updatedAt: createdAt, scheduledJobId: job.id,
       messages: [{ role: 'user', content: job.task }],
       profile: { ...validateProfile(persona), personaId: persona.id },
       config: job.model ? {
@@ -1122,7 +1122,7 @@ const server = http.createServer(async (req, res) => {
       const sessions = [];
       for (const id of sessionStorage.listIds()) {
         const session = await readSession(id);
-        if (session) sessions.push({ id: session.id, title: session.title, parentSessionId: session.parentSessionId, createdAt: session.createdAt, updatedAt: session.updatedAt, profile: session.profile, config: session.config, allowedRepositories: session.allowedRepositories || [], running: activeChats.has(session.id) });
+        if (session) sessions.push({ id: session.id, title: session.title, parentSessionId: session.parentSessionId, scheduledJobId: session.scheduledJobId, createdAt: session.createdAt, updatedAt: session.updatedAt, profile: session.profile, config: session.config, allowedRepositories: session.allowedRepositories || [], running: activeChats.has(session.id) });
       }
       sessions.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
       return json(res, 200, { sessions });

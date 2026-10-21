@@ -139,6 +139,9 @@ test('scheduled runs isolate sessions and finalize during graceful shutdown and 
     const sessionResponse = await api(`/api/sessions/${runs[0].sessionId}`);
     assert.equal(sessionResponse.status, 200);
     const { session } = sessionResponse.body;
+    assert.equal(session.scheduledJobId, createdJob.body.job.id);
+    const listedSession = (await api('/api/sessions')).body.sessions.find(item => item.id === session.id);
+    assert.equal(listedSession.scheduledJobId, createdJob.body.job.id);
     assert.equal(session.profile.personaId, createdPersona.body.persona.id);
     assert.equal(session.profile.name, 'Repo-limited persona');
     assert.equal(session.messages[0].content, 'Review the selected repository.');

@@ -13,9 +13,10 @@ before(async () => {
 });
 after(async () => { await vite?.close(); });
 
-async function mount(t, mobile = false, sessions = [{ id: 'sidebar-test', title: 'Test chat', messages: [] }]) {
+async function mount(t, mobile = false, sessions = [{ id: 'sidebar-test', title: 'Test chat', messages: [] }], pinnedAgentIds) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', pretendToBeVisual: true });
   const { window } = dom;
+  if (pinnedAgentIds) window.localStorage.setItem('sunday-pinned-agent-ids', JSON.stringify(pinnedAgentIds));
   const listeners = new Set();
   const layout = {
     matches: mobile,
@@ -115,6 +116,19 @@ test('new agent label and pinning keep at most three agents first without a head
   act(() => pinButton('agent-2').click());
   act(() => pinButton('agent-4').click());
   assert.deepEqual(rows(), ['Agent 1', 'Agent 3', 'Agent 4', 'Agent 2']);
+});
+
+test('scheduled-job sessions stay out of both pinned and regular sidebar sessions', async t => {
+  const app = await mount(t, false, [
+    { id: 'scheduled', title: 'Scheduled run', scheduledJobId: 'job-1', messages: [] },
+    { id: 'pinned', title: 'Pinned chat', messages: [] },
+    { id: 'regular', title: 'Regular chat', messages: [] },
+  ], ['scheduled', 'pinned']);
+  await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
+  app.click('agents-toggle');
+  const rows = [...app.window.document.querySelectorAll('.session-row')];
+  assert.deepEqual(rows.map(row => row.querySelector('.session-item').textContent), ['Pinned chat', 'Regular chat']);
+  assert.equal(app.window.document.querySelector('[data-agent-id="scheduled"]'), null);
 });
 
 test('mobile startup reuses an existing agent without creating a session', async t => {
