@@ -87,6 +87,27 @@ function settingsHarness(status) {
 const authCalls = calls => calls.filter(url => url === '/api/auth/status');
 const refreshCalls = calls => calls.filter(url => url.startsWith('/api/settings'));
 
+test('Settings saves chat defaults without closing and shows a toast', async () => {
+  const calls = [], toasts = [];
+  let closed = 0;
+  const configSettings = {
+    ...settings,
+    connectedModels: [{ id: 'saved', provider: 'openai', mode: 'oauth', thinkingLevels: ['off', 'high'] }],
+  };
+  const h = mount('Settings', {
+    settings: configSettings, onClose() { closed++; }, onReload() {}, toast(message) { toasts.push(message); },
+  }, async () => configSettings, async (...args) => { calls.push(args); });
+  await h.settle();
+  h.view.openConfig(); h.render();
+  await h.view.save(); await h.settle();
+  assert.equal(calls[0][0], '/api/settings');
+  assert.equal(calls[0][1], 'PUT');
+  assert.equal(closed, 0);
+  assert.equal(h.view.page, 'config');
+  assert.deepEqual(toasts, ['Settings saved']);
+  h.unmount();
+});
+
 test('Settings exposes an Update action that only posts to the pull endpoint', () => {
   const source = readFileSync(new URL('../src/web/components/Settings.jsx', import.meta.url), 'utf8');
   assert.match(source, /id="settings-update-nav"/);

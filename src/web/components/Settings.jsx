@@ -351,7 +351,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         if (model) { payload.model = model; payload.thinkingLevel = thinkingLevel; }
         await jsonRequest('/api/settings', 'PUT', payload);
         await reload();
-        if (alive.current) { requestClose(); toast('Settings saved'); }
+        if (alive.current) toast('Settings saved');
       }
     } catch (error) { if (alive.current) setError(error.message); }
     finally { if (alive.current) setSaving(false); }
