@@ -228,7 +228,7 @@ function publishChat(job, data) {
     if (index < 0) job.toolCalls.push(data);
     else job.toolCalls[index] = { ...job.toolCalls[index], ...data };
   }
-  else if (data.type === 'tool_complete') job.toolCalls = job.toolCalls.map(call => call.id === data.id ? { ...call, status: data.status } : call);
+  else if (data.type === 'tool_complete') job.toolCalls = job.toolCalls.map(call => call.id === data.id ? { ...call, status: data.status, ...(data.result === undefined ? {} : { result: data.result }) } : call);
   const event = { ...data, sequence: ++job.sequence };
   for (const subscriber of job.subscribers) subscriber(event);
 }
@@ -616,9 +616,10 @@ async function runChatTurn(session, job, allowWhisper = true) {
         publishChat(job, { type: 'tool_complete', id: call.id, status: 'failed' });
         throw job.controller.signal.reason || new Error('Chat cancelled');
       }
-      toolCall.status = isError ? 'failed' : 'completed';
-      publishChat(job, { type: 'tool_complete', id: call.id, status: toolCall.status });
       const toolText = TOOL_OUTPUT_NAMES.includes(call.name) ? String(result).slice(0, 200000) : retainToolOutput(call, result);
+      toolCall.status = isError ? 'failed' : 'completed';
+      toolCall.result = toolText;
+      publishChat(job, { type: 'tool_complete', id: call.id, status: toolCall.status, result: toolText });
       return { role: 'toolResult', toolCallId: call.id, toolName: call.name, content: [{ type: 'text', text: toolText }], isError, timestamp: Date.now() };
     }).then(results => history.push(...results));
   }

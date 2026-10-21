@@ -39,7 +39,8 @@ export default function ToolCalls({ calls = [] }) {
       <header class="toolcalls-header"><div><div class="eyebrow">AGENT ACTIVITY</div><h2 id="toolcalls-title">Tool calls</h2></div><button class="icon-button" type="button" aria-label="Close tool calls" onClick={close}>×</button></header>
       <div class="toolcalls-list">{calls.map((call, index) => <section class="toolcall-detail" key={call.id || index}>
         <div class="toolcall-heading"><strong>{call.name}</strong><span class={`toolcall-status ${call.status || 'completed'}`}>{call.status === 'running' ? 'Running' : call.status === 'failed' ? 'Failed' : 'Succeeded'}</span></div>
-        <pre>{JSON.stringify(call.arguments ?? {}, null, 2)}</pre>
+        <div><strong>Arguments</strong><pre>{JSON.stringify(call.arguments ?? {}, null, 2)}</pre></div>
+        {call.result !== undefined && <div><strong>Result</strong><pre>{call.result}</pre></div>}
       </section>)}</div>
     </dialog>
   </>;

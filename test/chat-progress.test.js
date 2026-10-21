@@ -399,6 +399,9 @@ test('context_compress is permission-gated and summarizes older turns for the cu
   assert.ok(h.inputs[1].messages.some(message => typeof message.content === 'string' && message.content.includes('Earlier conversation summary')));
   const result = h.inputs[1].messages.find(message => message.role === 'toolResult' && message.toolName === 'context_compress');
   assert.match(result.content[0].text, /original transcript is retained/i);
+  const storedCall = h.session.messages.find(message => message.toolCalls?.length).toolCalls[0];
+  assert.equal(storedCall.result, result.content[0].text);
+  assert.ok(h.events.some(event => event.type === 'tool_complete' && event.id === 'compress' && event.result === result.content[0].text));
   assert.deepEqual(h.session.messages.slice(0, original.length), original);
   assert.equal(h.session.compaction, undefined);
   assert.equal(h.session.latestCompaction.summary, 'Earlier work summary');

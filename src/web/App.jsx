@@ -387,7 +387,7 @@ export default function App() {
     function updateAnswer(error = false) { updateMessages(previous => previous.map((message, position) => position === index ? { ...message, content, error } : message)); }
     function updateActivity(label) { if (controller.current === abort && activeSession.current === sessionId) setActivity(label); }
     function updateTool(data) {
-      const update = Object.fromEntries(['id', 'name', 'arguments', 'status'].filter(key => data[key] !== undefined).map(key => [key, data[key]]));
+      const update = Object.fromEntries(['id', 'name', 'arguments', 'status', 'result'].filter(key => data[key] !== undefined).map(key => [key, data[key]]));
       updateMessages(previous => previous.map((message, position) => {
         if (position !== index) return message;
         const calls = message.toolCalls || [];

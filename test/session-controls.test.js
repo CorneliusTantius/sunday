@@ -339,11 +339,12 @@ test('early tool status is updated by id without duplicate calls or lost argumen
   });
   h.emit('tool_status', { id: 'tool-1', status: 'failed' });
   await waitFor(() => assert.equal(h.$('.toolcall-status')?.textContent, 'Failed'));
-  h.emit('tool_complete', { id: 'tool-1', status: 'completed' });
+  h.emit('tool_complete', { id: 'tool-1', status: 'completed', result: 'The tool finished successfully.' });
   await waitFor(() => {
     assert.equal(h.$('.toolcall-status')?.textContent, 'Succeeded');
     assert.equal(h.$('.toolcall-heading strong')?.textContent, 'read');
     assert.match(h.$('.toolcall-detail pre')?.textContent, /\/tmp\/example/);
+    assert.match(h.$('.toolcall-detail')?.textContent, /The tool finished successfully/);
     assert.equal(h.$('.toolcalls-count')?.textContent, '1');
   });
   h.emit('done');
