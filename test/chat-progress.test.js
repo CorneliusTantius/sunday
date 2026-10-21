@@ -7,11 +7,29 @@ import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTo
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
 import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
+import { TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT } from '../src/server/tool-output-storage.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
-function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000) {
-  const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [], contextSearches = [];
+function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000, { mcpTools = [], nativeOutput = 'ok', mcpOutput = 'MCP result', outputStorageError = null } = {}) {
+  const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [], contextSearches = [], outputs = [];
   let calls = 0;
+  const outputStorage = {
+    has: sessionId => outputs.some(output => output.sessionId === sessionId),
+    store(sessionId, toolCallId, toolName, output) {
+      if (outputStorageError) throw new Error(outputStorageError);
+      const retained = { id: `10000000-0000-4000-8000-${String(outputs.length + 1).padStart(12, '0')}`, sessionId, toolCallId, toolName, output, characters: output.length, bytes: Buffer.byteLength(output) };
+      outputs.push(retained);
+      return retained;
+    },
+    search(sessionId, query, limit = 5) {
+      return outputs.filter(output => output.sessionId === sessionId && output.output.includes(query)).slice(0, limit).map(output => ({ outputId: output.id, toolName: output.toolName, createdAt: 1, offset: output.output.indexOf(query), excerpt: output.output.slice(Math.max(0, output.output.indexOf(query) - 30), output.output.indexOf(query) + query.length + 30) }));
+    },
+    fetch(sessionId, outputId, offset = 0, limit = 8000) {
+      const output = outputs.find(item => item.sessionId === sessionId && item.id === outputId);
+      if (!output) throw new Error('Tool output not found for this session');
+      return { outputId, toolName: output.toolName, createdAt: 1, totalCharacters: output.characters, offset, nextOffset: Math.min(offset + limit, output.characters), text: output.output.slice(offset, offset + limit) };
+    },
+  };
   const model = { id: 'test', api: 'test', provider: 'test', contextWindow };
   const context = vm.createContext({
     AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow,
@@ -23,17 +41,18 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
     validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
-    mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: [], execute: async () => { throw new Error('Unexpected MCP tool call'); }, close: async () => {} }),
+    TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT, toolOutputStorage: outputStorage,
+    mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: mcpTools, call: async () => mcpOutput, close: async () => {} }),
     sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id),
     contextStorage: { search: (query, limit) => { contextSearches.push({ query, limit }); return [{ source: 'docs/release.md', title: 'Release guide', excerpt: 'Roll back by redeploying the previous version.' }]; } },
-    join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return 'ok'; }, saveSession: async () => {},
+    join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return nativeOutput; }, saveSession: async () => {},
     whisperToAgent: async (sourceId, args) => { whispers.push(args); return 'Specialist result'; },
     publishChat: (job, event) => events.push(event),
   });
   vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('async function whisperToAgent')), context);
   const session = { id: 'session', messages: [], allowedRepositories: ['repo'], config: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' } };
   const job = { controller: new AbortController() };
-  return { events, prompts, options, delays, inputs, executions, whispers, contextSearches, session, job, run: (allowWhisper = true) => context.executeChatTurn(session, job, allowWhisper), get calls() { return calls; } };
+  return { events, prompts, options, delays, inputs, executions, whispers, contextSearches, outputs, session, job, run: (allowWhisper = true) => context.executeChatTurn(session, job, allowWhisper), get calls() { return calls; } };
 }
 function stream(events, content = []) {
   return { async *[Symbol.asyncIterator]() { yield* events; }, result: async () => ({ content, usage: { input: 1 } }) };
@@ -53,6 +72,84 @@ test('chat publishes thinking and partial tools before completion without duplic
   assert.equal(h.session.messages[0].toolCalls.length, 1);
   assert.match(h.prompts[0], /Execute clear user requests immediately/);
   assert.match(h.prompts[0], /missing fact genuinely blocks/);
+});
+
+test('chat retains oversized native tool output and provides search/fetch tools in the next round', async () => {
+  const marker = 'uniqueLateMarker';
+  const output = 'start '.repeat(1000) + marker + ' end '.repeat(1000);
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'large-native', name: 'bash', arguments: { command: 'generate' } }])
+    : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 10000, { nativeOutput: output });
+  await h.run();
+  assert.equal(h.outputs.length, 1);
+  assert.equal(h.outputs[0].output, output);
+  assert.equal(h.outputs[0].toolName, 'bash');
+  const retained = h.inputs[1].messages.find(message => message.role === 'toolResult');
+  assert.match(retained.content[0].text, /Large tool output retained outside conversation context/);
+  assert.doesNotMatch(retained.content[0].text, new RegExp(marker));
+  assert.deepEqual(h.inputs[1].tools.map(tool => tool.name).slice(-2), TOOL_OUTPUT_NAMES);
+});
+
+test('chat can search and fetch exact retained tool output on request', async () => {
+  const marker = 'uniqueLateMarker';
+  const output = 'start '.repeat(1000) + marker + ' end '.repeat(1000);
+  const h = harness(round => {
+    if (round === 0) return stream([], [{ type: 'toolCall', id: 'large-native', name: 'bash', arguments: { command: 'generate' } }]);
+    if (round === 1) return stream([], [{ type: 'toolCall', id: 'search-output', name: 'tool_output_search', arguments: { query: marker } }]);
+    if (round === 2) {
+      const result = JSON.parse(h.inputs[2].messages.find(message => message.role === 'toolResult' && message.toolName === 'tool_output_search').content[0].text)[0];
+      return stream([], [{ type: 'toolCall', id: 'fetch-output', name: 'tool_output_fetch', arguments: { outputId: result.outputId, offset: result.offset, limit: 100 } }]);
+    }
+    return stream([{ type: 'text_delta', delta: 'Found it' }]);
+  }, 100, 1000, [], 10000, { nativeOutput: output });
+  await h.run();
+  const fetched = h.inputs[3].messages.find(message => message.role === 'toolResult' && message.toolName === 'tool_output_fetch');
+  assert.match(fetched.content[0].text, new RegExp(marker));
+  assert.equal(h.outputs.length, 1);
+});
+
+test('chat retains oversized MCP tool output outside model history', async () => {
+  const output = 'MCP output '.repeat(500);
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'large-mcp', name: 'mcp_large', arguments: {} }])
+    : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 10000, {
+    mcpTools: [{ name: 'mcp_large', description: 'Large result', parameters: { type: 'object', properties: {}, additionalProperties: false } }],
+    mcpOutput: output,
+  });
+  await h.run();
+  assert.equal(h.outputs[0].output, output);
+  assert.equal(h.outputs[0].toolName, 'mcp_large');
+  const retained = h.inputs[1].messages.find(message => message.role === 'toolResult');
+  assert.match(retained.content[0].text, /Large tool output retained outside conversation context/);
+  assert.ok(retained.content[0].text.length < output.length);
+});
+
+test('storage limit fallback exposes only an explicitly partial preview', async () => {
+  const marker = 'lateUnretainedMarker';
+  const output = 'ordinary line\n'.repeat(1000) + marker;
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'large-unavailable', name: 'bash', arguments: { command: 'generate' } }])
+    : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 10000, {
+    nativeOutput: output,
+    outputStorageError: 'storage limit reached',
+  });
+  await h.run();
+  assert.equal(h.outputs.length, 0);
+  const result = h.inputs[1].messages.find(message => message.role === 'toolResult').content[0].text;
+  assert.match(result, /Only this untrusted partial preview is available/);
+  assert.doesNotMatch(result, new RegExp(marker));
+  assert.ok(result.length < output.length);
+  assert.deepEqual(h.inputs[1].tools.map(tool => tool.name), ['bash']);
+});
+
+test('small tool output remains inline', async () => {
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'small', name: 'bash', arguments: { command: 'pwd' } }])
+    : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 10000, { nativeOutput: 'small result' });
+  await h.run();
+  assert.equal(h.outputs.length, 0);
+  assert.equal(h.inputs[1].messages.find(message => message.role === 'toolResult').content[0].text, 'small result');
+  assert.deepEqual(h.inputs[1].tools.map(tool => tool.name), ['bash']);
 });
 
 test('chat completes tasks requiring more than three tool rounds', async () => {
@@ -184,6 +281,34 @@ for (const name of ['context_search', 'context_index', 'context_links', 'context
     });
   }
 }
+
+test('agent list excludes subagents from whisper targets', async () => {
+  const root = { id: '00000000-0000-0000-0000-000000000002', title: 'Root', profile: { specialty: 'Research' } };
+  const child = { id: '00000000-0000-0000-0000-000000000003', parentSessionId: root.id, title: 'Child', profile: { specialty: 'Research' } };
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist, root, child]);
+  h.session.profile = { name: 'Test', allowedTools: ['agent_whisper'] };
+  await h.run();
+  assert.match(h.prompts[0], new RegExp(specialist.id));
+  assert.match(h.prompts[0], new RegExp(root.id));
+  assert.doesNotMatch(h.prompts[0], new RegExp(child.id));
+});
+
+test('whisper handler rejects a subagent target even when called directly', async () => {
+  const child = { id: specialist.id, parentSessionId: '00000000-0000-0000-0000-000000000002' };
+  const lock = async (_id, fn) => fn();
+  const context = vm.createContext({
+    validSessionId: id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id),
+    activeChats: new Map(), sessionLocks: new Map(), withSessionLock: lock,
+    readSession: async id => id === child.id ? child : null,
+  });
+  const start = source.indexOf('async function whisperToAgent');
+  const end = source.indexOf('const defaultPersona', start);
+  vm.runInContext(source.slice(start, end), context);
+  await assert.rejects(
+    vm.runInContext('whisperToAgent("00000000-0000-0000-0000-000000000004", { agentSessionId: "' + child.id + '", message: "hello" }, { aborted: false })', context),
+    /Cannot whisper to a subagent/
+  );
+});
 
 test('whisper permission cannot enable recursive delegation', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist]);

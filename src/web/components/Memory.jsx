@@ -13,7 +13,7 @@ export default function Memory({ toast }) {
   const [linkBusy, setLinkBusy] = useState(false);
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [graphLoading, setGraphLoading] = useState(true);
-  const [graphOpen, setGraphOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(true);
   const [source, setSource] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -211,7 +211,7 @@ export default function Memory({ toast }) {
     </div>
     {graphOpen && <section class="context-panel context-global-panel" aria-labelledby="context-global-title">
       <header class="context-global-header">
-        <div><h2 id="context-global-title">Knowledge graph</h2><p>All indexed notes and their directed links. Select a note to inspect it.</p></div>
+        <div><h2 id="context-global-title">Knowledge graph</h2><p>All indexed notes and their directed links. Select a note to highlight it; open Notes to read its content.</p></div>
         <div class="context-global-meta"><span>{graph.nodes.length} notes · {graph.links.length} links</span><button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button></div>
       </header>
       {graphLoading ? <p class="context-empty">Loading graph…</p> : graph.nodes.length ? <div class="context-global-scroll" role="group" aria-label="Graph of all indexed context notes">
@@ -231,7 +231,7 @@ export default function Memory({ toast }) {
         </div>
       </div> : <p class="context-empty">No indexed notes yet. Index notes to populate the graph.</p>}
     </section>}
-    <div class="context-layout">
+    {!graphOpen && <div class="context-layout">
       <section class="context-panel" aria-label="Indexed sources">
         <h2>Notes <span class="context-notes-count">{visibleSources.length}</span></h2>
         <form class="context-search" onSubmit={search}>
@@ -280,7 +280,7 @@ export default function Memory({ toast }) {
           </> : <p class="context-empty">Select a source to inspect it.</p>}
         </section>
       </div>
-    </div>
+    </div>}
     {indexOpen && <div class="modal-backdrop context-modal-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeIndexer(); }}>
       <section ref={indexDialog} class="context-modal" role="dialog" aria-modal="true" aria-labelledby="context-index-title" aria-describedby="context-index-help">
         <header class="context-modal-header">

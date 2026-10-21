@@ -382,6 +382,13 @@ test('context notes load, create, and remove directed links', async () => {
   h.unmount();
 });
 
+test('context page opens on graph and hides notes until the Notes view is selected', () => {
+  const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
+  assert.match(source, /\{!graphOpen && <div class="context-layout">/);
+  assert.match(source, /Select a note to highlight it; open Notes to read its content\./);
+});
+
 test('context notes show a global directed graph and selected-note link controls', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /class="context-global-edges"/);

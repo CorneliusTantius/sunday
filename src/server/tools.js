@@ -106,9 +106,12 @@ export async function executeTool(name, args, repositories, contextStore, signal
     const stat = await lstat(cwd);
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Invalid repository directory');
     try {
-      const { stdout, stderr } = await execFileAsync('bash', ['-c', args.command], { cwd, maxBuffer: 50000, timeout: args.timeout ?? 30000, signal });
-      return (stdout + stderr).slice(0, 50000);
-    } catch (error) { return `${error.message}\n${error.stdout || ''}${error.stderr || ''}`.slice(0, 50000); }
+      const { stdout, stderr } = await execFileAsync('bash', ['-c', args.command], { cwd, maxBuffer: 10 * 1024 * 1024, timeout: args.timeout ?? 30000, signal });
+      return stdout + stderr;
+    } catch (error) {
+      const output = `${error.message}\n${error.stdout || ''}${error.stderr || ''}`;
+      return error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ? `${output}\n[Output truncated: bash exceeded the 10 MB per-stream capture limit.]` : output;
+    }
   }
   if (name === 'find') {
     const { query = '', mode = 'path', limit = 100 } = args;
