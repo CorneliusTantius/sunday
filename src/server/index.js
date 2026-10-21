@@ -17,6 +17,9 @@ import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { createJsonStorage } from './storage.js';
 import { createSessionStorage } from './session-storage.js';
+import { createScheduledJobsStorage } from './scheduled-jobs-storage.js';
+import { validateScheduledJob } from './scheduled-jobs.js';
+import { createScheduledJobScheduler } from './scheduler.js';
 import { dispatchToolCalls } from './tool-dispatch.js';
 import { connectMcp, validateMcpConfig, createMcpLogin, mcpAuthStatus } from './mcp.js';
 const mcpLogins = new Map();
@@ -38,6 +41,7 @@ function pullUpdate() {
 const homeDir = join(homedir(), 'sunday');
 const dataDir = join(homeDir, 'data');
 const sessionsDbPath = join(dataDir, 'sessions.sqlite');
+const scheduledJobsDbPath = join(dataDir, 'scheduled-jobs.sqlite');
 const contextDbPath = join(dataDir, 'context.sqlite');
 const toolOutputsDbPath = join(dataDir, 'tool-outputs.sqlite');
 const workspaceDir = join(homeDir, 'workspace');
@@ -51,6 +55,8 @@ await mkdir(agentWorkspacesDir, { recursive: true, mode: 0o700 });
 process.chdir(workspaceDir);
 const sessionStorage = createSessionStorage(sessionsDbPath);
 await chmod(sessionsDbPath, 0o600);
+const scheduledJobStorage = createScheduledJobsStorage(scheduledJobsDbPath);
+await chmod(scheduledJobsDbPath, 0o600);
 const contextStorage = createContextStorage(contextDbPath);
 await chmod(contextDbPath, 0o600);
 const toolOutputStorage = createToolOutputStorage(toolOutputsDbPath);
@@ -820,6 +826,57 @@ async function syncAgentWorkspace(session, repositories = session.allowedReposit
   }
   return root;
 }
+const scheduledRunPromises = new Set();
+const scheduledShutdown = new AbortController();
+async function executeScheduledJob(job, run, shutdownSignal) {
+  shutdownSignal.throwIfAborted();
+  const sessionAndChat = await serialize(async () => {
+    shutdownSignal.throwIfAborted();
+    const persona = personas.find(item => item.id === job.personaId);
+    if (!persona) throw new Error('Scheduled job persona no longer exists');
+    const createdAt = Date.now();
+    const titles = [];
+    for (const id of sessionStorage.listIds()) {
+      const existing = await readSession(id);
+      if (existing) titles.push(existing.title);
+    }
+    const stamp = new Date(run.scheduledFor).toISOString().slice(0, 16).replace('T', ' ');
+    const title = uniqueSessionName(titles, [`${job.name.slice(0, 90)} — ${stamp} UTC`]);
+    const session = {
+      id: randomUUID(), createdAt, title, titleEdited: true, updatedAt: createdAt,
+      messages: [{ role: 'user', content: job.task }],
+      profile: { ...validateProfile(persona), personaId: persona.id },
+      config: sessionConfig(),
+      allowedRepositories: [...job.allowedRepositories],
+    };
+    await syncAgentWorkspace(session, session.allowedRepositories);
+    shutdownSignal.throwIfAborted();
+    await persistSession(session);
+    const chat = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null };
+    const abortForShutdown = () => chat.controller.abort(shutdownSignal.reason);
+    if (shutdownSignal.aborted) abortForShutdown();
+    else shutdownSignal.addEventListener('abort', abortForShutdown, { once: true });
+    activeChats.set(session.id, chat);
+    run.sessionId = session.id;
+    scheduledJobStorage.updateRun({ ...run, status: 'running' });
+    return { session, chat, abortForShutdown };
+  });
+  try { return await executeChatTurn(sessionAndChat.session, sessionAndChat.chat, false); }
+  catch (error) {
+    publishChat(sessionAndChat.chat, { type: 'error', error: error.message });
+    throw error;
+  } finally {
+    shutdownSignal.removeEventListener('abort', sessionAndChat.abortForShutdown);
+    publishChat(sessionAndChat.chat, { type: 'done' });
+    if (activeChats.get(sessionAndChat.session.id) === sessionAndChat.chat) activeChats.delete(sessionAndChat.session.id);
+  }
+}
+function runScheduledJob(job, run) {
+  let promise;
+  promise = executeScheduledJob(job, run, scheduledShutdown.signal).finally(() => scheduledRunPromises.delete(promise));
+  scheduledRunPromises.add(promise);
+  return promise;
+}
 const port = Number(process.env.PORT || 3000);
 const localOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
 function isTailnetHost(host) {
@@ -1003,6 +1060,47 @@ const server = http.createServer(async (req, res) => {
       try { await cloneRepo(repo.url, destination); }
       catch (error) { await rm(destination, { recursive: true, force: true }); return json(res, 400, { error: String(error.message).slice(0, 1000) }); }
       return json(res, 201, { repo: { name: repo.name } });
+    }
+    if (url.pathname === '/api/scheduled-jobs') {
+      if (req.method === 'GET') return json(res, 200, { jobs: scheduledJobStorage.listJobs() });
+      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      const input = await body(req);
+      return await serialize(async () => {
+        const repositories = new Set((await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name));
+        const job = validateScheduledJob(input, { personas, repositories });
+        job.id = randomUUID();
+        scheduledJobStorage.saveJob(job);
+        return json(res, 201, { job });
+      });
+    }
+    const scheduledJobMatch = url.pathname.match(/^\/api\/scheduled-jobs\/([a-f0-9-]{36})(?:\/(runs))?$/);
+    if (scheduledJobMatch) {
+      const id = scheduledJobMatch[1], runsRoute = Boolean(scheduledJobMatch[2]);
+      if (runsRoute) {
+        if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+        if (!scheduledJobStorage.getJob(id)) return json(res, 404, { error: 'Scheduled job not found' });
+        const limit = Number(url.searchParams.get('limit') ?? 50);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid run history limit');
+        return json(res, 200, { runs: scheduledJobStorage.listRuns(id, limit) });
+      }
+      if (req.method === 'GET') {
+        const job = scheduledJobStorage.getJob(id);
+        return job ? json(res, 200, { job }) : json(res, 404, { error: 'Scheduled job not found' });
+      }
+      if (!['PATCH', 'DELETE'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+      if (req.method === 'DELETE') {
+        return await serialize(async () => scheduledJobStorage.deleteJob(id)
+          ? json(res, 200, { deleted: true }) : json(res, 404, { error: 'Scheduled job not found' }));
+      }
+      const input = await body(req);
+      return await serialize(async () => {
+        const existing = scheduledJobStorage.getJob(id);
+        if (!existing) return json(res, 404, { error: 'Scheduled job not found' });
+        const repositories = new Set((await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name));
+        const job = validateScheduledJob({ ...existing, ...input }, { personas, repositories, existing });
+        scheduledJobStorage.saveJob(job);
+        return json(res, 200, { job });
+      });
     }
     if (url.pathname === '/api/sessions' && req.method === 'GET') {
       const sessions = [];
@@ -1320,6 +1418,26 @@ const server = http.createServer(async (req, res) => {
     json(res, 404, { error: 'Not found' });
   } catch (error) { if (!res.headersSent) json(res, error.code === 'ENOENT' ? 404 : 400, { error: error.message }); else res.end(); }
 });
-server.listen(port, '127.0.0.1', () => console.log(`Sunday: http://localhost:${port}`));
-async function shutdown() { for (const job of activeChats.values()) job.controller.abort(); await withLoginLock(() => cancelLogin()); await vite?.close(); server.close(); }
+scheduledJobStorage.recoverIncompleteRuns();
+const scheduledJobScheduler = createScheduledJobScheduler({ storage: scheduledJobStorage, runJob: runScheduledJob });
+server.listen(port, '127.0.0.1', () => {
+  console.log(`Sunday: http://localhost:${port}`);
+  scheduledJobScheduler.start();
+});
+let shutdownPromise;
+function shutdown() {
+  if (shutdownPromise) return shutdownPromise;
+  scheduledJobScheduler.stop();
+  const reason = new Error('Sunday is stopping');
+  scheduledShutdown.abort(reason);
+  for (const job of activeChats.values()) job.controller.abort(reason);
+  shutdownPromise = (async () => {
+    await Promise.allSettled([...scheduledRunPromises]);
+    await withLoginLock(() => cancelLogin());
+    await vite?.close();
+    server.close();
+    scheduledJobStorage.close();
+  })();
+  return shutdownPromise;
+}
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
