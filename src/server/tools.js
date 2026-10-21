@@ -10,7 +10,7 @@ export const BASIC_TOOLS = [
   { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt and wait for the response. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
   { name: 'subagent_send_prompt', description: 'Send work to an idle child session and wait for its response.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
   { name: 'subagent_list', description: 'List your child sessions, running state, and latest assistant message.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'read', description: "Prefer this over shell scripts for reading text files up to 200000 bytes; optional 1-based offset and limit select lines from files up to 5 MB. Output exceeding 200000 bytes requires a smaller line range using '<repo-name>/relative-path'.", parameters: { type: 'object', properties: { path: { type: 'string' }, offset: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 1, maximum: 10000 } }, required: ['path'], additionalProperties: false } },
+  { name: 'read', description: "Prefer this over shell scripts for reading text files up to 200000 bytes; optional 1-based offset and limit select lines, or use offset with inclusive endLine for a line range (e.g. offset 5, endLine 10). Files up to 5 MB can be read in ranges.", parameters: { type: 'object', properties: { path: { type: 'string' }, offset: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 1, maximum: 10000 }, endLine: { type: 'integer', minimum: 1 } }, required: ['path'], additionalProperties: false } },
   { name: 'find', description: "Find files or literal text under a repository path. query is a case-sensitive substring; mode defaults to path, content returns path:line:text. Skips sensitive files, symlinks, node_modules, dist, build, and vendor. Bounded results report truncation; narrow path/query if needed.", parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string', maxLength: 1000 }, mode: { type: 'string', enum: ['path', 'content'] }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, required: ['path'], additionalProperties: false } },
   { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Use empty oldText to write a new or empty file; nonempty files are never overwritten in this mode.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
@@ -147,16 +147,19 @@ export async function executeTool(name, args, repositories, contextStore, signal
     return JSON.stringify({ matches, truncated });
   }
   if (name === 'read') {
-    const { offset = 1, limit } = args;
-    if (!Number.isInteger(offset) || offset < 1 || (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 10000))) throw new Error('Invalid read range');
+    const { offset = 1, limit, endLine } = args;
+    if (!Number.isInteger(offset) || offset < 1 ||
+        (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 10000)) ||
+        (endLine !== undefined && (!Number.isInteger(endLine) || endLine < offset || limit !== undefined))) throw new Error('Invalid read range');
     const handle = await open(path, constants.O_NOFOLLOW);
     try {
       const stat = await handle.stat();
       if (!stat.isFile() || stat.size > 5000000) throw new Error('File exceeds 5 MB or is not a regular file');
       const text = await handle.readFile('utf8');
       if (text.includes('\0')) throw new Error('Binary files are not supported');
-      const result = offset === 1 && limit === undefined ? text : text.split('\n').slice(offset - 1, limit === undefined ? undefined : offset - 1 + limit).join('\n');
-      if (Buffer.byteLength(result) > 200000) throw new Error('Output exceeds 200000 bytes; use offset and limit to read a smaller line range');
+      const lastLine = endLine ?? (limit === undefined ? undefined : offset + limit - 1);
+      const result = offset === 1 && lastLine === undefined ? text : text.split('\n').slice(offset - 1, lastLine).join('\n');
+      if (Buffer.byteLength(result) > 200000) throw new Error('Output exceeds 200000 bytes; use offset with limit or endLine to read a smaller line range');
       return result;
     } finally { await handle.close(); }
   }

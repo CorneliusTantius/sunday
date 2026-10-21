@@ -130,6 +130,10 @@ test('read supports larger files and precise bounded line ranges', async () => {
     await writeFile(join(repo, 'large.txt'), 'hello\n'.repeat(20000));
     assert.equal((await executeTool('read', { path }, [repo])).length, 120000);
     assert.equal(await executeTool('read', { path, offset: 2, limit: 2 }, [repo]), 'hello\nhello');
+    assert.equal(await executeTool('read', { path, offset: 5, endLine: 10 }, [repo]), 'hello\nhello\nhello\nhello\nhello\nhello');
+    assert.equal(makeTools(['read'])[0].parameters.properties.endLine.minimum, 1);
+    await assert.rejects(executeTool('read', { path, offset: 10, endLine: 5 }, [repo]), /Invalid read range/);
+    await assert.rejects(executeTool('read', { path, offset: 5, limit: 6, endLine: 10 }, [repo]), /Invalid read range/);
     await writeFile(join(repo, 'large.txt'), 'hello\n'.repeat(40000));
     await assert.rejects(executeTool('read', { path }, [repo]), /smaller line range/);
     assert.equal(await executeTool('read', { path, offset: 30000, limit: 1 }, [repo]), 'hello');
