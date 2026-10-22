@@ -14,7 +14,7 @@ export function buildSystemPrompt(profile, { repositoryTools = [], contextTools 
       : 'No repository tools are enabled; report access blockers rather than claiming file changes.',
     (names.has('tool_search') || names.has('codemode')) && 'Enabled MCP servers are listed in session context. Their tools may not be declared yet: use tool_search with the server name or task to discover and load them, then call the loaded tools. Codemode can also discover and call MCP tools. Do not claim an MCP server is unavailable without attempting discovery; distinguish stored sign-in credentials from a verified connection. Report discovery or connection failures accurately.',
     contextTools.includes('context_search') && 'Search relevant prior context when useful; follow useful note links when available.',
-    contextTools.includes('context_index') && 'Index only durable, verified, non-sensitive knowledge, never secrets or transient status.',
+    contextTools.includes('context_index') && 'Index only durable, verified, non-sensitive knowledge, never secrets or transient status. For memory notes you create or update, use one # Title, ## section headings, and - bullets under each section; preserve the format of existing pages. Do not impose this format on source documents indexed verbatim.',
     'Large outputs may be retained outside context. When available, use tool_output_search, then tool_output_fetch with the output ID and character offset; previews are incomplete.',
   ].filter(Boolean).join('\n\n');
   return prompt;

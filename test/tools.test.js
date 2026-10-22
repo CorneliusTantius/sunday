@@ -18,6 +18,9 @@ test('context tools index and search selected sources without repository access'
   const store = createContextStorage(join(dir, 'context.sqlite'));
   try {
     assert.deepEqual(makeTools(CONTEXT_TOOL_NAMES).map(tool => tool.name), CONTEXT_TOOL_NAMES);
+    const indexDescription = makeTools(CONTEXT_TOOL_NAMES).find(tool => tool.name === 'context_index').description;
+    assert.match(indexDescription, /standardized Markdown/);
+    assert.match(indexDescription, /Do not force this format onto source documents/);
     assert.deepEqual(validateTools(['memory_search', 'memory_update']), ['context_search', 'context_index']);
     const legacyUnrestricted = [...BASIC_TOOL_NAMES.filter(name => !['find', 'context_links', 'context_link', 'context_unlink'].includes(name)), 'subagent_create', 'agent_list', 'context_compress']
       .map(name => ({ context_search: 'memory_search', context_index: 'memory_update' })[name] ?? name);
