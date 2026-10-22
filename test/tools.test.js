@@ -28,10 +28,10 @@ test('context tools index and search selected sources without repository access'
   try {
     assert.deepEqual(makeTools(CONTEXT_TOOL_NAMES).map(tool => tool.name), CONTEXT_TOOL_NAMES);
     assert.deepEqual(validateTools(['memory_search', 'memory_update']), ['context_search', 'context_index']);
-    const legacyUnrestricted = BASIC_TOOL_NAMES.filter(name => !['find', 'context_compress', 'subagent_create', 'subagent_send_prompt', 'subagent_list', 'context_links', 'context_link', 'context_unlink'].includes(name))
+    const legacyUnrestricted = [...BASIC_TOOL_NAMES.filter(name => !['find', 'subagent_create', 'subagent_send_prompt', 'subagent_list', 'context_links', 'context_link', 'context_unlink'].includes(name)), 'context_compress']
       .map(name => ({ context_search: 'memory_search', context_index: 'memory_update' })[name] ?? name);
     const upgradedUnrestricted = validateTools(legacyUnrestricted);
-    assert.ok(upgradedUnrestricted.includes('context_compress'));
+    assert.ok(!upgradedUnrestricted.includes('context_compress'));
     assert.ok(upgradedUnrestricted.includes('find'));
     assert.ok(upgradedUnrestricted.includes('context_links'));
     assert.deepEqual(validateTools(['context_search']), ['context_search']);
@@ -53,7 +53,8 @@ test('context tools index and search selected sources without repository access'
     assert.match(await executeTool('context_search', { query: graphLinks.nodes[0].title }, [], store), /Architecture/);
     assert.deepEqual(JSON.parse(await executeTool('context_unlink', { source: 'release.md', target: 'architecture.md' }, [], store)), { source: 'release.md', target: 'architecture.md', deleted: true });
     await assert.rejects(executeTool('context_search', { query: '  ' }, [], store));
-    await assert.rejects(executeTool('context_compress', {}, [], store), /Tool must be handled by the chat server/);
+    assert.ok(!BASIC_TOOL_NAMES.includes('context_compress'));
+    assert.deepEqual(validateTools(['context_compress', 'read']), ['read']);
   } finally { store.close(); await rm(dir, { recursive: true, force: true }); }
 });
 

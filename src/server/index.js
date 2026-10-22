@@ -595,10 +595,6 @@ async function runChatTurn(session, job, allowWhisper = true) {
         else if (call.name === 'agent_list') {
           if (Object.keys(call.arguments).length) throw new Error('agent_list takes no arguments');
           result = JSON.stringify(await waitForChat(listAgents(session.id), job.controller.signal));
-        } else if (call.name === 'context_compress') {
-          if (Object.keys(call.arguments).length) throw new Error('context_compress takes no arguments');
-          if (!await compactHistory()) throw new Error('No older conversation is available to compress.');
-          result = 'Older conversation summarized for the rest of this response. The original transcript is retained.';
         } else if (call.name === 'tool_output_search') {
           if (Object.keys(call.arguments).some(key => !['query', 'limit'].includes(key))) throw new Error('Invalid tool output search arguments');
           result = JSON.stringify(toolOutputStorage.search(session.id, call.arguments.query, call.arguments.limit ?? 5));

@@ -55,7 +55,6 @@ test('guidance follows actual grants without advertising disabled capabilities',
   assert.ok(all.includes('Bash is not a filesystem sandbox'));
   assert.ok(all.includes('never secrets or transient status'));
   assert.ok(all.includes('tool_output_fetch'));
-  assert.ok(!buildSystemPrompt({ name: 'Agent' }, options(['context_search'])).includes('Use context_compress'));
 });
 
 test('default instructions have one source of truth and customized profiles survive migration', () => {

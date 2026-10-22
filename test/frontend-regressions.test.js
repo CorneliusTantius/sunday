@@ -326,7 +326,7 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
   for (const names of [
     "tools: ['read', 'find', 'edit']",
     "tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list']",
-    "tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink', 'context_compress']",
+    "tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink']",
     "tools: ['agent_list', 'agent_whisper']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
   assert.match(source, /class="repository-checkbox persona-tool-group"/);

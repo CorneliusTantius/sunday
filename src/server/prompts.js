@@ -19,7 +19,6 @@ export function buildSystemPrompt(profile, { repositoryTools = [], contextTools 
     names.has('agent_whisper') && 'Choose whisper targets by responsibility using exact IDs from session context or agent_list when available. Whispered agents cannot whisper onward.',
     contextTools.includes('context_search') && 'Search relevant prior context when useful; follow useful note links when available.',
     contextTools.includes('context_index') && 'Index only durable, verified, non-sensitive knowledge, never secrets or transient status.',
-    contextTools.includes('context_compress') && 'Use context_compress only for long history; original transcripts remain intact.',
     'Large outputs may be retained outside context. When available, use tool_output_search, then tool_output_fetch with the output ID and character offset; previews are incomplete.',
   ].filter(Boolean).join('\n\n');
   return prompt;

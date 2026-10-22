@@ -19,25 +19,24 @@ export const BASIC_TOOLS = [
   { name: 'context_links', description: 'List incoming and outgoing links and related note titles for an indexed context source.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['source'], additionalProperties: false } },
   { name: 'context_link', description: 'Create or update a directed link between indexed context sources.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, target: { type: 'string', minLength: 1, maxLength: 300 }, relation: { type: 'string', minLength: 1, maxLength: 100 } }, required: ['source', 'target'], additionalProperties: false } },
   { name: 'context_unlink', description: 'Remove a directed link between indexed context sources.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, target: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['source', 'target'], additionalProperties: false } },
-  { name: 'context_compress', description: 'Summarize older conversation history to reduce context for the rest of this response. The original transcript is retained. Use only for long conversations.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
 export const REPOSITORY_TOOL_NAMES = ['read', 'find', 'edit', 'bash'];
-export const CONTEXT_TOOL_NAMES = ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink', 'context_compress'];
+export const CONTEXT_TOOL_NAMES = ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink'];
 export const BASIC_TOOL_NAMES = BASIC_TOOLS.map(tool => tool.name);
 export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
   if (!Array.isArray(value)) throw new Error('Invalid allowed tools');
   // Migrate persisted tool names to their current implementations.
-  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list', list_agents: 'agent_list', whisper_to_agent: 'agent_whisper', memory_search: 'context_search', memory_update: 'context_index' })[name] ?? (['list_files', 'search_files'].includes(name) ? null : name)).filter(Boolean);
+  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list', list_agents: 'agent_list', whisper_to_agent: 'agent_whisper', memory_search: 'context_search', memory_update: 'context_index' })[name] ?? name).filter(name => name && !['list_files', 'search_files', 'context_compress'].includes(name));
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
   // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
   const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
   const linkTools = ['context_links', 'context_link', 'context_unlink'];
-  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && name !== 'context_compress' && !orchestration.includes(name) && !linkTools.includes(name));
+  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && !orchestration.includes(name) && !linkTools.includes(name));
   if (legacyUnrestrictedTools.every(name => migrated.includes(name))) {
-    for (const name of [...orchestration, 'find', 'context_compress', ...linkTools]) if (!migrated.includes(name)) migrated.push(name);
+    for (const name of [...orchestration, 'find', ...linkTools]) if (!migrated.includes(name)) migrated.push(name);
   }
   return migrated;
 }
@@ -66,7 +65,7 @@ async function executeContextTool(name, args, contextStore) {
 export async function executeTool(name, args, repositories, contextStore, signal) {
   signal?.throwIfAborted();
   if (!BASIC_TOOL_NAMES.includes(name)) throw new Error('Unknown tool');
-  if (name === 'agent_whisper' || name === 'agent_list' || name === 'context_compress') throw new Error('Tool must be handled by the chat server');
+  if (name === 'agent_whisper' || name === 'agent_list') throw new Error('Tool must be handled by the chat server');
   args ||= {};
   if (CONTEXT_TOOL_NAMES.includes(name)) return executeContextTool(name, args, contextStore);
   if (!Array.isArray(repositories) || !repositories.length) throw new Error('No repositories are allowed for this session');
