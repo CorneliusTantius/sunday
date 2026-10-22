@@ -153,8 +153,9 @@ test('scheduled runs isolate sessions and finalize during graceful shutdown and 
     assert.deepEqual(await readdir(join(home, 'sunday', 'workspace-agents', session.workspaceName)), ['allowed-repo']);
 
     const requestText = (await readFile(requestsPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line)).map(item => JSON.stringify(item.body)).join('\n');
-    assert.match(requestText, /Repository tools available:.*read.*find/);
-    assert.match(requestText, /Repository paths must begin with one of these names: allowed-repo/);
+    const requests = (await readFile(requestsPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line).body);
+    assert.ok(requests.some(body => body.tools?.some(tool => tool.name === 'read') && body.tools.some(tool => tool.name === 'find')));
+    assert.match(requestText, /allowedRepositories.*allowed-repo/);
     assert.doesNotMatch(requestText, /excluded-repo/);
 
     await writeFile(hangPath, 'hang');

@@ -67,6 +67,13 @@ test('persistent subagents enforce ownership, permissions, nesting and the three
     assert.equal(promptedChild.messages.at(-1).content, 'Run synchronous prompt');
     const updatedParent = (await api(`/sessions/${other.id}`)).session;
     assert.equal(updatedParent.messages.some(message => message.role === 'subagent'), false);
+    assert.equal((await configure({ enabled: true, maxChildren: 1, personaId: 'coding-agent' })).status, 200);
+    const restricted = (await api('/sessions', { profile: { name: 'Read-only parent', specialty: '', instructions: '', allowedTools: ['subagent_create', 'read'] } })).session;
+    const restrictedChild = await api(`/sessions/${restricted.id}/subagents`, {});
+    assert.equal(restrictedChild.status, 201);
+    const restrictedProfile = (await api(`/sessions/${restrictedChild.result.id}`)).session.profile;
+    assert.equal(restrictedProfile.personaId, 'coding-agent');
+    assert.deepEqual(restrictedProfile.allowedTools.sort(), ['read', 'subagent_create']);
     withSessionDatabase(home, database => {
       const row = database.prepare('SELECT data FROM sessions WHERE id = ?').get(first.id);
       const saved = JSON.parse(row.data);

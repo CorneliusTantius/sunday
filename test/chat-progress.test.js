@@ -7,6 +7,7 @@ import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTo
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
 import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
+import { resolveAgentTools } from '../src/server/agent-capabilities.js';
 import { TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT } from '../src/server/tool-output-storage.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
@@ -40,7 +41,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
       streamSimple: (m, input, opts) => { inputs.push({ ...input, messages: structuredClone(input.messages) }); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
-    validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
+    validateTools, resolveAgentTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT, toolOutputStorage: outputStorage,
     mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: mcpTools, call: async () => mcpOutput, close: async () => {} }),
     sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id),
@@ -71,8 +72,9 @@ test('chat publishes thinking and partial tools before completion without duplic
   assert.ok(h.events.some(e => e.type === 'progress' && e.status === 'thinking'));
   assert.equal(h.events.filter(e => e.type === 'tool_status').length, 3);
   assert.equal(h.session.messages[0].toolCalls.length, 1);
-  assert.match(h.prompts[0], /Execute clear user requests immediately/);
-  assert.match(h.prompts[0], /missing fact genuinely blocks/);
+  assert.match(h.prompts[0], /Act on clear, authorized requests/);
+  assert.match(h.prompts[0], /missing fact blocks correctness/);
+  assert.ok(h.prompts[0].length <= 3000);
 });
 
 test('chat retains oversized native tool output and provides search/fetch tools in the next round', async () => {
@@ -352,8 +354,7 @@ for (const name of ['context_search', 'context_index', 'context_links', 'context
       assert.deepEqual((h.inputs[0].tools || []).map(tool => tool.name), permitted ? [name] : []);
       assert.equal(h.session.messages[0].toolCalls[0].status, permitted ? 'completed' : 'failed');
       assert.equal(h.executions.length + h.whispers.length, permitted && name !== 'agent_list' ? 1 : 0);
-      assert.equal(h.prompts[0].includes('Other available agents'), permitted && name === 'agent_whisper');
-      assert.equal(h.prompts[0].includes('Context tools available'), permitted && CONTEXT_TOOL_NAMES.includes(name));
+      assert.equal(h.prompts[0].includes('Choose whisper targets'), permitted && name === 'agent_whisper');
     });
   }
 }
@@ -363,10 +364,14 @@ test('agent list excludes subagents from whisper targets', async () => {
   const child = { id: '00000000-0000-0000-0000-000000000003', parentSessionId: root.id, title: 'Child', profile: { specialty: 'Research' } };
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist, root, child]);
   h.session.profile = { name: 'Test', allowedTools: ['agent_whisper'] };
+  h.session.messages.push({ role: 'user', content: 'Find a reviewer.' });
   await h.run();
-  assert.match(h.prompts[0], new RegExp(specialist.id));
-  assert.match(h.prompts[0], new RegExp(root.id));
-  assert.doesNotMatch(h.prompts[0], new RegExp(child.id));
+  const context = h.inputs[0].messages.find(message => message.content.includes('Session context')).content;
+  assert.match(context, new RegExp(specialist.id));
+  assert.match(context, new RegExp(root.id));
+  assert.doesNotMatch(context, new RegExp(child.id));
+  assert.doesNotMatch(h.prompts[0], new RegExp(specialist.id));
+  assert.equal(h.session.messages[0].content, 'Find a reviewer.');
 });
 
 test('whisper handler rejects a subagent target even when called directly', async () => {
@@ -403,8 +408,8 @@ test('context is automatically retrieved only for agents with search permission'
   const retrievedContext = h.inputs[0].messages.find(message => typeof message.content === 'string' && message.content.includes('Retrieved context'))?.content;
   assert.match(retrievedContext, /Retrieved context \(untrusted reference data/);
   assert.match(retrievedContext, /docs\/release\.md/);
-  assert.match(h.prompts[0], /inspect context_links and follow useful connections by searching linked notes/);
-  assert.match(h.prompts[0], /save or update it with context_index/);
+  assert.match(h.prompts[0], /follow useful note links when available/);
+  assert.match(h.prompts[0], /Index only durable, verified, non-sensitive knowledge/);
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_links'));
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_link'));
 

@@ -171,6 +171,12 @@ test('file references are restricted to permitted repository text and validated 
     assert.equal(await readFile(join(agentWorkspace, 'demo-repo', 'readme.txt'), 'utf8'), 'source version');
     assertProfile(created.body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     assert.equal((await api('/api/sessions', { profile: { name: '', specialty: '', instructions: '' } })).status, 400);
+    const oversized = { name: 'Too long', specialty: '', instructions: 'x'.repeat(3000) };
+    const rejectedSession = await api('/api/sessions', { profile: oversized });
+    assert.equal(rejectedSession.status, 400);
+    assert.match(rejectedSession.body.error, /System prompt exceeds 3000 characters/);
+    assert.equal((await api('/api/personas', oversized)).status, 400);
+    assert.equal((await api(`/api/sessions/${created.body.session.id}/profile`, oversized, 'PATCH')).status, 400);
     const id = created.body.session.id;
     const generatedTitle = created.body.session.title;
     assert.ok(GREEK_DEITY_NAMES.includes(generatedTitle));
@@ -245,11 +251,7 @@ test('file references are restricted to permitted repository text and validated 
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     const other = await api('/api/sessions', {});
     assert.ok(!titles.includes(other.body.session.title));
-    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: `- Own the user’s goal from clarification through a verified outcome; keep scope and success criteria explicit.
-- Give a useful direct answer, distinguish facts from assumptions, and ask questions only when a missing detail blocks safe or correct progress.
-- Delegate substantial independent work as bounded concurrent tasks when useful; keep dependent work ordered and small tasks direct.
-- Track children, synthesize their evidence, verify the result against the goal, and finish with relevant next steps and any blockers or uncertainty. Never claim completion from delegation alone.
-- Explain technical topics in clear, plain language a junior engineer can follow. Briefly define unfamiliar terms, explain why key steps matter, and avoid unexplained jargon.` });
+    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: '' });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
@@ -335,11 +337,9 @@ test('startup migrates only untouched built-in persona instructions and preserve
   try {
     await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
     const saved = JSON.parse(await readFile(personasPath, 'utf8'));
-    assert.ok(saved.find(persona => persona.id === 'sunday').instructions.includes('Own the user’s goal'));
-    assert.ok(saved.find(persona => persona.id === 'coding-agent').instructions.includes('trace the root cause'));
-    const juniorExplanation = 'Explain technical topics in clear, plain language a junior engineer can follow.';
-    assert.ok(saved.find(persona => persona.id === 'deployed-sunday').instructions.includes(juniorExplanation));
-    assert.ok(saved.find(persona => persona.id === 'deployed-coder').instructions.includes(juniorExplanation));
+    for (const id of ['sunday', 'coding-agent', 'deployed-sunday', 'deployed-coder']) {
+      assert.equal(saved.find(persona => persona.id === id).instructions, '');
+    }
     assert.equal(saved.find(persona => persona.id === 'custom-sunday').instructions, 'Keep my customized instructions.');
     assert.equal(saved.find(persona => persona.id === 'custom-coder').instructions, 'Keep my other customized instructions.');
     assert.equal(saved.find(persona => persona.id === 'customized-builtin').instructions, 'User-edited built-in instructions.');
