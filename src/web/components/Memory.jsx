@@ -209,7 +209,7 @@ export default function Memory({ toast }) {
       <button class={`context-button${!graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
       <button class={`context-button${graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
     </div>
-    {graphOpen && <section class="context-panel context-global-panel" aria-labelledby="context-global-title">
+    {graphOpen && <section class="context-panel context-global-panel context-tab-view" aria-labelledby="context-global-title">
       <header class="context-global-header">
         <div><h2 id="context-global-title">Knowledge graph</h2><p>All indexed notes and their directed links. Select a note to highlight it; open Notes to read its content.</p></div>
         <div class="context-global-meta"><span>{graph.nodes.length} notes · {graph.links.length} links</span><button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button></div>
@@ -231,7 +231,7 @@ export default function Memory({ toast }) {
         </div>
       </div> : <p class="context-empty">No indexed notes yet. Index notes to populate the graph.</p>}
     </section>}
-    {!graphOpen && <div class="context-layout">
+    {!graphOpen && <div class="context-layout context-tab-view">
       <section class="context-panel" aria-label="Indexed sources">
         <h2>Notes <span class="context-notes-count">{visibleSources.length}</span></h2>
         <form class="context-search" onSubmit={search}>

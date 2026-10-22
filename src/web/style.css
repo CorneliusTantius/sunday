@@ -1269,6 +1269,9 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .context-detail-header > div > p:last-child { overflow-wrap: anywhere; }
 .context-detail pre { max-height: 50vh; overflow: auto; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: 14px/1.7 'DM Sans', sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; }
 .context-global-panel { margin-bottom: 16px; }
+.context-tab-view { animation: context-tab-enter 220ms ease-out both; }
+@keyframes context-tab-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .context-tab-view { animation: none; } }
 .context-global-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .context-global-header h2 { margin: 0 0 4px; font: 700 16px Manrope, sans-serif; }
 .context-global-header p { margin: 0; color: var(--muted); font-size: 12px; }
