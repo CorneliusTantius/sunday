@@ -728,15 +728,6 @@ async function whisperToAgent(sourceId, args, signal) {
 }
 const defaultPersona = () => personas.find(item => item.id === settings.defaultPersonaId) || personas.find(item => item.id === 'sunday') || personas[0] || { id: 'sunday', name: 'Sunday', specialty: '', instructions: '', color: 'cyan', emoji: 'normal' };
 const defaultProfile = () => ({ ...validateProfile(defaultPersona()), personaId: defaultPersona().id, color: defaultPersona().color, emoji: defaultPersona().emoji });
-function validatePersonaPrompt(profile) {
-  // Check the largest supported runtime configuration of this profile's grants.
-  const tools = validateTools(profile.allowedTools);
-  buildSystemPrompt({ ...profile, personaId: profile.personaId || profile.id }, {
-    tools,
-    repositoryTools: tools.filter(name => REPOSITORY_TOOL_NAMES.includes(name)),
-    contextTools: tools.filter(name => CONTEXT_TOOL_NAMES.includes(name)),
-  });
-}
 function validateProfile(profile) {
   if (!profile || typeof profile !== 'object' || Array.isArray(profile) ||
       typeof profile.name !== 'string' || profile.name.trim().length < 1 || profile.name.length > 80 ||
@@ -746,14 +737,14 @@ function validateProfile(profile) {
   }
   const color = profile.color ?? 'cyan', emoji = profile.emoji ?? 'normal';
   if (!colors.includes(color) || !emojis.includes(emoji)) throw new Error('Invalid profile color or emoji');
-  return { name: profile.name, specialty: profile.specialty, instructions: profile.instructions, allowedTools: validateTools(profile.allowedTools), color, emoji };
+  return { instructionsVersion: 1, name: profile.name, specialty: profile.specialty, instructions: profile.instructions, allowedTools: validateTools(profile.allowedTools), color, emoji };
 }
 async function readSession(id) {
   const session = sessionStorage.get(id);
   if (!session) return null;
   const matched = personas.find(persona => persona.id === session.profile?.personaId) || personas.find(persona => persona.name === session.profile?.name);
-  const profile = session.profile ? validateProfile({ ...session.profile, color: session.profile.color ?? matched?.color ?? defaultPersona().color, emoji: session.profile.emoji ?? 'normal' }) : defaultProfile();
-  session.profile = migratePersonaInstructions({ ...profile, personaId: matched?.id || defaultPersona().id });
+  const profile = session.profile ? validateProfile(migratePersonaInstructions({ ...session.profile, color: session.profile.color ?? matched?.color ?? defaultPersona().color, emoji: session.profile.emoji ?? 'normal' })) : defaultProfile();
+  session.profile = { ...profile, personaId: matched?.id || defaultPersona().id };
   return session;
 }
 function persistSession(session) { sessionStorage.save(session); }
@@ -993,7 +984,6 @@ const server = http.createServer(async (req, res) => {
       const input = await body(req);
       const profile = validateProfile({ ...input, color: input.color ?? 'cyan', emoji: input.emoji ?? 'normal' });
       const persona = { id: randomUUID(), ...profile };
-      validatePersonaPrompt(persona);
       await serialize(async () => { const next = [...personas, persona]; await save('personas.json', next); personas = next; });
       return json(res, 201, { persona });
     }
@@ -1008,7 +998,6 @@ const server = http.createServer(async (req, res) => {
         }
         const input = await body(req);
         const persona = { id: personas[index].id, ...validateProfile({ ...input, color: input.color ?? 'cyan', emoji: input.emoji ?? 'normal' }) };
-        validatePersonaPrompt(persona);
         const next = personas.slice(); next[index] = persona;
         await save('personas.json', next); personas = next;
         return json(res, 200, { persona });
@@ -1122,7 +1111,6 @@ const server = http.createServer(async (req, res) => {
       const selectedProfile = persona || (input.profile === undefined ? defaultPersona() : input.profile);
       if (input.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.trim().length > 120)) throw new Error('Chat title must be 1–120 characters');
       const profile = { ...validateProfile(selectedProfile), personaId: selectedProfile.personaId || selectedProfile.id || defaultPersona().id };
-      validatePersonaPrompt(profile);
       const config = sessionConfig(), models = await sessionModels(config);
       return await serialize(async () => {
         const titles = [];
@@ -1158,7 +1146,6 @@ const server = http.createServer(async (req, res) => {
       const persona = input.personaId === undefined ? null : personas.find(item => item.id === input.personaId);
       if (input.personaId !== undefined && !persona) throw new Error('Persona not found');
       const profile = persona ? { ...validateProfile(persona), personaId: persona.id } : { ...validateProfile(input), personaId: input.personaId || defaultPersona().id };
-      validatePersonaPrompt(profile);
       return await withSessionLock(id, async () => {
         const session = await readSession(id);
         if (!session) return json(res, 404, { error: 'Session not found' });

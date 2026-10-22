@@ -9,6 +9,7 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { GREEK_DEITY_NAMES } from '../src/server/session-names.js';
+import { seededPersonas } from '../src/server/personas.js';
 import { BASIC_TOOLS } from '../src/server/tools.js';
 
 function assertProfile(actual, expected) {
@@ -171,12 +172,12 @@ test('file references are restricted to permitted repository text and validated 
     assert.equal(await readFile(join(agentWorkspace, 'demo-repo', 'readme.txt'), 'utf8'), 'source version');
     assertProfile(created.body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     assert.equal((await api('/api/sessions', { profile: { name: '', specialty: '', instructions: '' } })).status, 400);
-    const oversized = { name: 'Too long', specialty: '', instructions: 'x'.repeat(3000) };
-    const rejectedSession = await api('/api/sessions', { profile: oversized });
-    assert.equal(rejectedSession.status, 400);
-    assert.match(rejectedSession.body.error, /System prompt exceeds 3000 characters/);
-    assert.equal((await api('/api/personas', oversized)).status, 400);
-    assert.equal((await api(`/api/sessions/${created.body.session.id}/profile`, oversized, 'PATCH')).status, 400);
+    const longProfile = { name: 'Long instructions', specialty: '', instructions: 'x'.repeat(8000) };
+    const longSession = await api('/api/sessions', { profile: longProfile });
+    assert.equal(longSession.status, 201);
+    assert.equal(longSession.body.session.profile.instructions, longProfile.instructions);
+    assert.equal((await api('/api/personas', longProfile)).status, 201);
+    assert.equal((await api(`/api/sessions/${longSession.body.session.id}/profile`, longProfile, 'PATCH')).status, 200);
     const id = created.body.session.id;
     const generatedTitle = created.body.session.title;
     assert.ok(GREEK_DEITY_NAMES.includes(generatedTitle));
@@ -251,7 +252,7 @@ test('file references are restricted to permitted repository text and validated 
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
     const other = await api('/api/sessions', {});
     assert.ok(!titles.includes(other.body.session.title));
-    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: '' });
+    assertProfile(other.body.session.profile, { name: 'Sunday', specialty: 'General assistance', instructions: seededPersonas[0].instructions });
     const changed = await api(`/api/sessions/${other.body.session.id}/profile`, { name: 'Coder', specialty: 'Backend', instructions: '' }, 'PATCH');
     assert.equal(changed.status, 200);
     assertProfile((await api(`/api/sessions/${id}`)).body.session.profile, { name: 'Tutor', specialty: 'Math', instructions: 'Show steps' });
@@ -329,6 +330,9 @@ test('startup migrates only untouched built-in persona instructions and preserve
     { id: 'coding-agent', name: 'Coding Agent', specialty: 'Software development', instructions: previousCoder },
     { id: 'deployed-sunday', personaId: 'sunday', name: 'Sunday', specialty: 'General assistance', instructions: deployedSunday },
     { id: 'deployed-coder', personaId: 'coding-agent', name: 'Coding Agent', specialty: 'Software development', instructions: deployedCoder },
+    { id: 'cleared-sunday', personaId: 'sunday', name: 'Sunday', specialty: '', instructions: '' },
+    { id: 'intentionally-empty', personaId: 'coding-agent', name: 'Coding Agent', specialty: '', instructions: '', instructionsVersion: 1 },
+    { id: 'edited-builtin', personaId: 'sunday', name: 'Sunday', specialty: '', instructions: 'My own workflow.' },
     { id: 'custom-sunday', name: 'Sunday', specialty: 'Custom', instructions: 'Keep my customized instructions.' },
     { id: 'custom-coder', name: 'Coding Agent', specialty: 'Custom', instructions: 'Keep my other customized instructions.' },
     { id: 'customized-builtin', name: 'Custom Sunday', specialty: 'General assistance', instructions: 'User-edited built-in instructions.' },
@@ -338,8 +342,11 @@ test('startup migrates only untouched built-in persona instructions and preserve
     await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
     const saved = JSON.parse(await readFile(personasPath, 'utf8'));
     for (const id of ['sunday', 'coding-agent', 'deployed-sunday', 'deployed-coder']) {
-      assert.equal(saved.find(persona => persona.id === id).instructions, '');
+      assert.equal(saved.find(persona => persona.id === id).instructions, seededPersonas.find(persona => persona.id === (id.includes('sunday') ? 'sunday' : 'coding-agent')).instructions);
     }
+    assert.equal(saved.find(persona => persona.id === 'cleared-sunday').instructions, seededPersonas[0].instructions);
+    assert.equal(saved.find(persona => persona.id === 'intentionally-empty').instructions, '');
+    assert.equal(saved.find(persona => persona.id === 'edited-builtin').instructions, 'My own workflow.');
     assert.equal(saved.find(persona => persona.id === 'custom-sunday').instructions, 'Keep my customized instructions.');
     assert.equal(saved.find(persona => persona.id === 'custom-coder').instructions, 'Keep my other customized instructions.');
     assert.equal(saved.find(persona => persona.id === 'customized-builtin').instructions, 'User-edited built-in instructions.');

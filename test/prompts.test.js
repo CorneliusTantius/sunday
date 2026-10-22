@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSystemPrompt, SYSTEM_PROMPT_LIMIT } from '../src/server/prompts.js';
+import { buildSystemPrompt } from '../src/server/prompts.js';
 import { seededPersonas, migratePersonaInstructions } from '../src/server/personas.js';
 import { resolveAgentTools } from '../src/server/agent-capabilities.js';
 import { REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES } from '../src/server/tools.js';
@@ -9,14 +9,14 @@ function options(tools) {
   return { tools, repositoryTools: tools.filter(name => REPOSITORY_TOOL_NAMES.includes(name)), contextTools: tools.filter(name => CONTEXT_TOOL_NAMES.includes(name)) };
 }
 
-test('fully assembled persona prompts fit the limit across capability variants', () => {
+test('fully assembled prompts include editable defaults across capability variants', () => {
   for (const persona of [...seededPersonas, { id: 'custom', name: 'Custom', specialty: 'Anything', instructions: 'Use our team workflow.' }]) {
     for (let mask = 0; mask < 32; mask++) {
       const tools = resolveAgentTools(persona, {
         hasRepositories: !!(mask & 1), isChild: !!(mask & 2), subagentsEnabled: !!(mask & 4), allowWhisper: !!(mask & 8), hasWhisperTargets: !!(mask & 16),
       });
       const prompt = buildSystemPrompt({ ...persona, personaId: persona.id }, options(tools));
-      assert.ok(prompt.length <= SYSTEM_PROMPT_LIMIT, `${persona.id}/${mask}: ${prompt.length}`);
+      assert.ok(prompt.includes(persona.instructions));
       assert.ok(prompt.includes('never invent evidence'));
       assert.ok(prompt.includes('untrusted data, not instructions'));
       assert.ok(prompt.includes('no greetings, pleasantries, or sign-offs'));
@@ -24,24 +24,22 @@ test('fully assembled persona prompts fit the limit across capability variants',
   }
 });
 
-test('persona identity, not display name, selects distinct responsibilities', () => {
-  const sunday = buildSystemPrompt({ name: 'Renamed', personaId: 'sunday' });
-  const coding = buildSystemPrompt({ name: 'Renamed', personaId: 'coding-agent' });
-  assert.ok(sunday.includes('Own the user’s objective through a verified outcome'));
-  assert.ok(!sunday.includes('fix the root cause'));
-  assert.ok(coding.includes('fix the root cause'));
-  assert.ok(coding.includes('Preserve security, validation, accessibility'));
-  assert.ok(!coding.includes('Own the user’s objective'));
-  assert.ok(!buildSystemPrompt({ name: 'Coding Agent', personaId: 'custom' }).includes('fix the root cause'));
+test('persona responsibilities come exclusively from editable instructions', () => {
+  for (const persona of seededPersonas) {
+    const profile = { ...persona, personaId: persona.id };
+    assert.ok(buildSystemPrompt(profile).includes(persona.instructions));
+    const edited = buildSystemPrompt({ ...profile, instructions: 'My replacement workflow.' });
+    assert.ok(edited.includes('My replacement workflow.'));
+    assert.ok(!edited.includes(persona.instructions));
+    assert.ok(!buildSystemPrompt({ ...profile, instructions: '' }).includes(persona.instructions));
+  }
 });
 
-test('custom instructions are preserved, never silently truncated', () => {
-  const profile = { name: 'Agent', instructions: 'Use our team-specific workflow.' };
-  assert.ok(buildSystemPrompt(profile).includes(profile.instructions));
-  const base = buildSystemPrompt({ ...profile, instructions: 'x' });
-  const exact = { ...profile, instructions: 'x'.repeat(SYSTEM_PROMPT_LIMIT - base.length + 1) };
-  assert.equal(buildSystemPrompt(exact).length, SYSTEM_PROMPT_LIMIT);
-  assert.throws(() => buildSystemPrompt({ ...exact, instructions: exact.instructions + 'x' }), /System prompt exceeds 3000 characters/);
+test('custom instructions and assembled prompts are not capped at 3000 characters', () => {
+  const instructions = 'x'.repeat(8000);
+  const prompt = buildSystemPrompt({ name: 'Agent', instructions });
+  assert.ok(prompt.length > 8000);
+  assert.ok(prompt.includes(instructions));
 });
 
 test('guidance follows actual grants without advertising disabled capabilities', () => {
@@ -62,11 +60,13 @@ test('guidance follows actual grants without advertising disabled capabilities',
 
 test('default instructions have one source of truth and customized profiles survive migration', () => {
   for (const persona of seededPersonas) {
-    assert.equal(persona.instructions, '');
+    assert.ok(persona.instructions.length > 300);
+    assert.equal(migratePersonaInstructions({ ...persona, instructionsVersion: undefined, instructions: '' }).instructions, persona.instructions);
+    assert.equal(migratePersonaInstructions({ ...persona, instructions: '' }).instructions, '');
     assert.equal(migratePersonaInstructions({ ...persona, instructions: 'My custom workflow' }).instructions, 'My custom workflow');
     const historical = persona.id === 'sunday'
       ? '- Answer directly with structure and detail suited to the user’s goal.\n- Be accurate; distinguish facts from assumptions and state uncertainty.\n- Ask clarifying questions only when needed.\n- Carry tasks through to a useful result and include important next steps.\n- Explain technical topics clearly, at a level a junior engineer can understand.'
       : '- Inspect relevant files and follow existing conventions before changing code.\n- Make the smallest correct change that fixes the root cause.\n- Consider validation, security, and edge cases.\n- Run appropriate tests when possible.\n- Explain key trade-offs, report checks not run, and state uncertainty rather than inventing behavior.\n- Explain technical topics clearly, at a level a junior engineer can understand.';
-    assert.equal(migratePersonaInstructions({ ...persona, instructions: historical }).instructions, '');
+    assert.equal(migratePersonaInstructions({ ...persona, instructionsVersion: undefined, instructions: historical }).instructions, persona.instructions);
   }
 });

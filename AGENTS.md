@@ -13,7 +13,7 @@
 - JSON persistence: `src/server/storage.js`; focused tests beside the module.
 - Tool definitions and repository access policy: `src/server/tools.js`; SQLite context indexing/search: `src/server/context-storage.js`.
 - MCP configuration validation, transports, and tool connections: `src/server/mcp.js`; settings UI: `src/web/components/Settings.jsx`.
-- System prompt composition and 3,000-character limit: `src/server/prompts.js`; seeded persona metadata and legacy instruction migration: `src/server/personas.js`; effective built-in tool grants: `src/server/agent-capabilities.js`; ordered/concurrent tool batches: `src/server/tool-dispatch.js`.
+- Shared system prompt composition: `src/server/prompts.js`; seeded persona metadata and legacy instruction migration: `src/server/personas.js`; effective built-in tool grants: `src/server/agent-capabilities.js`; ordered/concurrent tool batches: `src/server/tool-dispatch.js`.
 - Context budgeting, thinking levels, repository status, session names: corresponding named modules in `src/server/`.
 - Frontend composition, navigation, chat streaming: `src/web/App.jsx`.
 - Feature UI: `src/web/components/` (SessionConfig = per-agent settings; Settings = global defaults; Memory = Context index UI).

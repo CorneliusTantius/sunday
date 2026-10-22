@@ -107,8 +107,8 @@ export default function Personas({ hidden, toast, onReload }) {
         </select></div>
       </div>
       <div class="settings-select-row"><label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
-      <label class="field-label" for="persona-instructions">Custom instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="3000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
-      <p id="persona-instructions-note" class="field-note">Sunday and Coding Agent include built-in role guidance. Add only your custom workflow here. The complete system prompt, including shared rules and tool guidance, must fit within 3,000 characters; saving reports if it is too long.</p>
+      <label class="field-label" for="persona-instructions">Custom instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
+      <p id="persona-instructions-note" class="field-note">Edit the persona’s responsibilities and workflow here. Sunday and Coding Agent start with editable defaults; shared system rules and tool guidance are added separately.</p>
       <details class="persona-tools-card" open><summary>Tool permissions</summary><fieldset class="repository-options"><legend class="sr-only">Tool permissions</legend><div id="persona-tools">
         {toolPermissionItems.map(item => {
           if (!item.group) {

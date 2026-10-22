@@ -74,7 +74,6 @@ test('chat publishes thinking and partial tools before completion without duplic
   assert.equal(h.session.messages[0].toolCalls.length, 1);
   assert.match(h.prompts[0], /Act on clear, authorized requests/);
   assert.match(h.prompts[0], /missing fact blocks correctness/);
-  assert.ok(h.prompts[0].length <= 3000);
 });
 
 test('chat retains oversized native tool output and provides search/fetch tools in the next round', async () => {
