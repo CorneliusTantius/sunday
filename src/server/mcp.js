@@ -39,7 +39,11 @@ async function makeSession(config, agentDir, openUrl, ui = {}) {
   const loader = new DefaultResourceLoader({
     cwd: process.cwd(), agentDir: agentDir ?? process.env.PI_CODING_AGENT_DIR ?? `${process.env.HOME}/.pi/agent`,
     noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
-    extensionFactories: [createCodemodeExtension({ mode: 'on' }), createToolSearchExtension(), createMcpExtension({ loadConfig: () => ({ servers: Object.entries(config.mcpServers).map(([name, entry]) => ({ name, config: entry, source: 'extension' })), errors: [] }), openUrl })],
+    extensionFactories: [createCodemodeExtension({ mode: 'on' }), createToolSearchExtension(), createMcpExtension({ loadConfig: () => ({ servers: Object.entries(config.mcpServers).map(([name, entry]) => ({ name, config: entry, source: 'extension' })), errors: [] }), openUrl }),
+      pi => pi.on('tool_result', event => event.isError ? {
+        content: [{ type: 'text', text: 'MCP tool execution failed. Check arguments, server configuration, sign-in, and connectivity in Settings → MCP.' }], details: {},
+      } : undefined),
+    ],
   });
   await loader.reload();
   if (loader.getExtensions().errors.length) throw new Error('MCP extensions could not load; check the installed SDK and server configuration.');
@@ -60,11 +64,65 @@ async function closeSession(session) {
   finally { session.dispose(); }
 }
 
+// Redact at the adapter boundary, including successful codemode output that caught a nested error.
+async function createMcpRedactor(config) {
+  const secrets = new Set();
+  const remember = value => {
+    if (typeof value !== 'string' || !value) return;
+    secrets.add(value);
+    for (const match of value.matchAll(/\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))/g)) {
+      const resolved = process.env[match[1] || match[2]];
+      if (resolved) secrets.add(resolved);
+    }
+    try { secrets.add(decodeURIComponent(value)); } catch { /* Already decoded or not URL-encoded. */ }
+  };
+  for (const server of Object.values(config.mcpServers)) {
+    for (const value of Object.values(server.env || {})) remember(value);
+    for (const value of Object.values(server.headers || {})) {
+      remember(value);
+      remember(value.replace(/^(?:Bearer|Basic)\s+/i, ''));
+    }
+    remember(server.oauth?.clientSecret);
+    if (server.url) {
+      const url = new URL(server.url);
+      for (const value of [url.username, url.password, ...url.searchParams.values()]) remember(value);
+    }
+  }
+  const refresh = async () => {
+    let auth;
+    try { auth = JSON.parse(await readFile(join(getAgentDir(), 'mcp-auth.json'), 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') return; throw new Error('MCP credentials could not be read safely'); }
+    for (const entry of Object.values(auth)) {
+      for (const key of ['access_token', 'refresh_token', 'id_token']) remember(entry?.tokens?.[key]);
+      remember(entry?.clientInformation?.client_secret);
+      remember(entry?.codeVerifier);
+      remember(entry?.oauthState);
+    }
+  };
+  await refresh();
+  const redact = text => {
+    for (const secret of [...secrets].sort((a, b) => b.length - a.length)) {
+      for (const value of new Set([secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret)])) {
+        text = text.split(value).join('[REDACTED]');
+      }
+    }
+    return text;
+  };
+  const sanitize = value => {
+    if (typeof value === 'string') return redact(value);
+    if (Array.isArray(value)) return value.map(sanitize);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [redact(key), sanitize(item)]));
+    return value;
+  };
+  return { refresh, redact, sanitize };
+}
+
 export async function connectMcp(config, signal, { agentDir } = {}) {
   validateMcpConfig(config);
   signal?.throwIfAborted();
   const servers = Object.entries(config.mcpServers).filter(([, server]) => server.enabled !== false).map(([name]) => name);
   if (!servers.length) return { tools: [], prepare: async () => ({ servers: [] }), call: async () => { throw new Error('No MCP servers are enabled'); }, close: async () => {} };
+  const { refresh, redact, sanitize } = await createMcpRedactor(config);
   const diagnostics = [];
   // SDK failure messages can contain transport URLs or credentials. Publish only known states.
   const notify = (message, type) => {
@@ -90,7 +148,7 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
   if (signal?.aborted) { await close(); signal.throwIfAborted(); }
   let sequence = 0;
   return {
-    get tools() { return session.agent.state.tools; },
+    get tools() { return session.agent.state.tools.map(tool => ({ ...tool, description: redact(tool.description), parameters: sanitize(tool.parameters) })); },
     async prepare() {
       signal?.throwIfAborted();
       if (closing) throw new Error('MCP connection is closed');
@@ -99,7 +157,8 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
         { messageType: 'user', prompt: '' },
         { cwd: process.cwd(), customPrompt: '', selectedTools: session.getActiveToolNames(), sections: {} },
       );
-      return { servers, discovery: systemPromptOptions.sections.mcp_servers || '', diagnostics: [...diagnostics] };
+      await refresh();
+      return sanitize({ servers, discovery: systemPromptOptions.sections.mcp_servers || '', diagnostics: [...diagnostics] });
     },
     async call(name, args, assistantMessage) {
       signal?.throwIfAborted();
@@ -109,14 +168,19 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
       // Nested codemode calls require the actual issuing message, not a separate model run.
       session.agent.state.messages = [assistantMessage];
       const toolCall = { type: 'toolCall', id: `sunday-mcp-${++sequence}`, name, arguments: args ?? {} };
-      const outcome = await runToolCall(toolCall, {
-        tools: session.agent.state.tools, assistantMessage,
-        context: { messages: session.agent.state.messages, tools: session.agent.state.tools },
-        beforeToolCall: session.agent.beforeToolCall, afterToolCall: session.agent.afterToolCall, signal,
-      });
+      const failure = () => new Error(`MCP tool ${name} failed. Check its arguments and the server configuration, sign-in, and connectivity in Settings → MCP.`);
+      let outcome;
+      try {
+        outcome = await runToolCall(toolCall, {
+          tools: session.agent.state.tools, assistantMessage,
+          context: { messages: session.agent.state.messages, tools: session.agent.state.tools },
+          beforeToolCall: session.agent.beforeToolCall, afterToolCall: session.agent.afterToolCall, signal,
+        });
+      } catch { throw failure(); }
       const result = { ...outcome.result, ...(diagnostics.length ? { diagnostics: [...diagnostics] } : {}) };
-      if (outcome.isError) throw new Error(JSON.stringify(result));
-      return JSON.stringify(result);
+      await refresh();
+      if (outcome.isError) throw failure();
+      return JSON.stringify(sanitize(result));
     },
     close,
   };
@@ -124,6 +188,7 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
 
 export async function createMcpLogin(config, name, agentDir) {
   if (!config.mcpServers[name]?.url) throw new Error('OAuth requires an HTTP MCP server');
+  const loginFailure = 'MCP sign-in failed. Check the server configuration and try signing in again in Settings → MCP.';
   let resolveRedirect, url, error, status = 'starting';
   const redirect = new Promise(resolve => { resolveRedirect = resolve; });
   const session = await makeSession({ mcpServers: { [name]: config.mcpServers[name] } }, agentDir,
@@ -132,9 +197,9 @@ export async function createMcpLogin(config, name, agentDir) {
         options?.signal?.addEventListener('abort', () => resolveRedirect(undefined), { once: true });
         return redirect;
       },
-      notify: (message, type) => { if (type === 'error') { error = message; status = 'failed'; } },
+      notify: (_message, type) => { if (type === 'error') { error = loginFailure; status = 'failed'; } },
     });
-  session.prompt(`/mcp login ${name}`).then(() => { if (!error) status = 'complete'; }, failure => { error = failure.message; status = 'failed'; }).finally(() => closeSession(session));
+  session.prompt(`/mcp login ${name}`).then(() => { if (!error) status = 'complete'; }, () => { error = loginFailure; status = 'failed'; }).finally(() => closeSession(session));
   return {
     get url() { return url; }, get status() { return status; }, get error() { return error; },
     submit(value) { resolveRedirect(value); },

@@ -1,8 +1,9 @@
 import test from 'node:test';
+import { credentialEchoServer } from './fixtures/mcp-http.js';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connectMcp, validateMcpConfig } from '../src/server/mcp.js';
@@ -37,15 +38,15 @@ test('real MCP discovery waits for startup and loads tools for subsequent calls'
   assert.match(await call('tool_search', { query: 'datadog' }), /mcp__datadog__get_metric/);
   assert.ok(client.tools.some(tool => tool.name === 'mcp__datadog__get_metric'));
   assert.match(await call('mcp__datadog__get_metric', {}), /fixture metric:42/);
-  await assert.rejects(call('mcp__datadog__get_metric', { fail: true }), /Fixture metric read failed/);
-  await assert.rejects(call('mcp__datadog__get_metric', { fail: 'invalid' }), /boolean/);
+  await assert.rejects(call('mcp__datadog__get_metric', { fail: true }), /MCP tool .* failed/);
+  await assert.rejects(call('mcp__datadog__get_metric', { fail: 'invalid' }), /MCP tool .* failed/);
   await assert.rejects(call('read', { path: '/etc/passwd' }), /Unknown MCP tool/);
 });
 
 test('codemode uses the SDK nested tool pipeline without another model run or filesystem tools', async t => {
   const { call } = await fixture(t, { env: { FIXTURE_DELAY: '300' } });
   assert.match(await call('codemode', { code: 'console.log(await tools.mcp__datadog__get_metric({}));' }), /fixture metric:42/);
-  await assert.rejects(call('codemode', { code: 'console.log(await tools.read({path:"/etc/passwd"}));' }), /read/);
+  await assert.rejects(call('codemode', { code: 'console.log(await tools.read({path:"/etc/passwd"}));' }), /MCP tool .* failed/);
 });
 
 test('direct and deferred MCP exposure are supported', async t => {
@@ -130,4 +131,76 @@ test('MCP discovery state is isolated between concurrent agent sessions', async 
   await assert.rejects(first.call('tool_search', { query: 'datadog' }), /MCP connection is closed/);
   await second.call('tool_search', { query: 'datadog' });
   assert.match(await second.call('mcp__datadog__get_metric', {}), /fixture metric:42/);
+});
+
+
+test('execution, nested codemode errors, and reconnect failures never expose HTTP credentials', async t => {
+  const server = await credentialEchoServer(t);
+  const dir = await mkdtemp(join(tmpdir(), 'sunday-mcp-secrets-'));
+  const client = await connectMcp(server.config, AbortSignal.timeout(15000), { agentDir: dir });
+  t.after(async () => { await client.close(); await rm(dir, { recursive: true, force: true }); });
+  const call = (name, args) => client.call(name, args, issuingMessage(name, args));
+  await call('tool_search', { query: 'metric' });
+  const observed = [];
+  await assert.rejects(call('mcp__echo__get_metric', {}), error => {
+    observed.push(error.message);
+    return /Settings → MCP/.test(error.message);
+  });
+  observed.push(await call('codemode', { code: 'try { await tools.mcp__echo__get_metric({}); } catch (error) { console.log(error.message); }' }));
+  server.failReconnect();
+  await assert.rejects(call('mcp__echo__get_metric', {}), error => {
+    observed.push(error.message);
+    return /Settings → MCP/.test(error.message);
+  });
+  assert.ok(server.initializations >= 2, 'expired sessions must attempt a new initialize handshake');
+  observed.push(JSON.stringify(await client.prepare()));
+  observed.push(JSON.stringify(client.tools));
+  for (const output of observed) {
+    assert.ok(!output.includes(server.token));
+    assert.ok(!output.includes(server.querySecret));
+  }
+});
+
+
+test('successful responses redact resolved environment headers and URL query credentials', async t => {
+  const server = await credentialEchoServer(t);
+  const previous = process.env.SUNDAY_MCP_TEST_TOKEN;
+  process.env.SUNDAY_MCP_TEST_TOKEN = server.token;
+  t.after(() => { if (previous === undefined) delete process.env.SUNDAY_MCP_TEST_TOKEN; else process.env.SUNDAY_MCP_TEST_TOKEN = previous; });
+  server.config.mcpServers.echo.headers.Authorization = 'Bearer ${SUNDAY_MCP_TEST_TOKEN}';
+  const client = await connectMcp(server.config, AbortSignal.timeout(10000));
+  t.after(() => client.close());
+  await client.call('tool_search', { query: 'metric' }, issuingMessage('tool_search', { query: 'metric' }));
+  const output = await client.call('mcp__echo__get_metric', { echo: true }, issuingMessage('mcp__echo__get_metric', { echo: true }));
+  assert.equal(server.receivedAuthorization, `Bearer ${server.token}`);
+  assert.ok(!output.includes(server.token));
+  assert.ok(!output.includes(server.querySecret));
+  assert.match(output, /REDACTED/);
+  assert.ok(JSON.parse(output).structuredContent);
+});
+
+test('successful responses redact stored and rotated OAuth access tokens', async t => {
+  const server = await credentialEchoServer(t);
+  delete server.config.mcpServers.echo.headers;
+  const dir = await mkdtemp(join(tmpdir(), 'sunday-oauth-redaction-'));
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = dir;
+  t.after(async () => {
+    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
+    await rm(dir, { recursive: true, force: true });
+  });
+  const saveToken = token => writeFile(join(dir, 'mcp-auth.json'), JSON.stringify({
+    [server.config.mcpServers.echo.url]: { tokens: { access_token: token, token_type: 'Bearer' } },
+  }));
+  await saveToken(server.token);
+  const client = await connectMcp(server.config, AbortSignal.timeout(10000), { agentDir: dir });
+  t.after(() => client.close());
+  await client.call('tool_search', { query: 'metric' }, issuingMessage('tool_search', { query: 'metric' }));
+  for (const token of [server.token, 'synthetic-rotated-oauth-token']) {
+    await saveToken(token);
+    const output = await client.call('mcp__echo__get_metric', { echo: true }, issuingMessage('mcp__echo__get_metric', { echo: true }));
+    assert.equal(server.receivedAuthorization, `Bearer ${token}`);
+    assert.ok(!output.includes(token));
+    assert.match(output, /REDACTED/);
+  }
 });

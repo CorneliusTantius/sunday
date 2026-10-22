@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { credentialEchoServer } from './fixtures/mcp-http.js';
 import { connectMcp } from '../src/server/mcp.js';
 import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
 
@@ -567,6 +568,24 @@ test('chat marks MCP execution failures as failed tool results rather than succe
   await h.run();
   const result = h.inputs[2].messages.find(message => message.role === 'toolResult' && message.toolCallId === 'metric-failure');
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /Fixture metric read failed/);
+  assert.match(result.content[0].text, /MCP tool .* failed/);
   assert.ok(h.events.some(event => event.type === 'tool_complete' && event.id === 'metric-failure' && event.status === 'failed'));
+});
+
+
+test('HTTP execution credentials never reach chat events, model context, or persisted tool errors', async t => {
+  const server = await credentialEchoServer(t);
+  const h = harness(round => {
+    if (round === 0) return stream([], [{ type: 'toolCall', id: 'search', name: 'tool_search', arguments: { query: 'metric' } }]);
+    if (round === 1) return stream([], [{ type: 'toolCall', id: 'metric', name: 'mcp__echo__get_metric', arguments: {} }]);
+    return stream([{ type: 'text_delta', delta: 'Check the MCP server connectivity in Settings.' }]);
+  }, 2000, 20000, [], 10000, { contextOverrides: { mcpConfig: server.config, connectMcp } });
+  h.session.messages.push({ role: 'user', content: 'Read the fixture metric.' });
+  await h.run();
+  const observed = JSON.stringify({ inputs: h.inputs, events: h.events, outputs: h.outputs, session: h.session });
+  assert.ok(!observed.includes(server.token));
+  assert.ok(!observed.includes(server.querySecret));
+  const result = h.inputs[2].messages.find(message => message.role === 'toolResult' && message.toolName === 'mcp__echo__get_metric');
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /Settings → MCP/);
 });
