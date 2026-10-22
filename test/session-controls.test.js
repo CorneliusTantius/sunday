@@ -49,6 +49,8 @@ async function mount(t, options = {}) {
   t.after(() => dom.window.close());
   const window = dom.window;
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  window.HTMLDialogElement.prototype.close = function () { this.open = false; };
   window.HTMLElement.prototype.scrollIntoView = function () {};
   if (options.resizeObservers) window.ResizeObserver = class {
     constructor(callback) { this.callback = callback; options.resizeObservers.push(this); }
@@ -91,6 +93,8 @@ async function mount(t, options = {}) {
     const method = requestOptions.method || 'GET';
     calls.push({ url, method, ...(requestOptions.body ? { body: JSON.parse(requestOptions.body) } : {}) });
     if (url === '/api/settings') return response(defaults);
+    if (url === '/api/personas') return response({ personas: [{ id: 'sunday', name: 'Sunday' }] });
+    if (url === '/api/repos') return response({ repos: [] });
     if (/^\/api\/sessions\/[^/]+\/files\?/.test(url)) return response({ files: options.files || ['repo/src/main.js', 'repo/read me.txt'] });
     if (url === '/api/sessions' && method === 'GET') return response({ sessions: [...sessions] });
     if (url === '/api/chat/cancel') {
@@ -322,6 +326,22 @@ async function startChat(h) {
   h.send();
   await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response'));
 }
+
+test('opens another session settings while the active session is streaming', async t => {
+  const h = await mount(t);
+  await startChat(h);
+  const otherSessionSettings = h.$('.sessions-list > div:nth-child(2) .configure-session');
+  assert.equal(otherSessionSettings.disabled, false);
+  h.click('.sessions-list > div:nth-child(2) .configure-session');
+  await waitFor(() => {
+    assert.ok(h.$('#session-config-dialog'));
+    assert.ok(h.calls.some(call => call.url === '/api/sessions/session-2' && call.method === 'GET'));
+  });
+  assert.equal(h.selected(), 'session-1');
+  assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Stop response');
+  h.emit('done');
+  await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message'));
+});
 
 test('early tool status is updated by id without duplicate calls or lost arguments', async t => {
   const h = await mount(t);
