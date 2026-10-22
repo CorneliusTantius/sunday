@@ -18,6 +18,24 @@ function assertProfile(actual, expected) {
   assert.ok(actual.color); assert.ok(actual.emoji); assert.ok(actual.personaId);
 }
 
+function readStoredConfig(home, key) {
+  const database = new DatabaseSync(join(home, 'sunday', 'data', 'settings.sqlite'));
+  try { return JSON.parse(database.prepare('SELECT data FROM app_config WHERE key = ?').get(key).data); }
+  finally { database.close(); }
+}
+
+function readStoredCredentials(home) {
+  const database = new DatabaseSync(join(home, 'sunday', 'data', 'settings.sqlite'));
+  try { return Object.fromEntries(database.prepare('SELECT id, data FROM credentials').all().map(row => [row.id, JSON.parse(row.data)])); }
+  finally { database.close(); }
+}
+
+function readStoredPersonas(home) {
+  const database = new DatabaseSync(join(home, 'sunday', 'data', 'settings.sqlite'));
+  try { return database.prepare('SELECT data FROM personas ORDER BY rowid').all().map(row => JSON.parse(row.data)); }
+  finally { database.close(); }
+}
+
 function readStoredSession(home, id) {
   const database = new DatabaseSync(join(home, 'sunday', 'data', 'sessions.sqlite'));
   try {
@@ -205,15 +223,19 @@ test('file references are restricted to permitted repository text and validated 
     assert.equal((await stat(contextDatabasePath)).mode & 0o777, 0o600);
     assert.equal(readStoredSession(home, id).messages[0].content, 'Remember this message');
     assert.equal((await api('/api/sessions/not-a-valid-id')).status, 400);
-    const settingsPath = join(home, 'sunday', 'data', 'settings.json');
-    const deviceId = JSON.parse(await readFile(settingsPath, 'utf8')).deviceId;
+    const deviceId = readStoredConfig(home, 'settings').deviceId;
     assert.match(deviceId, /^[a-f0-9-]{36}$/);
     await stop();
-    const authPath = join(home, 'sunday', 'data', 'auth.json');
-    await writeFile(authPath, JSON.stringify({
-      openai: { type: 'api_key', key: 'test-key-not-real' },
-      'openai-chatgpt': { type: 'oauth', access: 'test-access', refresh: 'test-refresh', expires: Date.now() + 3600000 },
-    }));
+    for (const database of ['sessions.sqlite', 'scheduled-jobs.sqlite', 'context.sqlite', 'tool-outputs.sqlite', 'settings.sqlite']) {
+      for (const suffix of ['-wal', '-shm']) {
+        await assert.rejects(stat(join(dataDirectory, `${database}${suffix}`)), { code: 'ENOENT' });
+      }
+    }
+    const configDatabase = new DatabaseSync(join(home, 'sunday', 'data', 'settings.sqlite'));
+    try {
+      configDatabase.prepare('INSERT INTO credentials (id, data) VALUES (?, ?)').run('openai', JSON.stringify({ type: 'api_key', key: 'test-key-not-real' }));
+      configDatabase.prepare('INSERT INTO credentials (id, data) VALUES (?, ?)').run('openai-chatgpt', JSON.stringify({ type: 'oauth', access: 'test-access', refresh: 'test-refresh', expires: Date.now() + 3600000 }));
+    } finally { configDatabase.close(); }
     await start();
     const authorization = await api('/api/settings');
     assert.equal(authorization.body.hasApiKey, true);
@@ -226,19 +248,19 @@ test('file references are restricted to permitted repository text and validated 
     const thinking = await api('/api/settings', { mode: 'oauth', model: reasoningModel.id, thinkingLevel: 'high' }, 'PUT');
     assert.equal(thinking.status, 200);
     assert.equal(thinking.body.thinkingLevel, 'high');
-    assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).thinkingLevel, 'high');
+    assert.equal(readStoredConfig(home, 'settings').thinkingLevel, 'high');
     assert.equal((await api('/api/settings', { mode: 'oauth', model: reasoningModel.id, thinkingLevel: 'invalid' }, 'PUT')).status, 400);
     const nonReasoning = oauth.body.models.find(model => model.thinkingLevels.length === 1 && model.thinkingLevels[0] === 'off');
     assert.ok(nonReasoning);
     const off = await api('/api/settings', { mode: 'oauth', model: nonReasoning.id }, 'PUT');
     assert.equal(off.body.thinkingLevel, 'off');
     assert.equal((await api('/api/settings', { mode: 'oauth', model: oauth.body.model }, 'PUT')).status, 200);
-    assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).deviceId, deviceId);
+    assert.equal(readStoredConfig(home, 'settings').deviceId, deviceId);
     const configured = await api(`/api/sessions/${id}`, { config: { mode: 'oauth', model: oauth.body.model } }, 'PATCH');
     assert.equal(configured.status, 200);
     const disconnected = await fetch(`http://127.0.0.1:${port}/api/auth`, { method: 'DELETE' });
     assert.equal(disconnected.status, 200);
-    const credentials = JSON.parse(await readFile(authPath, 'utf8'));
+    const credentials = readStoredCredentials(home);
     assert.equal(credentials.openai.key, 'test-key-not-real');
     assert.equal(credentials['openai-chatgpt'], undefined);
     const noOauth = await api('/api/chat', { sessionId: id, messages: [{ role: 'user', content: 'No API key fallback in OAuth mode' }] });
@@ -290,10 +312,10 @@ test('personas persist and copy into independent session profiles', async () => 
     assert.deepEqual(list.body.personas.map(persona => persona.id), ['sunday', 'coding-agent']);
     assert.ok(list.body.personas.every(persona => !['talent-scout', 'sales-outbound', 'inbox-manager', 'expense-manager'].includes(persona.id)));
     assert.ok(list.body.personas.every(persona => !persona.instructions.includes('medieval-peasant')));
-    const generatedPersonas = JSON.parse(await readFile(join(home, 'sunday', 'data', 'personas.json'), 'utf8'));
+    const generatedPersonas = readStoredPersonas(home);
     assert.equal(generatedPersonas.find(persona => persona.id === 'sunday').name, 'Sunday');
     assert.ok(generatedPersonas.every(persona => !persona.instructions.includes('medieval-peasant')));
-    assert.equal((await stat(join(home, 'sunday', 'data', 'personas.json'))).mode & 0o777, 0o600);
+    assert.equal((await stat(join(home, 'sunday', 'data', 'settings.sqlite'))).mode & 0o777, 0o600);
     const created = await api('/api/personas', { name: 'Helper', specialty: 'Writing', instructions: 'Be precise.' }, 'POST');
     assert.equal(created.status, 201);
     const permitted = ['context_search', 'context_index', 'agent_whisper'];
@@ -340,7 +362,7 @@ test('startup migrates only untouched built-in persona instructions and preserve
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/server/index.js', import.meta.url)), '--production'], { env: { ...process.env, HOME: home, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
   try {
     await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', code => reject(new Error(`Server exited: ${code}`))); });
-    const saved = JSON.parse(await readFile(personasPath, 'utf8'));
+    const saved = readStoredPersonas(home);
     for (const id of ['sunday', 'coding-agent', 'deployed-sunday', 'deployed-coder']) {
       assert.equal(saved.find(persona => persona.id === id).instructions, seededPersonas.find(persona => persona.id === (id.includes('sunday') ? 'sunday' : 'coding-agent')).instructions);
     }
@@ -373,7 +395,7 @@ test('startup removes Inbox Manager and Expense Manager from saved persona defau
     const response = await fetch(`http://127.0.0.1:${port}/api/personas`);
     const { personas } = await response.json();
     assert.deepEqual(personas.map(persona => persona.id), ['custom']);
-    const saved = JSON.parse(await readFile(personasPath, 'utf8'));
+    const saved = readStoredPersonas(home);
     assert.deepEqual(saved.map(persona => persona.id), ['custom']);
   } finally {
     const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited;

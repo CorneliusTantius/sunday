@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 
 test('provider credentials and model catalogs are isolated and persist', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-provider-'));
@@ -24,7 +25,12 @@ test('provider credentials and model catalogs are isolated and persist', async (
     const response = await fetch(`http://127.0.0.1:${port}${path}`, data === undefined ? {} : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     return { status: response.status, body: await response.json() };
   }
-  const authPath = join(home, 'sunday', 'data', 'auth.json');
+  const configPath = join(home, 'sunday', 'data', 'settings.sqlite');
+  const readCredentials = () => {
+    const database = new DatabaseSync(configPath);
+    try { return Object.fromEntries(database.prepare('SELECT id, data FROM credentials').all().map(row => [row.id, JSON.parse(row.data)])); }
+    finally { database.close(); }
+  };
   try {
     await start();
     for (const provider of ['openai', 'anthropic', 'google']) {
@@ -39,17 +45,17 @@ test('provider credentials and model catalogs are isolated and persist', async (
     const oauth = await api('/api/settings?provider=openai&mode=oauth');
     assert.equal(oauth.body.connected, false);
     assert.deepEqual(oauth.body.models, []);
-    let auth = JSON.parse(await readFile(authPath, 'utf8'));
+    let auth = readCredentials();
     for (const provider of ['openai', 'anthropic', 'google']) assert.equal(auth[provider].key, `offline-${provider}`);
     assert.equal(auth['openai-chatgpt'], undefined);
-    const before = await readFile(authPath, 'utf8');
+    const before = readCredentials();
     const invalid = await api('/api/settings', { provider: 'openai', apiKey: 'must-not-save', model: 'not-a-model' }, 'PUT');
     assert.equal(invalid.status, 400);
-    assert.equal(await readFile(authPath, 'utf8'), before);
+    assert.deepEqual(readCredentials(), before);
     assert.equal((await api('/api/settings', { provider: 'openai', apiKey: 'key-only' }, 'PUT')).status, 200);
     await stop();
     await start();
-    auth = JSON.parse(await readFile(authPath, 'utf8'));
+    auth = readCredentials();
     for (const provider of ['openai', 'anthropic', 'google']) assert.equal(auth[provider].key, provider === 'openai' ? 'key-only' : `offline-${provider}`);
     const settings = await api('/api/settings');
     assert.equal(settings.body.provider, 'openai');

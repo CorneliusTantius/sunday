@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { request } from 'node:http';
+import { DatabaseSync } from 'node:sqlite';
 
 test('OAuth resumes, cancels, restarts and times out; chat dispatches to the selected provider', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-auth-chat-'));
@@ -227,13 +228,18 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
     } finally { cancelRequest.disconnect(); }
     await rm(delayChat, { force: true });
 
-    const authPath = join(home, 'sunday', 'data', 'auth.json');
-    assert.equal((await stat(authPath)).mode & 0o777, 0o600);
-    const authBefore = await readFile(authPath, 'utf8');
+    const configPath = join(home, 'sunday', 'data', 'settings.sqlite');
+    assert.equal((await stat(configPath)).mode & 0o777, 0o600);
+    const readCredentials = () => {
+      const database = new DatabaseSync(configPath);
+      try { return database.prepare('SELECT id, data FROM credentials ORDER BY id').all(); }
+      finally { database.close(); }
+    };
+    const authBefore = readCredentials();
     const started = await api('/api/auth/start', {});
     assert.equal(started.body.provider, 'openai'); // Independent of selected Google.
     await api('/api/auth/cancel', {});
-    assert.equal(await readFile(authPath, 'utf8'), authBefore);
+    assert.deepEqual(readCredentials(), authBefore);
     await stop();
     await start(100);
     await api('/api/auth/start', {});
@@ -242,7 +248,7 @@ test('OAuth resumes, cancels, restarts and times out; chat dispatches to the sel
     assert.equal(timedOut.prompt, undefined);
     assert.equal((await api('/api/auth/start', {})).body.status, 'pending');
     await api('/api/auth/cancel', {});
-    assert.equal(await readFile(authPath, 'utf8'), authBefore);
+    assert.deepEqual(readCredentials(), authBefore);
   } finally {
     staleRequest?.destroy();
     if (child && child.exitCode === null) await stop();

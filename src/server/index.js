@@ -17,7 +17,7 @@ import { uniqueSessionName, BIRD_NAMES } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { resolveAgentTools } from './agent-capabilities.js';
 import { seededPersonas, migratePersonaInstructions } from './personas.js';
-import { createJsonStorage } from './storage.js';
+import { createConfigStorage } from './config-storage.js';
 import { createSessionStorage } from './session-storage.js';
 import { createScheduledJobsStorage } from './scheduled-jobs-storage.js';
 import { validateScheduledJob } from './scheduled-jobs.js';
@@ -46,6 +46,7 @@ const sessionsDbPath = join(dataDir, 'sessions.sqlite');
 const scheduledJobsDbPath = join(dataDir, 'scheduled-jobs.sqlite');
 const contextDbPath = join(dataDir, 'context.sqlite');
 const toolOutputsDbPath = join(dataDir, 'tool-outputs.sqlite');
+const configDbPath = join(dataDir, 'settings.sqlite');
 const workspaceDir = join(homeDir, 'workspace');
 const reposDir = join(workspaceDir, 'repos');
 const agentWorkspacesDir = join(homeDir, 'workspace-agents');
@@ -63,29 +64,27 @@ const contextStorage = createContextStorage(contextDbPath);
 await chmod(contextDbPath, 0o600);
 const toolOutputStorage = createToolOutputStorage(toolOutputsDbPath);
 await chmod(toolOutputsDbPath, 0o600);
-const { load, save } = createJsonStorage(dataDir);
-let settings = await load('settings.json', { mode: 'api_key', model: 'gpt-4o-mini' });
-let auth = await load('auth.json', {});
-let mcpConfig = validateMcpConfig(await load('mcp.json', { mcpServers: {} }));
+const configStorage = createConfigStorage(configDbPath);
+await chmod(configDbPath, 0o600);
+await configStorage.migrateLegacyFiles(dataDir);
+let settings = configStorage.getSetting({ mode: 'api_key', model: 'gpt-4o-mini' });
+let auth = Object.fromEntries(configStorage.listCredentials());
+let mcpConfig = validateMcpConfig(configStorage.getMcpConfig({ mcpServers: {} }));
 settings.deviceId ||= randomUUID();
-for (const name of ['settings.json', 'auth.json']) {
-  await save(name, name === 'settings.json' ? settings : auth);
-  await chmod(join(dataDir, name), 0o600);
-}
 let queue = Promise.resolve();
 function serialize(fn) { const next = queue.then(fn); queue = next.catch(() => {}); return next; }
-let personas = await load('personas.json', null);
-if (personas === null) personas = seededPersonas;
+let personas = configStorage.listPersonas();
+if (!configStorage.hasPersonas()) personas = seededPersonas;
 personas = personas.map(migratePersonaInstructions);
 personas = personas.filter(persona => !['talent-scout', 'sales-outbound', 'inbox-manager', 'expense-manager'].includes(persona.id));
 const colors = ['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'], emojis = ['normal', 'sweat', 'sideeye', 'blink'];
 personas = personas.map((persona, index) => ({ ...persona, allowedTools: validateTools(persona.allowedTools), color: colors.includes(persona.color) ? persona.color : seededPersonas.find(item => item.id === persona.id)?.color || colors[index % colors.length], emoji: emojis.includes(persona.emoji) ? persona.emoji : 'normal' }));
-await serialize(async () => { await save('personas.json', personas); await chmod(join(dataDir, 'personas.json'), 0o600); });
+await serialize(async () => configStorage.savePersonas(personas));
 const credentials = {
   async read(id) { await queue; return structuredClone(auth[id]); },
   async list() { await queue; return Object.entries(auth).map(([providerId, value]) => ({ providerId, type: value.type })); },
-  modify(id, fn) { return serialize(async () => { const value = await fn(structuredClone(auth[id])); if (value) { const next = { ...auth, [id]: value }; await save('auth.json', next); auth = next; } return structuredClone(auth[id]); }); },
-  delete(id) { return serialize(async () => { const next = { ...auth }; delete next[id]; await save('auth.json', next); auth = next; }); },
+  modify(id, fn) { return serialize(async () => { const value = await fn(structuredClone(auth[id])); if (value) { const next = { ...auth, [id]: value }; configStorage.saveCredential(id, value); auth = next; } return structuredClone(auth[id]); }); },
+  delete(id) { return serialize(async () => { configStorage.removeCredential(id); const next = { ...auth }; delete next[id]; auth = next; }); },
 };
 const modelsByMode = createModelsByMode(credentials);
 function selection(provider = settings.provider, mode) {
@@ -104,7 +103,7 @@ if (!providers.some(p => p.id === settings.provider)) settings.provider = 'opena
 if (!providers.find(p => p.id === settings.provider).modes.includes(settings.mode)) settings.mode = 'api_key';
 if (!modelsByMode[settings.mode].getModel(settings.provider, settings.model)) settings.model = defaultModel(settings.provider, settings.mode);
 settings.thinkingLevel = clampThinkingLevel(modelsByMode[settings.mode].getModel(settings.provider, settings.model), settings.thinkingLevel || 'off');
-await save('settings.json', settings);
+configStorage.saveSetting(settings);
 function sessionConfig() { return { provider: settings.provider, mode: settings.mode, model: settings.model, thinkingLevel: settings.thinkingLevel }; }
 function sessionModels(config) { return modelsByMode[config.mode].getAvailable(config.provider).then(list => list.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) }))); }
 function configureSession(session, patch) {
@@ -907,7 +906,7 @@ const server = http.createServer(async (req, res) => {
     if (req.headers.origin && !localOrigins.has(req.headers.origin) && !isTailnetOrigin(req.headers.origin)) return json(res, 403, { error: 'Invalid origin' });
     if (url.pathname === '/api/mcp/auth' && req.method === 'GET') return json(res, 200, await mcpAuthStatus(mcpConfig));
     if (url.pathname === '/api/mcp' && req.method === 'GET') return json(res, 200, mcpConfig);
-    if (url.pathname === '/api/mcp' && req.method === 'PUT') { const next = validateMcpConfig(await body(req)); await save('mcp.json', next); await chmod(join(dataDir, 'mcp.json'), 0o600); mcpConfig = next; return json(res, 200, mcpConfig); }
+    if (url.pathname === '/api/mcp' && req.method === 'PUT') { const next = validateMcpConfig(await body(req)); configStorage.saveMcpConfig(next); mcpConfig = next; return json(res, 200, mcpConfig); }
     if (url.pathname === '/api/mcp/login' && req.method === 'POST') {
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
       const { server: name } = await body(req);
@@ -994,7 +993,7 @@ const server = http.createServer(async (req, res) => {
       const input = await body(req);
       const profile = validateProfile({ ...input, color: input.color ?? 'cyan', emoji: input.emoji ?? 'normal' });
       const persona = { id: randomUUID(), ...profile };
-      await serialize(async () => { const next = [...personas, persona]; await save('personas.json', next); personas = next; });
+      await serialize(async () => { const next = [...personas, persona]; configStorage.savePersonas(next); personas = next; });
       return json(res, 201, { persona });
     }
     if (personaMatch && ['PATCH', 'DELETE'].includes(req.method)) {
@@ -1003,13 +1002,13 @@ const server = http.createServer(async (req, res) => {
         if (index < 0) return json(res, 404, { error: 'Persona not found' });
         if (req.method === 'DELETE') {
           const next = personas.filter(persona => persona.id !== personaMatch[1]);
-          await save('personas.json', next); personas = next;
+          configStorage.savePersonas(next); personas = next;
           return json(res, 200, { deleted: true });
         }
         const input = await body(req);
         const persona = { id: personas[index].id, ...validateProfile({ ...input, color: input.color ?? 'cyan', emoji: input.emoji ?? 'normal' }) };
         const next = personas.slice(); next[index] = persona;
-        await save('personas.json', next); personas = next;
+        configStorage.savePersonas(next); personas = next;
         return json(res, 200, { persona });
       });
     }
@@ -1321,7 +1320,7 @@ const server = http.createServer(async (req, res) => {
       }
       await serialize(async () => {
         const next = { ...settings, subagents: { enabled: input.enabled, maxChildren: input.maxChildren, ...overrides } };
-        await save('settings.json', next); settings = next;
+        configStorage.saveSetting(next); settings = next;
       });
       return json(res, 200, await publicSettings());
     }
@@ -1341,8 +1340,8 @@ const server = http.createServer(async (req, res) => {
       if (input.thinkingLevel !== undefined && !getSupportedThinkingLevels(selectedModel).includes(input.thinkingLevel)) throw new Error('Unsupported thinking level for this model');
       const thinkingLevel = input.thinkingLevel ?? clampThinkingLevel(selectedModel, settings.thinkingLevel);
       await serialize(async () => {
-        if (input.apiKey !== undefined) { const nextAuth = { ...auth, [credentialId(provider, mode)]: { type: 'api_key', key: input.apiKey.trim() } }; await save('auth.json', nextAuth); auth = nextAuth; }
-        const next = { ...settings, provider, mode, model, thinkingLevel, ...(input.defaultPersonaId === undefined ? {} : { defaultPersonaId: input.defaultPersonaId }) }; await save('settings.json', next); settings = next;
+        if (input.apiKey !== undefined) { const id = credentialId(provider, mode), value = { type: 'api_key', key: input.apiKey.trim() }; configStorage.saveCredential(id, value); auth = { ...auth, [id]: value }; }
+        const next = { ...settings, provider, mode, model, thinkingLevel, ...(input.defaultPersonaId === undefined ? {} : { defaultPersonaId: input.defaultPersonaId }) }; configStorage.saveSetting(next); settings = next;
       });
       return json(res, 200, await publicSettings());
     }
@@ -1434,12 +1433,17 @@ function shutdown() {
   const reason = new Error('Sunday is stopping');
   scheduledShutdown.abort(reason);
   for (const job of activeChats.values()) job.controller.abort(reason);
+  const serverClosed = new Promise(resolve => server.close(resolve));
   shutdownPromise = (async () => {
     await Promise.allSettled([...scheduledRunPromises]);
     await withLoginLock(() => cancelLogin());
     await vite?.close();
-    server.close();
+    await serverClosed;
+    sessionStorage.close();
     scheduledJobStorage.close();
+    contextStorage.close();
+    toolOutputStorage.close();
+    configStorage.close();
   })();
   return shutdownPromise;
 }
