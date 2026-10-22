@@ -34,7 +34,7 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
     let active = true;
     alive.current = true;
     dialog.current.showModal();
-    Promise.all([request('/api/personas'), request('/api/repos'), request(`/api/sessions/${encodeURIComponent(session.id)}`)]).then(([profiles, repositories, data]) => {
+    Promise.all([request('/api/personas'), request('/api/repos?namesOnly=1'), request(`/api/sessions/${encodeURIComponent(session.id)}`)]).then(([profiles, repositories, data]) => {
       if (!active) return;
       setPersonas(profiles.personas); setRepos(repositories.repos); setModels(data.session.models || []); setModel(data.session.config.model); setThinking(data.session.config.thinkingLevel || 'off');
       setAllowed(previous => previous.filter(name => repositories.repos.some(repo => repo.name === name)));

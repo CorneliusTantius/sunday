@@ -914,9 +914,9 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, result);
     }
     if (url.pathname === '/api/repos' && req.method === 'GET') {
-      const repos = [];
-      for (const name of await readdir(reposDir, { withFileTypes: true })) if (name.isDirectory()) repos.push({ name: name.name, ...await repositoryStatusDetails(join(reposDir, name.name)) });
-      repos.sort((a, b) => a.name.localeCompare(b.name));
+      const names = (await readdir(reposDir, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name).sort((a, b) => a.localeCompare(b));
+      if (url.searchParams.get('namesOnly') === '1') return json(res, 200, { repos: names.map(name => ({ name })) });
+      const repos = await Promise.all(names.map(async name => ({ name, ...await repositoryStatusDetails(join(reposDir, name)) })));
       return json(res, 200, { repos });
     }
     const repoPullMatch = url.pathname.match(/^\/api\/repos\/([^/]+)\/pull$/);
