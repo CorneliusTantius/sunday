@@ -325,10 +325,9 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
   const source = readFileSync(new URL('../src/web/components/Personas.jsx', import.meta.url), 'utf8');
   for (const names of [
     "tools: ['read', 'find', 'edit']",
-    "tools: ['subagent_create', 'subagent_send_prompt', 'subagent_list']",
     "tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink']",
-    "tools: ['agent_list', 'agent_whisper']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
+  assert.doesNotMatch(source, /subagent|agent_whisper|agent_list/);
   assert.match(source, /class="repository-checkbox persona-tool-group"/);
   assert.match(source, /groupedTools\.map\(tool => tool\.name\)/);
   assert.doesNotMatch(source, /groupedTools\.map\(tool => <label/);
@@ -401,7 +400,7 @@ test('context notes show a global directed graph and selected-note link controls
 });
 
 test('persona initial load defaults to the loaded registry, not stale state', async () => {
-  const tools = [{ name: 'context_search', description: 'Search indexed context' }, { name: 'agent_whisper', description: 'Delegate' }];
+  const tools = [{ name: 'context_search', description: 'Search indexed context' }];
   const h = mount('Personas', { toast() {} }, async () => ({ tools, personas: [{ id: 'default', name: 'Default' }] }));
   await h.settle();
   assert.deepEqual(Array.from(h.view.profile.allowedTools), tools.map(tool => tool.name));

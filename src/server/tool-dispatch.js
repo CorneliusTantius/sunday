@@ -1,6 +1,5 @@
-const delegationTools = new Set(['subagent_create', 'subagent_send_prompt']);
-const readOnlyTools = new Set(['read', 'find', 'context_search', 'context_links', 'agent_list', 'subagent_list', 'tool_output_search', 'tool_output_fetch']);
-const batchKind = call => delegationTools.has(call.name) ? 'delegation' : readOnlyTools.has(call.name) ? 'read' : null;
+const readOnlyTools = new Set(['read', 'find', 'context_search', 'context_links', 'tool_output_search', 'tool_output_fetch']);
+const batchKind = call => readOnlyTools.has(call.name) ? 'read' : null;
 
 export async function dispatchToolCalls(calls, execute) {
   const results = [];

@@ -372,13 +372,14 @@ test('session pin and running indicator have independent columns beside truncate
   }
 });
 
-test('subagents have no pin control and sidebar brand stays outside the scroller', async t => {
+test('sessions are pinned as ordinary sessions and sidebar brand stays outside the scroller', async t => {
   const app = await mount(t, false, [
-    { id: 'parent', title: 'Parent', messages: [] },
-    { id: 'child', title: 'Child', parentSessionId: 'parent', messages: [] },
+    { id: 'session-a', title: 'Session A', messages: [] },
+    { id: 'session-b', title: 'Session B', messages: [] },
   ]);
+  await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
   app.click('agents-toggle');
-  assert.equal(app.window.document.querySelector('.subagent-row .pin-session'), null);
+  assert.ok(app.window.document.querySelector('.pin-session[data-agent-id="session-b"]'));
   const scroller = app.window.document.querySelector('.sidebar-scroll');
   assert.equal(scroller.contains(app.window.document.querySelector('.sidebar-brand')), false);
   assert.ok(scroller.contains(app.get('sessions-list')));

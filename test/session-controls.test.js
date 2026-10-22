@@ -79,7 +79,6 @@ async function mount(t, options = {}) {
   const defaults = { provider: 'openai', mode: 'api_key', model: 'model-a', thinkingLevel: 'off', models, providers: [] };
   const sessions = [1, 2].map(id => ({ id: `session-${id}`, title: `Chat ${id}`, messages: [], config: { provider: 'openai', mode: 'api_key', model: id === 1 ? 'model-a' : 'model-b', thinkingLevel: id === 1 ? 'off' : 'high' }, models }));
   if (options.history) sessions[0].messages = options.history;
-  if (options.withSubagent) sessions.push({ ...sessions[1], id: 'child-1', title: 'Finch', parentSessionId: 'session-1' });
   const calls = [];
   let pending = null;
   let stream;
@@ -185,12 +184,12 @@ for (const action of ['create', 'open']) {
     test(`${action} ${outcome} re-enables session controls and releases the loading guard`, async t => {
       const h = await mount(t);
       const pending = h.hold();
-      const selector = action === 'create' ? '#new-chat' : '.sessions-list > div:nth-child(2) .session-row .session-item';
+      const selector = action === 'create' ? '#new-chat' : '.sessions-list > .session-row:nth-child(2) .session-item';
       const before = h.actionCalls().length;
       h.click(selector);
       // Attempt competing actions in the same turn, before disabled props can render.
       h.click('#new-chat');
-      h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+      h.click('.sessions-list > .session-row:nth-child(2) .session-item');
       h.click('.configure-session');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.actionCalls().at(-1).method, action === 'create' ? 'POST' : 'GET');
@@ -199,7 +198,7 @@ for (const action of ['create', 'open']) {
         for (const control of h.controls()) assert.equal(control.disabled, true);
       });
       h.click('#new-chat');
-      h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+      h.click('.sessions-list > .session-row:nth-child(2) .session-item');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.$('#session-config-dialog'), null);
       assert.equal(h.selected(), 'session-1');
@@ -280,15 +279,15 @@ test('reopening a running session reconnects and restores the streamed snapshot'
   const h = await mount(t);
   h.sessions[1].running = true;
   h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
-  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+  h.click('.sessions-list > .session-row:nth-child(2) .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.resumeCalls(), 1);
-    const pill = h.$('.sessions-list > div:nth-child(2) .session-row .session-running-pill');
+    const pill = h.$('.sessions-list > .session-row:nth-child(2) .session-running-pill');
     assert.ok(pill, 'running session has an activity pill');
     assert.equal(pill.getAttribute('aria-label'), 'Running');
     assert.equal(pill.textContent, '');
-    assert.equal(h.$('.sessions-list > div:first-child .session-row .session-running-pill'), null);
+    assert.equal(h.$('.sessions-list > .session-row:first-child .session-running-pill'), null);
     assert.match(h.$('#messages').textContent, /replayed answer/);
   });
   h.finishResume();
@@ -304,7 +303,7 @@ test('switching sessions detaches the client stream without cancelling the serve
   h.emit('progress', { status: 'thinking' });
   await waitFor(() => assert.equal(h.$('#response-activity')?.textContent, 'Thinking…'));
   const oldTimer = h.timers.find(timer => timer.ms === 150000 && !timer.cleared);
-  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+  h.click('.sessions-list > .session-row:nth-child(2) .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.$('#response-activity'), null);
@@ -330,9 +329,9 @@ async function startChat(h) {
 test('opens another session settings while the active session is streaming', async t => {
   const h = await mount(t);
   await startChat(h);
-  const otherSessionSettings = h.$('.sessions-list > div:nth-child(2) .configure-session');
+  const otherSessionSettings = h.$('.sessions-list > .session-row:nth-child(2) .configure-session');
   assert.equal(otherSessionSettings.disabled, false);
-  h.click('.sessions-list > div:nth-child(2) .configure-session');
+  h.click('.sessions-list > .session-row:nth-child(2) .configure-session');
   await waitFor(() => {
     assert.ok(h.$('#session-config-dialog'));
     assert.ok(h.calls.some(call => call.url === '/api/sessions/session-2' && call.method === 'GET'));
@@ -374,7 +373,7 @@ test('resumed snapshot restores progress and tool updates reuse its existing cal
   const h = await mount(t, { emptyResume: true });
   h.sessions[1].running = true;
   h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
-  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+  h.click('.sessions-list > .session-row:nth-child(2) .session-item');
   await waitFor(() => assert.equal(h.resumeCalls(), 1));
   h.emit('snapshot', { answer: 'Restored answer', progress: 'preparing_tool', toolCalls: [
     { id: 'tool-1', name: 'bash', arguments: {}, status: 'running' },
@@ -488,7 +487,7 @@ test('model and thinking controls save only the active session and restore each 
   assert.equal(h.defaults.model, 'model-a');
   assert.equal(h.defaults.thinkingLevel, 'off');
   assert.equal(h.calls.filter(call => call.url === '/api/settings' && call.method !== 'GET').length, 0);
-  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+  h.click('.sessions-list > .session-row:nth-child(2) .session-item');
   await waitFor(() => assert.equal(h.selected(), 'session-2'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
@@ -497,7 +496,7 @@ test('model and thinking controls save only the active session and restore each 
   await waitFor(() => assert.equal(h.selected(), 'session-3'));
   assert.equal(h.$('#chat-model').value, 'model-a');
   assert.equal(h.$('#thinking-level').value, 'off');
-  h.click('.sessions-list > div:nth-child(1) .session-row .session-item');
+  h.click('.sessions-list > .session-row:nth-child(1) .session-item');
   await waitFor(() => assert.equal(h.selected(), 'session-1'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
@@ -633,30 +632,12 @@ test('content resizing follows the bottom and resets when switching sessions', a
   scroll.grow(1700);
   resizeObservers.at(-1).callback();
   assert.equal(scroll.element.scrollTop, 100);
-  h.click('.sessions-list > div:nth-child(2) .session-row .session-item');
+  h.click('.sessions-list > .session-row:nth-child(2) .session-item');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(scroll.element.scrollTop, 1500);
     assert.equal(h.$('#scroll-to-latest'), null);
   });
-});
-
-
-test('subagents have an independent native disclosure and remain navigable', async t => {
-  const h = await mount(t, { withSubagent: true });
-  const group = h.$('.session-tree .subagent-group');
-  assert.ok(group);
-  assert.equal(group.open, true);
-  assert.equal(group.querySelector('summary').textContent, 'Subagents 1');
-  assert.equal(group.querySelector('.subagent-row .session-title').textContent, 'Finch');
-  h.click('.subagent-toggle');
-  assert.equal(group.open, false);
-  assert.equal(h.$('#agents-toggle').getAttribute('aria-expanded'), 'true');
-  h.click('.subagent-toggle');
-  assert.equal(group.open, true);
-  h.click('.subagent-row .session-item');
-  await waitFor(() => assert.equal(h.$('.session-item.active')?.textContent, 'Finch'));
-  assert.equal(group.open, true);
 });
 
 

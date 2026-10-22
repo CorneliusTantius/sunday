@@ -20,6 +20,3 @@ test('Files page enters with a smooth staggered animation', () => {
   assert.match(css, /@keyframes files-heading-arrive/);
   assert.match(css, /@keyframes files-workspace-arrive/);
 });
-test('subagent cards use an opaque dark background to cover the galaxy layer', () => {
-  assert.match(css, /\.agents-sessions \.session-row\.subagent-row \{[^}]*background: var\(--bg\)/);
-});

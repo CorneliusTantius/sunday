@@ -7,9 +7,6 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 export const BASIC_TOOLS = [
-  { name: 'subagent_create', description: 'Create a persistent child session (maximum three). Optionally assign its first prompt and wait for the response. Children have isolated repository copies.', parameters: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, additionalProperties: false } },
-  { name: 'subagent_send_prompt', description: 'Send work to an idle child session and wait for its response.', parameters: { type: 'object', properties: { sessionId: { type: 'string' }, prompt: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['sessionId', 'prompt'], additionalProperties: false } },
-  { name: 'subagent_list', description: 'List your child sessions, running state, and latest assistant message.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'read', description: "Prefer this over shell scripts for reading text files up to 200000 bytes; optional 1-based offset and limit select lines, or use offset with inclusive endLine for a line range (e.g. offset 5, endLine 10). Files up to 5 MB can be read in ranges.", parameters: { type: 'object', properties: { path: { type: 'string' }, offset: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 1, maximum: 10000 }, endLine: { type: 'integer', minimum: 1 } }, required: ['path'], additionalProperties: false } },
   { name: 'find', description: "Find files or literal text under a repository path. query is a case-sensitive substring; mode defaults to path, content returns path:line:text. Skips sensitive files, symlinks, node_modules, dist, build, and vendor. Bounded results report truncation; narrow path/query if needed.", parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string', maxLength: 1000 }, mode: { type: 'string', enum: ['path', 'content'] }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, required: ['path'], additionalProperties: false } },
   { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Use empty oldText to write a new or empty file; nonempty files are never overwritten in this mode.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
@@ -19,8 +16,6 @@ export const BASIC_TOOLS = [
   { name: 'context_links', description: 'List incoming and outgoing links and related note titles for an indexed context source.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['source'], additionalProperties: false } },
   { name: 'context_link', description: 'Create or update a directed link between indexed context sources.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, target: { type: 'string', minLength: 1, maxLength: 300 }, relation: { type: 'string', minLength: 1, maxLength: 100 } }, required: ['source', 'target'], additionalProperties: false } },
   { name: 'context_unlink', description: 'Remove a directed link between indexed context sources.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, target: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['source', 'target'], additionalProperties: false } },
-  { name: 'agent_list', description: 'List other agent sessions with their exact session IDs, names, and responsibilities. Use this to discover delegation targets before whispering.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'agent_whisper', description: 'Send a prompt to another existing agent session and wait for its answer. Choose the target from the available agent sessions or agent_list; agents cannot whisper recursively.', parameters: { type: 'object', properties: { agentSessionId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, message: { type: 'string', minLength: 1, maxLength: 20000 } }, required: ['agentSessionId', 'message'], additionalProperties: false } },
 ];
 export const REPOSITORY_TOOL_NAMES = ['read', 'find', 'edit', 'bash'];
 export const CONTEXT_TOOL_NAMES = ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink'];
@@ -29,14 +24,13 @@ export function validateTools(value) {
   if (value === undefined) return [...BASIC_TOOL_NAMES];
   if (!Array.isArray(value)) throw new Error('Invalid allowed tools');
   // Migrate persisted tool names to their current implementations.
-  const migrated = value.map(name => ({ read_file: 'read', write_file: 'edit', create_subagent: 'subagent_create', send_subagent_prompt: 'subagent_send_prompt', list_subagents: 'subagent_list', list_agents: 'agent_list', whisper_to_agent: 'agent_whisper', memory_search: 'context_search', memory_update: 'context_index' })[name] ?? name).filter(name => name && !['list_files', 'search_files', 'context_compress'].includes(name));
+  const removed = new Set(['create_subagent', 'send_subagent_prompt', 'list_subagents', 'subagent_create', 'subagent_send_prompt', 'subagent_list', 'list_agents', 'whisper_to_agent', 'agent_list', 'agent_whisper']);
+  const migrated = value.filter(name => !removed.has(name)).map(name => ({ read_file: 'read', write_file: 'edit', memory_search: 'context_search', memory_update: 'context_index' })[name] ?? name).filter(name => name && !['list_files', 'search_files', 'context_compress'].includes(name));
   if (migrated.some(name => !BASIC_TOOL_NAMES.includes(name)) || new Set(migrated).size !== migrated.length) throw new Error('Invalid allowed tools');
-  // Existing unrestricted profiles predate orchestration tools; preserve custom restrictions.
-  const orchestration = ['subagent_create', 'subagent_send_prompt', 'subagent_list'];
   const linkTools = ['context_links', 'context_link', 'context_unlink'];
-  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && !orchestration.includes(name) && !linkTools.includes(name));
+  const legacyUnrestrictedTools = BASIC_TOOL_NAMES.filter(name => name !== 'find' && !linkTools.includes(name));
   if (legacyUnrestrictedTools.every(name => migrated.includes(name))) {
-    for (const name of [...orchestration, 'find', ...linkTools]) if (!migrated.includes(name)) migrated.push(name);
+    for (const name of ['find', ...linkTools]) if (!migrated.includes(name)) migrated.push(name);
   }
   return migrated;
 }
@@ -65,7 +59,6 @@ async function executeContextTool(name, args, contextStore) {
 export async function executeTool(name, args, repositories, contextStore, signal) {
   signal?.throwIfAborted();
   if (!BASIC_TOOL_NAMES.includes(name)) throw new Error('Unknown tool');
-  if (name === 'agent_whisper' || name === 'agent_list') throw new Error('Tool must be handled by the chat server');
   args ||= {};
   if (CONTEXT_TOOL_NAMES.includes(name)) return executeContextTool(name, args, contextStore);
   if (!Array.isArray(repositories) || !repositories.length) throw new Error('No repositories are allowed for this session');

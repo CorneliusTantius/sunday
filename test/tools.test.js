@@ -13,22 +13,13 @@ test('file access policy protects authentication files and temporary copies', ()
   assert.equal(isSensitiveRepositoryEntry('notes.md'), false);
 });
 
-test('whisper tool schema requires an existing session ID and message and is server-only', async () => {
-  const tool = makeTools(['agent_whisper'])[0];
-  assert.equal(tool.name, 'agent_whisper');
-  assert.deepEqual(tool.parameters.required, ['agentSessionId', 'message']);
-  assert.equal(tool.parameters.additionalProperties, false);
-  assert.match(tool.parameters.properties.agentSessionId.pattern, /36/);
-  await assert.rejects(executeTool('agent_whisper', { agentSessionId: '00000000-0000-0000-0000-000000000000', message: 'hello' }, [], ''));
-});
-
 test('context tools index and search selected sources without repository access', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'sunday-context-'));
   const store = createContextStorage(join(dir, 'context.sqlite'));
   try {
     assert.deepEqual(makeTools(CONTEXT_TOOL_NAMES).map(tool => tool.name), CONTEXT_TOOL_NAMES);
     assert.deepEqual(validateTools(['memory_search', 'memory_update']), ['context_search', 'context_index']);
-    const legacyUnrestricted = [...BASIC_TOOL_NAMES.filter(name => !['find', 'subagent_create', 'subagent_send_prompt', 'subagent_list', 'context_links', 'context_link', 'context_unlink'].includes(name)), 'context_compress']
+    const legacyUnrestricted = [...BASIC_TOOL_NAMES.filter(name => !['find', 'context_links', 'context_link', 'context_unlink'].includes(name)), 'subagent_create', 'agent_list', 'context_compress']
       .map(name => ({ context_search: 'memory_search', context_index: 'memory_update' })[name] ?? name);
     const upgradedUnrestricted = validateTools(legacyUnrestricted);
     assert.ok(!upgradedUnrestricted.includes('context_compress'));
@@ -67,7 +58,7 @@ test('basic tools restrict paths and sensitive files to allowed repositories', a
     await symlink(dir, join(repo, 'escape'));
     assert.deepEqual(validateTools(), BASIC_TOOL_NAMES);
     assert.deepEqual(validateTools(['read_file', 'list_files', 'search_files', 'write_file']), ['read', 'edit']);
-    assert.deepEqual(validateTools(['list_agents', 'whisper_to_agent']), ['agent_list', 'agent_whisper']);
+    assert.deepEqual(validateTools(['list_agents', 'whisper_to_agent', 'subagent_create', 'agent_list']), []);
     assert.throws(() => validateTools(['shell']));
     assert.equal(await executeTool('read', { path: 'repo/a.txt' }, [repo]), 'hello');
     assert.equal(await executeTool('edit', { path: 'repo/a.txt', oldText: 'hello', newText: 'world' }, [repo]), 'File edited');
@@ -84,15 +75,6 @@ test('basic tools restrict paths and sensitive files to allowed repositories', a
     assert.match(await executeTool('bash', { command: 'sleep 1', timeout: 10 }, [repo]), /Command failed/);
     await assert.rejects(executeTool('bash', { command: 'true', timeout: 300001 }, [repo]));
   } finally { await rm(dir, { recursive: true, force: true }); }
-});
-
-test('agent discovery is a registered, whitelisted, server-only tool', async () => {
-  const tool = makeTools(['agent_list'])[0];
-  assert.equal(tool.name, 'agent_list');
-  assert.deepEqual(tool.parameters.properties, {});
-  assert.equal(tool.parameters.additionalProperties, false);
-  assert.deepEqual(validateTools(['agent_list']), ['agent_list']);
-  await assert.rejects(executeTool('agent_list', {}, [], ''), /Tool must be handled by the chat server/);
 });
 
 test('edit creates files with empty oldText without overwriting existing content', async () => {

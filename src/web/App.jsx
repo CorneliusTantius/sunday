@@ -152,7 +152,7 @@ export default function App() {
     if (activeSession.current !== session.id) { followLatest.current = true; setShowLatest(false); }
     activeSession.current = session.id; setSessionId(session.id); setActiveRunning(Boolean(session.running));
     localStorage.setItem('sunday-session-id', session.id);
-    const nextMessages = (session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role));
+    const nextMessages = (session.messages || []).filter(message => ['user', 'assistant'].includes(message.role));
     if (session.running && nextMessages.at(-1)?.role === 'user') nextMessages.push({ role: 'assistant', content: '', toolCalls: [] });
     setMessages(nextMessages);
     setCompaction(session.latestCompaction || (session.compaction?.summary ? session.compaction : null));
@@ -194,7 +194,7 @@ export default function App() {
       const data = await request(`/api/sessions/${encodeURIComponent(id)}`);
       if (!data.session) throw new Error('Session not found');
       selectSession(data.session); navigateChat(navigate);
-      if (data.session.running) resumeIndex = (data.session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role)).length;
+      if (data.session.running) resumeIndex = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
     } catch (error) { setReady(!!activeSession.current); toast(`Could not open chat: ${error.message}`); }
     finally { sessionLock.current = false; setLoadingSession(false); }
     if (resumeIndex !== null) void resumeChat(id, resumeIndex);
@@ -335,7 +335,7 @@ export default function App() {
         const data = await request(`/api/sessions/${encodeURIComponent(id)}`);
         if (activeSession.current !== id || !data.session) return;
         if (data.session.running) {
-          const index = (data.session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role)).length;
+          const index = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
           if (!controller.current) void resumeChat(id, index);
           return;
         }
@@ -355,7 +355,7 @@ export default function App() {
         if (activeSession.current === id && !controller.current && data.session) {
           selectSession(data.session);
           if (data.session.running) {
-            const index = (data.session.messages || []).filter(message => ['user', 'assistant', 'subagent'].includes(message.role)).length;
+            const index = (data.session.messages || []).filter(message => ['user', 'assistant'].includes(message.role)).length;
             void resumeChat(id, index);
           }
         }
@@ -530,30 +530,19 @@ export default function App() {
   const { measuredUsage, contextWindow, contextTokens, contextPercent } = getContextMetrics(contextUsage, sessionConfig, messages, prompt, selectedModel?.contextWindow);
   const closeSidebar = () => { setSidebarOpen(false); menu.current?.focus(); };
   const sidebarSessions = sessions.filter(session => !session.scheduledJobId);
-  const pinnedSessions = pinnedAgentIds.map(id => sidebarSessions.find(session => session.id === id)).filter(session => session && !session.parentSessionId);
+  const pinnedSessions = pinnedAgentIds.map(id => sidebarSessions.find(session => session.id === id)).filter(Boolean);
   const pinnedIds = new Set(pinnedSessions.map(session => session.id));
-  const unpinnedSessions = sidebarSessions.filter(session => !session.parentSessionId && !pinnedIds.has(session.id));
+  const unpinnedSessions = sidebarSessions.filter(session => !pinnedIds.has(session.id));
   const sessionIsRunning = session => session.id === activeSession.current
     ? busy || activeRunning || Boolean(controller.current)
     : session.running;
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
-    return <div class={`session-row${session.parentSessionId ? ' subagent-row' : ''}`} key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
+    return <div class="session-row" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
       <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span></button>
       {(session.id === sessionId ? activeRunning : session.running) && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
-      {!session.parentSessionId && <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>}
+      <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={sessionIsRunning(session) || loadingSession} onClick={event => { if (sessionIsRunning(session) || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
-    </div>;
-  };
-
-  const renderSessionTree = session => {
-    const children = sessions.filter(child => child.parentSessionId === session.id);
-    return <div class="session-tree" key={session.id}>
-      {renderSession(session)}
-      {children.length > 0 && <details class="subagent-group" open>
-        <summary class="subagent-toggle">Subagents <span class="subagent-count">{children.length}</span></summary>
-        <div class="subagent-list">{children.map(renderSession)}</div>
-      </details>}
     </div>;
   };
 
@@ -573,8 +562,8 @@ export default function App() {
           <div id="agents-sessions" class={`agents-sessions${expanded ? ' expanded' : ''}`} inert={!expanded} aria-hidden={!expanded}>
             <div class="agents-sessions-content"><button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
             <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
-              {pinnedSessions.map(renderSessionTree)}
-              {unpinnedSessions.map(renderSessionTree)}
+              {pinnedSessions.map(renderSession)}
+              {unpinnedSessions.map(renderSession)}
             </nav>
             </div>
           </div>
@@ -605,7 +594,7 @@ export default function App() {
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="messages" id="messages"><CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
-            {message.role === 'subagent' ? <div class="assistant-content subagent-response"><div class="subagent-response-label">Subagent · {message.subagentName || 'Child agent'}</div><MessageBubble content={message.content} error={message.error} /></div> : message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
+            {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>
         </section>
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">

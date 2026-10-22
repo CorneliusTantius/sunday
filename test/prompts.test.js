@@ -2,19 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSystemPrompt } from '../src/server/prompts.js';
 import { seededPersonas, migratePersonaInstructions } from '../src/server/personas.js';
-import { resolveAgentTools } from '../src/server/agent-capabilities.js';
-import { REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES } from '../src/server/tools.js';
+import { validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES } from '../src/server/tools.js';
 
 function options(tools) {
   return { tools, repositoryTools: tools.filter(name => REPOSITORY_TOOL_NAMES.includes(name)), contextTools: tools.filter(name => CONTEXT_TOOL_NAMES.includes(name)) };
 }
 
-test('fully assembled prompts include editable defaults across capability variants', () => {
+test('fully assembled prompts include editable defaults and granted tools', () => {
   for (const persona of [...seededPersonas, { id: 'custom', name: 'Custom', specialty: 'Anything', instructions: 'Use our team workflow.' }]) {
-    for (let mask = 0; mask < 32; mask++) {
-      const tools = resolveAgentTools(persona, {
-        hasRepositories: !!(mask & 1), isChild: !!(mask & 2), subagentsEnabled: !!(mask & 4), allowWhisper: !!(mask & 8), hasWhisperTargets: !!(mask & 16),
-      });
+    for (const hasRepositories of [false, true]) {
+      const tools = validateTools(persona.allowedTools).filter(name => hasRepositories || !REPOSITORY_TOOL_NAMES.includes(name));
       const prompt = buildSystemPrompt({ ...persona, personaId: persona.id }, options(tools));
       assert.ok(prompt.includes(persona.instructions));
       assert.ok(prompt.includes('never invent evidence'));
@@ -45,13 +42,10 @@ test('custom instructions and assembled prompts are not capped at 3000 character
 test('guidance follows actual grants without advertising disabled capabilities', () => {
   const none = buildSystemPrompt({ name: 'Agent' });
   assert.ok(none.includes('No repository tools are enabled'));
-  assert.ok(!none.includes('Give each child'));
-  assert.ok(!none.includes('Choose whisper targets'));
   assert.ok(!none.includes('Index only durable'));
-  const all = buildSystemPrompt({ name: 'Agent' }, options(resolveAgentTools({}, { hasRepositories: true })));
+  const all = buildSystemPrompt({ name: 'Agent' }, options(validateTools()));
   assert.ok(all.includes('Batch independent reads'));
-  assert.ok(all.includes('Children cannot delegate'));
-  assert.ok(all.includes('child edits do not update your copy'));
+  assert.ok(!all.includes('child edits'));
   assert.ok(all.includes('Bash is not a filesystem sandbox'));
   assert.ok(all.includes('never secrets or transient status'));
   assert.ok(all.includes('tool_output_fetch'));

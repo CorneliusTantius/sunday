@@ -9,12 +9,11 @@ import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTo
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
 import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
-import { resolveAgentTools } from '../src/server/agent-capabilities.js';
 import { TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT } from '../src/server/tool-output-storage.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
 function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000, { mcpTools = [], nativeOutput = 'ok', mcpOutput = 'MCP result', outputStorageError = null, contextOverrides = {} } = {}) {
-  const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], whispers = [], contextSearches = [], outputs = [];
+  const events = [], prompts = [], options = [], delays = [], inputs = [], executions = [], contextSearches = [], outputs = [];
   let calls = 0;
   const outputStorage = {
     has: sessionId => outputs.some(output => output.sessionId === sessionId),
@@ -43,20 +42,18 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
       streamSimple: (m, input, opts) => { inputs.push({ ...input, tools: input.tools ? [...input.tools] : undefined, messages: structuredClone(input.messages) }); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
-    validateTools, resolveAgentTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
+    validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT, toolOutputStorage: outputStorage,
     mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: mcpTools, prepare: async () => ({ servers: [] }), call: async () => mcpOutput, close: async () => {} }),
-    sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id),
     contextStorage: { search: (query, limit) => { contextSearches.push({ query, limit }); return [{ source: 'docs/release.md', title: 'Release guide', excerpt: 'Roll back by redeploying the previous version.' }]; } },
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return nativeOutput; }, saveSession: async () => {},
-    whisperToAgent: async (sourceId, args) => { whispers.push(args); return 'Specialist result'; },
     publishChat: (job, event) => events.push(event),
     ...contextOverrides,
   });
-  vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('async function whisperToAgent')), context);
+  vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('const defaultPersona')), context);
   const session = { id: 'session', messages: [], allowedRepositories: ['repo'], config: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' } };
   const job = { controller: new AbortController() };
-  return { events, prompts, options, delays, inputs, executions, whispers, contextSearches, outputs, session, job, run: (allowWhisper = true) => context.executeChatTurn(session, job, allowWhisper), get calls() { return calls; } };
+  return { events, prompts, options, delays, inputs, executions, contextSearches, outputs, session, job, run: () => context.executeChatTurn(session, job), get calls() { return calls; } };
 }
 function stream(events, content = []) {
   return { async *[Symbol.asyncIterator]() { yield* events; }, result: async () => ({ role: 'assistant', api: 'test', provider: 'test', model: 'test', timestamp: Date.now(), content, usage: { input: 1 } }) };
@@ -160,81 +157,6 @@ test('chat completes tasks requiring more than three tool rounds', async () => {
   const h = harness(round => round < 5 ? stream([], [{ type: 'toolCall', id: `call-${round}`, name: 'bash', arguments: { command: 'pwd' } }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
   assert.equal(await h.run(), 'Done');
   assert.equal(h.calls, 6);
-});
-
-test('independent subagent assignments overlap end-to-end and duplicate prompts respect busy locks', async () => {
-  const sessions = new Map(), sessionLocks = new Map();
-  let queue = Promise.resolve(), activeChildren = 0, maximumActiveChildren = 0, releaseChildren;
-  const childrenMayFinish = new Promise(resolve => { releaseChildren = resolve; });
-  const fallback = setTimeout(releaseChildren, 250);
-  const existingChildId = '00000000-0000-4000-8000-999999999999';
-  const assignments = [
-    { type: 'toolCall', id: 'delegate-a', name: 'subagent_create', arguments: { prompt: 'Inspect alpha independently.' } },
-    { type: 'toolCall', id: 'delegate-b', name: 'subagent_create', arguments: { prompt: 'Inspect beta independently.' } },
-    { type: 'toolCall', id: 'delegate-c', name: 'subagent_send_prompt', arguments: { sessionId: existingChildId, prompt: 'Inspect gamma independently.' } },
-    { type: 'toolCall', id: 'delegate-d', name: 'subagent_send_prompt', arguments: { sessionId: existingChildId, prompt: 'Duplicate gamma assignment.' } },
-  ];
-  const childStream = () => ({
-    async *[Symbol.asyncIterator]() {
-      activeChildren++;
-      maximumActiveChildren = Math.max(maximumActiveChildren, activeChildren);
-      if (activeChildren === 3) { clearTimeout(fallback); releaseChildren(); }
-      await childrenMayFinish;
-      activeChildren--;
-      yield { type: 'text_delta', delta: 'Child work complete.' };
-    },
-    result: async () => ({ content: [{ type: 'text', text: 'Child work complete.' }], usage: { input: 1 } }),
-  });
-  const h = harness(round => round === 0 ? stream([], assignments) : round < 4 ? childStream() : stream([{ type: 'text_delta', delta: 'All work complete.' }]), 1000, 5000, [], 10000, {
-    contextOverrides: {
-      structuredClone,
-      validSessionId: id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id),
-      activeChats: new Map(),
-      sessionLocks,
-      withSessionLock: (id, fn) => {
-        const previous = sessionLocks.get(id) || Promise.resolve();
-        const current = previous.catch(() => {}).then(fn);
-        sessionLocks.set(id, current);
-        return current.finally(() => { if (sessionLocks.get(id) === current) sessionLocks.delete(id); });
-      },
-      settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off', subagents: { enabled: true, maxChildren: 3 } },
-      sessionStorage: {
-        listIds: parentId => [...sessions.values()].filter(session => session.parentSessionId === parentId).map(session => session.id),
-        save: session => sessions.set(session.id, session),
-      },
-      readSession: async id => sessions.get(id) || null,
-      persistSession: session => sessions.set(session.id, session),
-      saveSession: async session => sessions.set(session.id, session),
-      syncAgentWorkspace: async session => `/workspace/${session.id}`,
-      serialize: fn => { const next = queue.then(fn); queue = next.catch(() => {}); return next; },
-      personas: [],
-      BIRD_NAMES: ['Wren', 'Robin', 'Finch'],
-      uniqueSessionName: (used, names) => names.find(name => !used.includes(name)) || `Agent ${used.length + 1}`,
-      clampThinkingLevel: (_model, level) => level,
-      randomUUID: (() => { let id = 0; return () => `00000000-0000-4000-8000-${String(++id).padStart(12, '0')}`; })(),
-    },
-  });
-  h.session.profile = { name: 'Sunday', specialty: 'Chief', instructions: 'Delegate independent work.', allowedTools: ['subagent_create', 'subagent_send_prompt'] };
-  h.session.allowedRepositories = [];
-  h.session.messages.push({ role: 'user', content: 'Investigate independent areas.' });
-  sessions.set(h.session.id, h.session);
-  sessions.set(existingChildId, {
-    id: existingChildId, parentSessionId: h.session.id, title: 'Existing child', titleEdited: true, createdAt: 1, updatedAt: 1,
-    messages: [], profile: structuredClone(h.session.profile), config: structuredClone(h.session.config), allowedRepositories: [],
-  });
-
-  try {
-    assert.equal(await h.run(), 'All work complete.');
-  } finally {
-    clearTimeout(fallback);
-    releaseChildren();
-  }
-  assert.equal(maximumActiveChildren, 3);
-  assert.deepEqual([...sessions.values()].filter(session => session.parentSessionId === h.session.id).map(session => session.messages.find(message => message.role === 'user')?.content).sort(), [
-    'Inspect alpha independently.', 'Inspect beta independently.', 'Inspect gamma independently.',
-  ].sort());
-  const parentCalls = h.session.messages.findLast(message => message.role === 'assistant' && message.toolCalls)?.toolCalls;
-  assert.ok(parentCalls.some(call => call.name === 'subagent_send_prompt' && call.status === 'failed' && call.result.includes('Subagent is busy')));
 });
 
 test('idle provider that ignores abort cannot keep chat pending', async () => {
@@ -343,62 +265,19 @@ test('referenced file contents reach model history without changing displayed us
   assert.equal(h.session.messages[0].content, 'Explain @"repo/main.js"');
 });
 
-const specialist = { id: '00000000-0000-0000-0000-000000000001', title: 'Reviewer', profile: { specialty: 'Code review' } };
-
-for (const name of ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink', 'agent_whisper', 'agent_list']) {
+for (const name of ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink']) {
   for (const permitted of [false, true]) {
     test(`${name} is advertised and executed only when the profile permits it (${permitted})`, async () => {
-      const args = name === 'agent_whisper' ? { agentSessionId: specialist.id, message: 'Review this' } : name === 'context_search' ? { query: 'note' } : name === 'agent_list' ? {} : { source: 'note.md', title: 'Note', content: 'Useful information' };
-      const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'test-call', name, arguments: args }]) : stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist]);
+      const args = name === 'context_search' ? { query: 'note' } : { source: 'note.md', title: 'Note', content: 'Useful information' };
+      const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'test-call', name, arguments: args }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
       h.session.profile = { name: 'Test', instructions: '', allowedTools: permitted ? [name] : [] };
       await h.run();
       assert.deepEqual((h.inputs[0].tools || []).map(tool => tool.name), permitted ? [name] : []);
       assert.equal(h.session.messages[0].toolCalls[0].status, permitted ? 'completed' : 'failed');
-      assert.equal(h.executions.length + h.whispers.length, permitted && name !== 'agent_list' ? 1 : 0);
-      assert.equal(h.prompts[0].includes('Choose whisper targets'), permitted && name === 'agent_whisper');
+      assert.equal(h.executions.length, permitted ? 1 : 0);
     });
   }
 }
-
-test('agent list excludes subagents from whisper targets', async () => {
-  const root = { id: '00000000-0000-0000-0000-000000000002', title: 'Root', profile: { specialty: 'Research' } };
-  const child = { id: '00000000-0000-0000-0000-000000000003', parentSessionId: root.id, title: 'Child', profile: { specialty: 'Research' } };
-  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist, root, child]);
-  h.session.profile = { name: 'Test', allowedTools: ['agent_whisper'] };
-  h.session.messages.push({ role: 'user', content: 'Find a reviewer.' });
-  await h.run();
-  const context = h.inputs[0].messages.find(message => message.content.includes('Session context')).content;
-  assert.match(context, new RegExp(specialist.id));
-  assert.match(context, new RegExp(root.id));
-  assert.doesNotMatch(context, new RegExp(child.id));
-  assert.doesNotMatch(h.prompts[0], new RegExp(specialist.id));
-  assert.equal(h.session.messages[0].content, 'Find a reviewer.');
-});
-
-test('whisper handler rejects a subagent target even when called directly', async () => {
-  const child = { id: specialist.id, parentSessionId: '00000000-0000-0000-0000-000000000002' };
-  const lock = async (_id, fn) => fn();
-  const context = vm.createContext({
-    validSessionId: id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id),
-    activeChats: new Map(), sessionLocks: new Map(), withSessionLock: lock,
-    readSession: async id => id === child.id ? child : null,
-  });
-  const start = source.indexOf('async function whisperToAgent');
-  const end = source.indexOf('const defaultPersona', start);
-  vm.runInContext(source.slice(start, end), context);
-  await assert.rejects(
-    vm.runInContext('whisperToAgent("00000000-0000-0000-0000-000000000004", { agentSessionId: "' + child.id + '", message: "hello" }, { aborted: false })', context),
-    /Cannot whisper to a subagent/
-  );
-});
-
-test('whisper permission cannot enable recursive delegation', async () => {
-  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [specialist]);
-  h.session.profile = { name: 'Test', allowedTools: ['agent_whisper'] };
-  await h.run(false);
-  assert.equal(h.inputs[0].tools, undefined);
-  assert.equal(h.prompts[0].includes('Other available agents'), false);
-});
 
 test('context is automatically retrieved only for agents with search permission', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
@@ -434,39 +313,6 @@ test('no repositories disables repository tools but not explicitly permitted con
   await h.run();
   assert.deepEqual(h.inputs[0].tools.map(tool => tool.name), ['context_search']);
 });
-
-test('agent_list discovers current targets, excludes itself, and returns only public metadata', async () => {
-  const agents = [];
-  const h = harness(round => {
-    if (round === 0) {
-      agents.push({ id: '00000000-0000-0000-0000-000000000002', title: 'Self' }, { ...specialist, messages: [{ content: 'Private message' }], allowedRepositories: ['private-repo'] });
-      return stream([], [{ type: 'toolCall', id: 'list', name: 'agent_list', arguments: {} }]);
-    }
-    return stream([{ type: 'text_delta', delta: 'Done' }]);
-  }, 100, 1000, agents);
-  h.session.id = '00000000-0000-0000-0000-000000000002';
-  h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
-  await h.run();
-  const result = h.inputs[1].messages.find(message => message.role === 'toolResult');
-  assert.deepEqual(JSON.parse(result.content[0].text), [{ id: specialist.id, title: 'Reviewer', responsibility: 'Code review' }]);
-});
-
-test('agent_list returns an empty list when there are no other agents', async () => {
-  const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'list', name: 'agent_list', arguments: {} }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
-  h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
-  await h.run();
-  const result = h.inputs[1].messages.find(message => message.role === 'toolResult');
-  assert.equal(result.content[0].text, '[]');
-});
-
-test('agent_list rejects unexpected arguments', async () => {
-  const h = harness(round => round === 0 ? stream([], [{ type: 'toolCall', id: 'list', name: 'agent_list', arguments: { sourceId: specialist.id } }]) : stream([{ type: 'text_delta', delta: 'Done' }]));
-  h.session.profile = { name: 'Test', allowedTools: ['agent_list'] };
-  await h.run();
-  assert.equal(h.session.messages[0].toolCalls[0].status, 'failed');
-});
-
-
 
 test('compaction preserves original transcript and publishes a persisted summary', async () => {
   const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));

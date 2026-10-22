@@ -107,7 +107,7 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .message-bubble.markdown th{background:var(--panel);font-weight:700}
 .user .message-bubble{background:var(--panel2);border:1px solid var(--line);border-radius:16px 16px 4px 16px;padding:12px 16px}
 .assistant .message-bubble{max-width:100%;padding:3px 0}
-.assistant .message-bubble,.subagent-response .message-bubble{text-shadow:0 1px 3px rgb(9 11 16 / 95%),0 0 8px rgb(9 11 16 / 75%)}
+.assistant .message-bubble{text-shadow:0 1px 3px rgb(9 11 16 / 95%),0 0 8px rgb(9 11 16 / 75%)}
 .assistant-content{flex:1;min-width:0}
 .toolcalls-row{display:flex;align-items:center;gap:8px;min-height:28px;max-width:100%;min-width:0;margin:8px 0 0;padding:3px 9px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font:500 12px 'DM Sans',sans-serif;cursor:pointer}
 .toolcalls-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -474,7 +474,6 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .settings-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .settings-page-heading h3 { margin: 0; }
 .settings-section-save { margin-top: 4px; }
-.settings-subagent-config { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 24px; }
 #settings-connect-page h3 { margin-top: 20px; }
 .settings-section + .settings-section { border-top: 0; padding-top: 0; margin-top: 0; }
 @media (max-width: 700px) { .settings-providers { display: flex; gap: 8px; } .settings-nav { margin-bottom: 0; } .provider-list { grid-template-columns: 1fr; } }
@@ -1012,28 +1011,8 @@ textarea.text-input, #session-config-repos, .code-editor-host,
   .settings-closing, .settings-closing .settings-modal { animation: none; }
 }
 
-/* Child sessions remain ordinary navigable sessions, visually nested under their parent. */
-/* Separate child cards from their parent and keep the tree guide outside borders. */
-.session-tree { min-width: 0; }
-.subagent-group { margin: 8px 0 4px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
-.subagent-toggle { padding: 4px 0 8px; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
-.subagent-toggle:hover { color: var(--text); }
-.subagent-toggle:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; border-radius: 3px; }
-.subagent-count { margin-left: 4px; font-variant-numeric: tabular-nums; }
-.subagent-list { display: flex; flex-direction: column; gap: 8px; }
-.agents-sessions .session-row.subagent-row { grid-template-columns: 18px minmax(0, 1fr) 14px repeat(2, 24px); padding: 5px 6px; border-radius: 6px; background: var(--bg); }
-.agents-sessions .subagent-row .avatar-character { width: 18px; height: 18px; }
-.agents-sessions .subagent-row .session-item { font-size: 12px; }
-.agents-sessions .subagent-row:hover { background: var(--panel2); }
-.agents-sessions .subagent-row:has(.session-item.active) { background: color-mix(in srgb, var(--highlight) 6%, var(--panel)); }
-
-.message.subagent { justify-content: flex-start; }
-.subagent-response { border-left: 2px solid var(--accent, #67cbd3); padding-left: 12px; }
-.subagent-response-label { font-size: 12px; font-weight: 600; opacity: .7; margin-bottom: 6px; }
-
 /* Scheduled jobs are a top-level destination alongside the other sidebar pages. */
 .scheduled-job-link[aria-current="page"] { border-color: color-mix(in srgb, var(--violet) 45%, transparent); background: color-mix(in srgb, var(--violet) 11%, var(--panel)); color: var(--text); }
-.subagent-group { margin-top: 4px; }
 
 .scheduled-jobs-page {
   --accent: var(--violet);
