@@ -204,3 +204,36 @@ test('successful responses redact stored and rotated OAuth access tokens', async
     assert.match(output, /REDACTED/);
   }
 });
+
+
+test('server notifications cannot persist configured or stored OAuth credentials in SDK logs', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'sunday-mcp-log-safety-'));
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = dir;
+  const configured = 'synthetic-notification-configured-secret';
+  const access = 'synthetic-notification-oauth-access';
+  const refresh = 'synthetic-notification-oauth-refresh';
+  const authPath = join(dir, 'mcp-auth.json');
+  const notificationLog = join(dir, 'fixture-lifecycle.log');
+  const sdkLog = join(dir, 'mcp.log');
+  await writeFile(authPath, JSON.stringify({ fixture: { tokens: { access_token: access, refresh_token: refresh } } }));
+  await writeFile(sdkLog, 'existing log remains unchanged\n');
+  t.after(async () => {
+    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
+    await rm(dir, { recursive: true, force: true });
+  });
+  const client = await connectMcp({ mcpServers: { datadog: { ...fixtureServer, env: {
+    API_TOKEN: configured, FIXTURE_AUTH_PATH: authPath, FIXTURE_LOG: notificationLog,
+  } } } }, AbortSignal.timeout(10000), { agentDir: dir });
+  t.after(() => client.close());
+  const output = await client.call('tool_search', { query: 'datadog' }, issuingMessage('tool_search', { query: 'datadog' }));
+  assert.match(await readFile(notificationLog, 'utf8'), /notifications-sent/);
+  await client.close();
+  const log = await readFile(sdkLog, 'utf8');
+  assert.equal(log, 'existing log remains unchanged\n');
+  await assert.rejects(readFile(`${sdkLog}.1`), { code: 'ENOENT' });
+  for (const secret of [configured, access, refresh]) {
+    assert.ok(!log.includes(secret));
+    assert.ok(!output.includes(secret));
+  }
+});

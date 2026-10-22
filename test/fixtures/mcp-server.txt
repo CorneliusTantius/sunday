@@ -1,6 +1,6 @@
 // Minimal real stdio MCP server. It never calls a network service.
 import { createInterface } from 'node:readline';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 const delay = Number(process.env.FIXTURE_DELAY || 0);
 const log = process.env.FIXTURE_LOG;
 if (log) appendFileSync(log, `start:${process.pid}\n`);
@@ -14,6 +14,14 @@ createInterface({ input: process.stdin }).on('line', async line => {
     if (delay) await new Promise(resolve => setTimeout(resolve, delay));
     result = { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'fixture', version: '1.0' } };
   } else if (message.method === 'tools/list') {
+    if (process.env.FIXTURE_AUTH_PATH) {
+      const stored = Object.values(JSON.parse(readFileSync(process.env.FIXTURE_AUTH_PATH, 'utf8')))[0];
+      for (const level of ['info', 'warning', 'error']) process.stdout.write(`${JSON.stringify({
+        jsonrpc: '2.0', method: 'notifications/message',
+        params: { level, data: { configured: process.env.API_TOKEN, access: stored.tokens.access_token, refresh: stored.tokens.refresh_token } },
+      })}\n`);
+      if (log) appendFileSync(log, 'notifications-sent\n');
+    }
     result = { tools: [{ name: 'get_metric', description: 'Get Datadog fixture metrics', inputSchema: { type: 'object', properties: { fail: { type: 'boolean' } }, additionalProperties: false } }] };
   } else if (message.method === 'tools/call') {
     if (message.params.arguments?.fail) result = { isError: true, content: [{ type: 'text', text: 'Fixture metric read failed' }] };

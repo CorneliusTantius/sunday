@@ -71,3 +71,11 @@ The initial bridge passed its tests but an independent audit reproduced a missin
 - Follow-up verification: `node --test test/mcp.test.js test/chat-progress.test.js` **63 passed, zero failures**; `npm test -- --test-concurrency=2` **345 passed, zero failures**; production build and `git diff --check` passed. Live Datadog findings above are unchanged; these security checks use controlled local servers and synthetic credentials only.
 
 - A default-concurrency full-suite rerun encountered two existing server-startup timeouts (`home-editor` and `scheduled-jobs`); neither was an assertion failure in the MCP paths. The final reduced-concurrency full-suite run above passed without changing production behavior or increasing test timeouts.
+
+### Server-notification log safety
+
+A second independent audit found a separate persistence channel: the SDK writes untrusted `notifications/message` payloads directly to `mcp.log`, outside Sunday's result/notification sanitizers. A server can echo configured or OAuth credentials into those payloads.
+
+- Sunday now passes Node's platform-specific `devNull` as the SDK MCP log path in the shared session factory, disabling raw server-log persistence for both chat and sign-in sessions. Actionable sanitized connection/authentication/execution diagnostics remain available. This deliberately sacrifices raw server-message logs rather than trying to sanitize data after writing it. Existing log files are not rewritten or deleted.
+- A real stdio regression emits info/warning/error notifications containing a configured API token and stored OAuth access/refresh tokens. It verifies notifications were actually sent, the existing SDK log remains byte-for-byte unchanged, no rotated log appears, and returned tool output contains none of those synthetic secrets. Removing only the log protection makes this regression fail; restoring it passes.
+- Final verification after log hardening: `node --test test/mcp.test.js` **16 passed, zero failures**; `npm test -- --test-concurrency=2` **346 passed, zero failures**; production build and `git diff --check` passed. No new live Datadog calls were made during security remediation.

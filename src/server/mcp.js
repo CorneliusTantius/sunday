@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { devNull } from 'node:os';
 import { runToolCall } from '@earendil-works/pi-agent-core';
 import {
   getAgentDir,
@@ -39,7 +40,8 @@ async function makeSession(config, agentDir, openUrl, ui = {}) {
   const loader = new DefaultResourceLoader({
     cwd: process.cwd(), agentDir: agentDir ?? process.env.PI_CODING_AGENT_DIR ?? `${process.env.HOME}/.pi/agent`,
     noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
-    extensionFactories: [createCodemodeExtension({ mode: 'on' }), createToolSearchExtension(), createMcpExtension({ loadConfig: () => ({ servers: Object.entries(config.mcpServers).map(([name, entry]) => ({ name, config: entry, source: 'extension' })), errors: [] }), openUrl }),
+    // Server notifications are untrusted and may echo credentials; never persist SDK server logs.
+    extensionFactories: [createCodemodeExtension({ mode: 'on' }), createToolSearchExtension(), createMcpExtension({ loadConfig: () => ({ servers: Object.entries(config.mcpServers).map(([name, entry]) => ({ name, config: entry, source: 'extension' })), errors: [] }), openUrl, logPath: devNull }),
       pi => pi.on('tool_result', event => event.isError ? {
         content: [{ type: 'text', text: 'MCP tool execution failed. Check arguments, server configuration, sign-in, and connectivity in Settings → MCP.' }], details: {},
       } : undefined),
