@@ -1,0 +1,23 @@
+// Minimal real stdio MCP server. It never calls a network service.
+import { createInterface } from 'node:readline';
+import { appendFileSync } from 'node:fs';
+const delay = Number(process.env.FIXTURE_DELAY || 0);
+const log = process.env.FIXTURE_LOG;
+if (log) appendFileSync(log, `start:${process.pid}\n`);
+process.on('exit', () => { if (log) appendFileSync(log, 'exit\n'); });
+createInterface({ input: process.stdin }).on('line', async line => {
+  const message = JSON.parse(line);
+  if (!('id' in message)) return;
+  if (log) appendFileSync(log, `${message.method}\n`);
+  let result;
+  if (message.method === 'initialize') {
+    if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+    result = { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'fixture', version: '1.0' } };
+  } else if (message.method === 'tools/list') {
+    result = { tools: [{ name: 'get_metric', description: 'Get Datadog fixture metrics', inputSchema: { type: 'object', properties: { fail: { type: 'boolean' } }, additionalProperties: false } }] };
+  } else if (message.method === 'tools/call') {
+    if (message.params.arguments?.fail) result = { isError: true, content: [{ type: 'text', text: 'Fixture metric read failed' }] };
+    else result = { content: [{ type: 'text', text: 'fixture metric:42' }] };
+  } else result = {};
+  process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n`);
+});

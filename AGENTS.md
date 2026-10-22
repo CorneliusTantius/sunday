@@ -12,7 +12,7 @@
 - Server startup, HTTP routes, credentials, sessions, chat streaming: `src/server/index.js`; provider/model registries and mode-scoped credential adapters: `src/server/provider-models.js`.
 - JSON persistence: `src/server/storage.js`; focused tests beside the module.
 - Tool definitions and repository access policy: `src/server/tools.js`; SQLite context indexing/search: `src/server/context-storage.js`.
-- MCP configuration validation, transports, and tool connections: `src/server/mcp.js`; settings UI: `src/web/components/Settings.jsx`.
+- MCP configuration validation, transports, SDK discovery/execution hooks, and sanitized diagnostics: `src/server/mcp.js`; settings UI: `src/web/components/Settings.jsx`.
 - Shared system prompt composition: `src/server/prompts.js`; seeded persona metadata and legacy instruction migration: `src/server/personas.js`; effective built-in tool grants: `src/server/agent-capabilities.js`; ordered/concurrent tool batches: `src/server/tool-dispatch.js`.
 - Context budgeting, thinking levels, repository status, session names: corresponding named modules in `src/server/`.
 - Frontend composition, navigation, chat streaming: `src/web/App.jsx`.

@@ -15,6 +15,7 @@ export function buildSystemPrompt(profile, { repositoryTools = [], contextTools 
     names.has('subagent_create') || names.has('subagent_send_prompt')
       ? 'Delegate only useful independent work. Give each child a bounded scope, edit/read-only mode, verification target, and concise return format. Batch independent assignments together; reuse idle children. Track results and verify before claiming completion. Children cannot delegate; do not assume their edits are merged.'
       : '',
+    (names.has('tool_search') || names.has('codemode')) && 'Enabled MCP servers are listed in session context. Their tools may not be declared yet: use tool_search with the server name or task to discover and load them, then call the loaded tools. Codemode can also discover and call MCP tools. Do not claim an MCP server is unavailable without attempting discovery; distinguish stored sign-in credentials from a verified connection. Report discovery or connection failures accurately.',
     names.has('agent_whisper') && 'Choose whisper targets by responsibility using exact IDs from session context or agent_list when available. Whispered agents cannot whisper onward.',
     contextTools.includes('context_search') && 'Search relevant prior context when useful; follow useful note links when available.',
     contextTools.includes('context_index') && 'Index only durable, verified, non-sensitive knowledge, never secrets or transient status.',

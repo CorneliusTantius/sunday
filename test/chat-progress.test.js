@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { connectMcp } from '../src/server/mcp.js';
 import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTools, makeTools } from '../src/server/tools.js';
 
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
@@ -38,12 +39,12 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,
     settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' },
     modelsByMode: { api_key: { getModel: () => model, getAuth: async () => true,
-      streamSimple: (m, input, opts) => { inputs.push({ ...input, messages: structuredClone(input.messages) }); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
+      streamSimple: (m, input, opts) => { inputs.push({ ...input, tools: input.tools ? [...input.tools] : undefined, messages: structuredClone(input.messages) }); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',
     defaultProfile: () => ({ name: 'Test', instructions: '', allowedTools: ['bash'] }), buildSystemPrompt,
     validateTools, resolveAgentTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT, toolOutputStorage: outputStorage,
-    mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: mcpTools, call: async () => mcpOutput, close: async () => {} }),
+    mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: mcpTools, prepare: async () => ({ servers: [] }), call: async () => mcpOutput, close: async () => {} }),
     sessionStorage: { listIds: () => agents.map(agent => agent.id) }, readSession: async id => agents.find(agent => agent.id === id),
     contextStorage: { search: (query, limit) => { contextSearches.push({ query, limit }); return [{ source: 'docs/release.md', title: 'Release guide', excerpt: 'Roll back by redeploying the previous version.' }]; } },
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return nativeOutput; }, saveSession: async () => {},
@@ -57,7 +58,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
   return { events, prompts, options, delays, inputs, executions, whispers, contextSearches, outputs, session, job, run: (allowWhisper = true) => context.executeChatTurn(session, job, allowWhisper), get calls() { return calls; } };
 }
 function stream(events, content = []) {
-  return { async *[Symbol.asyncIterator]() { yield* events; }, result: async () => ({ content, usage: { input: 1 } }) };
+  return { async *[Symbol.asyncIterator]() { yield* events; }, result: async () => ({ role: 'assistant', api: 'test', provider: 'test', model: 'test', timestamp: Date.now(), content, usage: { input: 1 } }) };
 }
 const stalled = () => ({ [Symbol.asyncIterator]() { return { next: () => new Promise(() => {}) }; } });
 
@@ -514,4 +515,58 @@ test('compaction preserves original transcript and publishes a persisted summary
   assert.ok(h.session.compaction.through > 0);
   assert.equal(h.session.latestCompaction.summary, 'Earlier work summary');
   assert.ok(h.events.some(event => event.type === 'compaction' && event.compaction.summary === 'Earlier work summary'));
+});
+
+test('chat discovers and executes real MCP tools and refreshes declarations between rounds', async () => {
+  const args = { query: 'datadog' };
+  const config = { mcpServers: { datadog: { command: process.execPath, args: ['--input-type=module', '-e', readFileSync(new URL('./fixtures/mcp-server.txt', import.meta.url), 'utf8')], env: { FIXTURE_DELAY: '200' } } } };
+  const h = harness(round => {
+    if (round === 0) return stream([], [{ type: 'toolCall', id: 'discover', name: 'tool_search', arguments: args }]);
+    if (round === 1) return stream([], [{ type: 'toolCall', id: 'metric', name: 'mcp__datadog__get_metric', arguments: {} }]);
+    return stream([{ type: 'text_delta', delta: 'The fixture metric is 42.' }]);
+  }, 2000, 20000, [], 10000, { contextOverrides: { mcpConfig: config, connectMcp } });
+  h.session.profile = { name: 'Agent', instructions: 'Use available integrations.', allowedTools: [] };
+  h.session.messages.push({ role: 'user', content: 'Can you see Datadog?' });
+  await h.run();
+  assert.equal(h.calls, 3);
+  assert.match(h.prompts[0], /use tool_search/);
+  assert.ok(h.inputs[0].tools.some(tool => tool.name === 'tool_search'));
+  assert.ok(!h.inputs[0].tools.some(tool => tool.name === 'mcp__datadog__get_metric'));
+  assert.ok(h.inputs[1].tools.some(tool => tool.name === 'mcp__datadog__get_metric'));
+  assert.ok(h.inputs[0].messages.some(message => String(message.content).includes('mcp__datadog')));
+  const result = h.inputs[2].messages.find(message => message.role === 'toolResult' && message.toolName === 'mcp__datadog__get_metric');
+  assert.match(result.content[0].text, /fixture metric:42/);
+  assert.equal(result.isError, false);
+  assert.equal(h.session.messages[0].content, 'Can you see Datadog?');
+  assert.ok(h.session.messages.at(-1).toolCalls.every(call => call.status === 'completed'));
+  assert.deepEqual(Array.from(h.session.messages.at(-1).toolCalls, call => call.name), ['tool_search', 'mcp__datadog__get_metric']);
+});
+
+test('chat exposes sanitized MCP connection failures as reference data and tool diagnostics', async () => {
+  const config = { mcpServers: { datadog: { command: '/missing/SECRET_CONFIG_PATH' } } };
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'discover', name: 'tool_search', arguments: { query: 'datadog' } }])
+    : stream([{ type: 'text_delta', delta: 'Datadog needs attention in Settings → MCP.' }]),
+  2000, 20000, [], 10000, { contextOverrides: { mcpConfig: config, connectMcp } });
+  h.session.messages.push({ role: 'user', content: 'Find Datadog tools.' });
+  await h.run();
+  const modelInput = JSON.stringify(h.inputs[1].messages);
+  assert.match(modelInput, /MCP datadog needs attention/);
+  assert.doesNotMatch(modelInput, /SECRET_CONFIG_PATH/);
+});
+
+test('chat marks MCP execution failures as failed tool results rather than successful text', async () => {
+  const config = { mcpServers: { datadog: { command: process.execPath, args: ['--input-type=module', '-e', readFileSync(new URL('./fixtures/mcp-server.txt', import.meta.url), 'utf8')] } } };
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'discover', name: 'tool_search', arguments: { query: 'datadog' } }])
+    : round === 1
+      ? stream([], [{ type: 'toolCall', id: 'metric-failure', name: 'mcp__datadog__get_metric', arguments: { fail: true } }])
+      : stream([{ type: 'text_delta', delta: 'The metric read failed.' }]),
+  2000, 20000, [], 10000, { contextOverrides: { mcpConfig: config, connectMcp } });
+  h.session.messages.push({ role: 'user', content: 'Read the fixture metric.' });
+  await h.run();
+  const result = h.inputs[2].messages.find(message => message.role === 'toolResult' && message.toolCallId === 'metric-failure');
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /Fixture metric read failed/);
+  assert.ok(h.events.some(event => event.type === 'tool_complete' && event.id === 'metric-failure' && event.status === 'failed'));
 });
