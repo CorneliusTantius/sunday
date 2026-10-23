@@ -332,6 +332,7 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
   assert.match(source, /groupedTools\.map\(tool => tool\.name\)/);
   assert.match(source, /<ul class="persona-tool-list">\{groupedTools\.map\(tool => <li key=\{tool\.name\}><code>\{tool\.name\}<\/code>:/);
   assert.match(source, /<ul class="persona-tool-list"><li><code>\{tool\.name\}<\/code>:/);
+  assert.match(source, /<strong>\{tool\.name === 'bash' \? 'Bash' : tool\.name\}<\/strong>/);
   assert.match(source, /shortToolDescription\(tool\.description\)/);
   assert.doesNotMatch(source, /groupedTools\.map\(tool => <label/);
   assert.match(source, /tools\.filter\(tool => !toolGroups\.some/);
