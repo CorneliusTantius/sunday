@@ -116,7 +116,7 @@ export default function Personas({ hidden, toast, onReload }) {
         {toolPermissionItems.map(item => {
           if (!item.group) {
             const { tool } = item;
-            return <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="persona-tool-detail"><code>{tool.name}</code><span class="field-note">{shortToolDescription(tool.description)}</span></span></label>;
+            return <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="persona-tool-detail"><ul class="persona-tool-list"><li><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li></ul></span></label>;
           }
           const { group, tools: groupedTools } = item;
           const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
