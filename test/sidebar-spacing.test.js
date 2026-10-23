@@ -21,9 +21,10 @@ test('standalone menu links group icons and labels like the agents link', () => 
   assert.match(css, /\.feature-heading \{[^}]*justify-content: space-between;/);
 });
 
-test('Context is above the top-level scheduled job destination below Sunday Agents', () => {
+test('Context and Skills are separate top-level destinations below Sunday Agents', () => {
   const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
-  assert.match(app, /<section class="agents-feature"[\s\S]*?<\/section>\s*<a class=\{`feature-heading feature-link context-link[\s\S]*?<a class=\{`feature-heading feature-link scheduled-job-link/);
+  assert.match(app, /<section class="agents-feature"[\s\S]*?<\/section>\s*<a class=\{`feature-heading feature-link context-link[\s\S]*?<a class=\{`feature-heading feature-link skills-link[\s\S]*?<a class=\{`feature-heading feature-link scheduled-job-link/);
+  assert.match(app, /id="skills-link" href="#context\/skills" aria-current=\{page === 'skills' \? 'page' : undefined\}/);
   assert.match(css, /\.scheduled-job-link\[aria-current="page"\]/);
 });
 

@@ -569,7 +569,8 @@ export default function App() {
             </div>
           </div>
         </section>
-        <a class={`feature-heading feature-link context-link${page === 'context' || page === 'skills' ? ' active' : ''}`} id="context-link" href="#context" aria-current={page === 'context' || page === 'skills' ? 'page' : undefined}><MenuIcon name="memory" /><span>Context</span></a>
+        <a class={`feature-heading feature-link context-link${page === 'context' ? ' active' : ''}`} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" /><span>Context</span></a>
+        <a class={`feature-heading feature-link skills-link${page === 'skills' ? ' active' : ''}`} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" /><span>Skills</span></a>
         <a class={`feature-heading feature-link scheduled-job-link${page === 'scheduled-job' ? ' active' : ''}`} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" /><span>Scheduled job</span></a>
         <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
         <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
