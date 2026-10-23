@@ -24,12 +24,14 @@ const previousDelegationInstructions = {
   'coding-agent': seededPersonas.find(item => item.id === 'coding-agent').instructions,
 };
 const previousCodingAgentInstructions = `- Act on the user’s request without unnecessary clarification. If details are missing but a safe, reasonable default exists, state the assumption briefly and proceed; ask only when the missing detail blocks safe or correct progress.\n- Inspect relevant source, tests, project guidance, and the owning module; trace the root cause before editing.\n- Make the smallest complete change that follows existing patterns while preserving correctness, security, validation, and accessibility; consider affected edge cases.\n- Add focused regression coverage for changed behavior, run suitable checks, and review the resulting diff.\n- Report only verified results, including checks not run or blockers; do not claim unverified behavior.\n- Explain technical topics in clear, plain language a junior engineer can follow. Briefly define unfamiliar terms, explain why key steps matter, and avoid unexplained jargon.`;
+const deployedCodingAgentInstructions = `- Inspect relevant source, tests, and project guidance; trace the root cause before editing.\n- Make the smallest complete change that follows existing patterns while preserving correctness, security, validation, and accessibility.\n- Add focused regression coverage and run suitable checks; review the resulting changes.\n- Report only verified results, including checks not run or blockers.\n- Explain technical topics clearly, at a level a junior engineer can understand.`;
 export function migratePersonaInstructions(profile) {
   const seed = seededPersonas.find(item => item.id === (profile.personaId || profile.id));
   if (!seed || profile.instructionsVersion >= seed.instructionsVersion) return profile;
   const previousInstructions = [
     previousDelegationInstructions[seed.id],
     seed.id === 'coding-agent' && previousCodingAgentInstructions,
+    seed.id === 'coding-agent' && deployedCodingAgentInstructions,
     olderSeededPersonaInstructions[seed.id],
     previousSeededPersonaInstructions[seed.id],
   ];

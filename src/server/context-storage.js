@@ -161,7 +161,8 @@ export function createContextStorage(path) {
     return { source, title, indexed: true, added, updated, reused, removed };
   }
 
-  function search(query, limit = 5) {
+  function search(query, limit = 5, sourcePrefix = null) {
+    if (sourcePrefix !== null && (typeof sourcePrefix !== 'string' || !sourcePrefix.length)) throw new Error('Invalid context scope');
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new Error('Invalid context search limit');
     const expression = searchExpression(query);
     return database.prepare(`
@@ -170,10 +171,10 @@ export function createContextStorage(path) {
       FROM context_search
       JOIN context_chunks c ON c.id = context_search.rowid
       JOIN context_sources s ON s.id = c.source_id
-      WHERE context_search MATCH ?
+      WHERE context_search MATCH ? AND (? IS NULL OR substr(s.source, 1, length(?)) = ?)
       ORDER BY bm25(context_search, 4.0, 1.0), s.source, c.position
       LIMIT ?
-    `).all(expression, limit).map(row => ({ source: row.source, title: row.title, scope: row.scope, excerpt: row.excerpt }));
+    `).all(expression, sourcePrefix, sourcePrefix, sourcePrefix, limit).map(row => ({ source: row.source, title: row.title, scope: row.scope, excerpt: row.excerpt }));
   }
 
   function listSources() {

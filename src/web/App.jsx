@@ -92,6 +92,8 @@ export default function App() {
   const configPending = useRef(false);
   const [messages, setMessages] = useState([]);
   const [compaction, setCompaction] = useState(null);
+  const [memoryActivity, setMemoryActivity] = useState('');
+  useEffect(() => { setMemoryActivity(''); }, [sessionId]);
   const [showLatest, setShowLatest] = useState(false);
   const followLatest = useRef(true);
   const transcript = useRef(null);
@@ -414,6 +416,11 @@ export default function App() {
         updateActivity(serverError ? '' : progressLabel(data.progress));
       } else if (data.type === 'progress') updateActivity(progressLabel(data.status));
       else if (data.type === 'delta') { content += data.text; updateAnswer(); updateActivity('Responding…'); }
+      else if (data.type === 'memory' && controller.current === abort && activeSession.current === sessionId) {
+        setMemoryActivity(data.operation === 'retrieval'
+          ? `Memory: retrieved ${data.count} excerpts`
+          : `Memory review: ${data.status}${data.pruned ? `; retired ${data.pruned} old snapshots` : ''}`);
+      }
       else if (data.type === 'context_usage') { if (controller.current === abort && activeSession.current === sessionId) setContextUsage(data); }
       else if (data.type === 'compaction') { if (controller.current === abort && activeSession.current === sessionId) setCompaction(data.compaction?.summary ? data.compaction : null); }
       else if (data.type === 'tool_status') { updateTool(data); updateActivity('Using tools…'); }
@@ -595,7 +602,7 @@ export default function App() {
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
-          <div ref={messageList} class="messages" id="messages"><CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
+          <div ref={messageList} class="messages" id="messages">{memoryActivity && <p role="status" class="memory-activity">{memoryActivity} · Review notes in Memory</p>}<CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
             {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>

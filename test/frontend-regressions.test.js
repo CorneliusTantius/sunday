@@ -229,7 +229,7 @@ test('SessionConfig removes missing repositories after fetch and saves accepted 
   const h = mount('SessionConfig', {
     session: { id: 'session/1', title: 'Chat', allowedRepositories: ['kept', 'deleted'] },
     onSaved() { saved++; }, onClose() { closed++; }, toast() {},
-  }, async url => url === '/api/repos' ? repositories.promise : url.startsWith('/api/sessions/') ? { session: { config: { model: 'test', thinkingLevel: 'off' } } } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, async (url, method, body) => {
+  }, async url => url === '/api/repos?namesOnly=1' ? repositories.promise : url.startsWith('/api/sessions/') ? { session: { config: { model: 'test', thinkingLevel: 'off' } } } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, async (url, method, body) => {
     if (url === '/api/sessions/session%2F1') {
       assert.equal(method, 'PATCH');
       payload = body;
@@ -252,7 +252,7 @@ test('SessionConfig shows workspace copy progress while saving', async () => {
   const h = mount('SessionConfig', {
     session: { id: 'agent-session', title: 'Agent', allowedRepositories: [] },
     onSaved() {}, onClose() {}, toast() {},
-  }, async url => url === '/api/repos' ? { repos: [{ name: 'demo' }] } : url.startsWith('/api/sessions/') ? { session: { config: { model: 'test', thinkingLevel: 'off' } } } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, () => pendingSave.promise);
+  }, async url => url === '/api/repos?namesOnly=1' ? { repos: [{ name: 'demo' }] } : url.startsWith('/api/sessions/') ? { session: { config: { model: 'test', thinkingLevel: 'off' } } } : { personas: [{ id: 'sunday', name: 'Sunday' }] }, () => pendingSave.promise);
   await h.settle();
   const save = h.view.save({ preventDefault() {} });
   h.render();
@@ -388,7 +388,7 @@ test('context notes load, create, and remove directed links', async () => {
 test('context page opens on graph and hides notes until the Notes view is selected', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
-  assert.match(source, /\{!graphOpen && <div class="context-layout">/);
+  assert.match(source, /\{!graphOpen && <div class="context-layout context-tab-view">/);
   assert.match(source, /Select a note to highlight it; open Notes to read its content\./);
 });
 
@@ -415,7 +415,7 @@ function deleteConfigHarness(onDelete, extras = {}) {
   return mount('SessionConfig', {
     session: { id: 'delete-agent', title: 'Agent', allowedRepositories: [] },
     onDelete, onSaved() {}, onClose() {}, toast() { assert.fail('Deletion must not show a toast'); }, ...extras,
-  }, async url => url === '/api/repos' ? { repos: [] } : url === '/api/sessions/delete-agent' ? { session: { config: { model: 'child-model', thinkingLevel: 'high' }, models: [{ id: 'child-model', thinkingLevels: ['off', 'high'] }] } } : { personas: [{ id: 'sunday', name: 'Sunday' }] });
+  }, async url => url === '/api/repos?namesOnly=1' ? { repos: [] } : url === '/api/sessions/delete-agent' ? { session: { config: { model: 'child-model', thinkingLevel: 'high' }, models: [{ id: 'child-model', thinkingLevels: ['off', 'high'] }] } } : { personas: [{ id: 'sunday', name: 'Sunday' }] });
 }
 
 test('agent settings loads and saves its own model and thinking without changing defaults', async () => {
@@ -425,7 +425,7 @@ test('agent settings loads and saves its own model and thinking without changing
   }, async url => {
     calls.push(url);
     if (url === '/api/personas') return { personas: [] };
-    if (url === '/api/repos') return { repos: [] };
+    if (url === '/api/repos?namesOnly=1') return { repos: [] };
     assert.equal(url, '/api/sessions/child');
     return { session: { config: { model: 'child-model', thinkingLevel: 'high' }, models: [{ id: 'child-model', thinkingLevels: ['off', 'high'] }] } };
   }, async (url, method, body) => {

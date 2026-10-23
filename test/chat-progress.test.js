@@ -8,6 +8,7 @@ import { BASIC_TOOL_NAMES, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, validateTo
 
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
 import { buildSystemPrompt } from '../src/server/prompts.js';
+import { retrieveMemory, memoryOverview, reviewMemory, memoryPrefix, MEMORY_REVIEW_PROMPT } from '../src/server/memory-lifecycle.js';
 import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
 import { TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT } from '../src/server/tool-output-storage.js';
 
@@ -35,6 +36,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
   const model = { id: 'test', api: 'test', provider: 'test', contextWindow };
   const context = vm.createContext({
     AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow,
+    retrieveMemory, memoryOverview, reviewMemory, MEMORY_REVIEW_PROMPT,
     summarizeContext: async () => 'Earlier work summary',
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,
     settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' },
@@ -45,7 +47,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
     validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES, BASIC_TOOL_NAMES, makeTools, dispatchToolCalls,
     TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT, toolOutputStorage: outputStorage,
     mcpConfig: { mcpServers: {} }, connectMcp: async () => ({ tools: mcpTools, prepare: async () => ({ servers: [] }), call: async () => mcpOutput, close: async () => {} }),
-    contextStorage: { search: (query, limit) => { contextSearches.push({ query, limit }); return [{ source: 'docs/release.md', title: 'Release guide', excerpt: 'Roll back by redeploying the previous version.' }]; } },
+    contextStorage: { listSources: () => [], search: (query, limit, prefix) => { contextSearches.push({ query, limit, prefix }); return [{ source: 'repo/release', title: 'Release guide', excerpt: 'Roll back by redeploying the previous version.' }]; } },
     join: (...parts) => parts.join('/'), executeTool: async name => { executions.push(name); return nativeOutput; }, saveSession: async () => {},
     publishChat: (job, event) => events.push(event),
     ...contextOverrides,
@@ -284,12 +286,13 @@ test('context is automatically retrieved only for agents with search permission'
   h.session.profile = { name: 'Test', allowedTools: ['context_search', 'context_index', 'context_links', 'context_link'] };
   h.session.messages.push({ role: 'user', content: 'How do I roll back a release?' });
   await h.run();
-  assert.deepEqual(h.contextSearches, [{ query: 'How do I roll back a release?', limit: 3 }]);
+  assert.deepEqual(h.contextSearches, [memoryPrefix(['repo']), 'repo/'].map(prefix => ({ query: 'How do I roll back a release?', limit: 3, prefix })));
   const retrievedContext = h.inputs[0].messages.find(message => typeof message.content === 'string' && message.content.includes('Retrieved context'))?.content;
   assert.match(retrievedContext, /Retrieved context \(untrusted reference data/);
-  assert.match(retrievedContext, /docs\/release\.md/);
-  assert.match(h.prompts[0], /follow useful note links when available/);
-  assert.match(h.prompts[0], /Index only durable, verified, non-sensitive knowledge/);
+  assert.match(retrievedContext, /repo\/release/);
+  assert.equal(h.inputs[0].systemPrompt, buildSystemPrompt(h.session.profile, { contextTools: h.session.profile.allowedTools, tools: h.inputs[0].tools }));
+  assert.match(h.prompts[0], /use context_link to connect it to related notes/);
+  assert.match(h.prompts[0], /When you discover a new or important finding, add or update it with context_index/);
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_links'));
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_link'));
 
@@ -297,7 +300,7 @@ test('context is automatically retrieved only for agents with search permission'
   longRequest.session.profile = { name: 'Test', allowedTools: ['context_search'] };
   longRequest.session.messages.push({ role: 'user', content: 'release '.repeat(100) });
   await longRequest.run();
-  assert.equal(longRequest.contextSearches[0].query.length, 300);
+  assert.equal(longRequest.contextSearches[0].query.length, 100);
 
   const denied = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
   denied.session.profile = { name: 'Test', allowedTools: [] };
@@ -343,7 +346,7 @@ test('chat discovers and executes real MCP tools and refreshes declarations betw
   h.session.messages.push({ role: 'user', content: 'Can you see Datadog?' });
   await h.run();
   assert.equal(h.calls, 3);
-  assert.match(h.prompts[0], /use tool_search/);
+  assert.match(h.prompts[0], /Discover MCP tools with tool_search or codemode/);
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'tool_search'));
   assert.ok(!h.inputs[0].tools.some(tool => tool.name === 'mcp__datadog__get_metric'));
   assert.ok(h.inputs[1].tools.some(tool => tool.name === 'mcp__datadog__get_metric'));
