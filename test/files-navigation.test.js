@@ -9,6 +9,7 @@ test('Context route supports the current and legacy hash', () => {
   const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function greeting'));
   assert.equal(runInNewContext(`${currentPage}\ncurrentPage()`, { location: { hash: '#context' } }), 'context');
   assert.equal(runInNewContext(`${currentPage}\ncurrentPage()`, { location: { hash: '#memory' } }), 'context');
+  assert.equal(runInNewContext(`${currentPage}\ncurrentPage()`, { location: { hash: '#context/skills' } }), 'skills');
 });
 
 test('Files route aliases preserve dirty and saving guards', () => {
