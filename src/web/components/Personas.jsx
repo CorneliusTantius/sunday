@@ -8,6 +8,11 @@ const toolGroups = [
   { name: 'Context', tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink'] },
 ];
 
+function shortToolDescription(description = '') {
+  const firstSentence = description.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() || description.trim();
+  return firstSentence.length > 120 ? `${firstSentence.slice(0, 117).trimEnd()}…` : firstSentence;
+}
+
 export default function Personas({ hidden, toast, onReload }) {
   const [personas, setPersonas] = useState([]);
   const [tools, setTools] = useState([]);
@@ -111,7 +116,7 @@ export default function Personas({ hidden, toast, onReload }) {
         {toolPermissionItems.map(item => {
           if (!item.group) {
             const { tool } = item;
-            return <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span>{tool.name}</span><span class="field-note">{tool.description}</span></label>;
+            return <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="persona-tool-detail"><code>{tool.name}</code><span class="field-note">{shortToolDescription(tool.description)}</span></span></label>;
           }
           const { group, tools: groupedTools } = item;
           const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
@@ -121,7 +126,7 @@ export default function Personas({ hidden, toast, onReload }) {
             change('allowedTools', event.currentTarget.checked
               ? [...new Set([...profile.allowedTools, ...names])]
               : profile.allowedTools.filter(name => !names.includes(name)));
-          }} /><span>{group.name}</span><span class="field-note">{groupedTools.map(tool => tool.description).join(' ')}</span></label>;
+          }} /><span class="persona-tool-detail"><strong>{group.name}</strong><ul class="persona-tool-list">{groupedTools.map(tool => <li key={tool.name}><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li>)}</ul></span></label>;
         })}
       </div></fieldset></details>
       <div class="code-row"><button class="primary-button" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="secondary-button" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
