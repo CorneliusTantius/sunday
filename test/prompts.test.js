@@ -5,7 +5,11 @@ import { seededPersonas, migratePersonaInstructions } from '../src/server/person
 import { validateTools, REPOSITORY_TOOL_NAMES, CONTEXT_TOOL_NAMES } from '../src/server/tools.js';
 
 function options(tools) {
-  return { tools, repositoryTools: tools.filter(name => REPOSITORY_TOOL_NAMES.includes(name)), contextTools: tools.filter(name => CONTEXT_TOOL_NAMES.includes(name)) };
+  return {
+    tools: tools.map(name => ({ name, description: `Short description for ${name}.` })),
+    repositoryTools: tools.filter(name => REPOSITORY_TOOL_NAMES.includes(name)),
+    contextTools: tools.filter(name => CONTEXT_TOOL_NAMES.includes(name)),
+  };
 }
 
 test('fully assembled prompts include editable defaults and granted tools', () => {
@@ -44,16 +48,30 @@ test('custom instructions and assembled prompts are not capped at 3000 character
   assert.ok(prompt.includes(instructions));
 });
 
-test('guidance follows actual grants without advertising disabled capabilities', () => {
+test('available tools and concise guidance are separate and follow actual grants', () => {
   const none = buildSystemPrompt({ name: 'Agent' });
-  assert.ok(none.includes('No repository tools are enabled'));
-  assert.ok(!none.includes('Index only durable'));
+  assert.ok(!none.includes('Available tools:'));
+  assert.ok(!none.includes('Guidance:'));
   const all = buildSystemPrompt({ name: 'Agent' }, options(validateTools()));
-  assert.ok(all.includes('Batch independent reads'));
-  assert.ok(!all.includes('child edits'));
-  assert.ok(all.includes('Bash is not a filesystem sandbox'));
-  assert.ok(all.includes('never secrets or transient status'));
-  assert.ok(all.includes('tool_output_fetch'));
+  assert.ok(all.includes('Available tools:\n- read: Short description for read.'));
+  assert.ok(all.includes('- bash: Short description for bash.'));
+  assert.ok(all.includes('- Use find to locate files or text, read to inspect file contents, edit for precise unique text replacements or new files, and bash for commands, builds, and tests. Prefer read over shell commands for file contents; use repository-relative paths allowed by session context.'));
+  assert.ok(all.includes('- Use context_search to find prior notes. When you discover a new or important finding, add or update it with context_index; use context_link to connect it to related notes.'));
+  assert.equal(all.match(/^Guidance:$/gm)?.length, 1);
+  assert.ok(!all.includes('Bash is not a filesystem sandbox'));
+  assert.ok(!all.includes('No repository tools are enabled'));
+});
+
+test('available tool descriptions are concise and MCP tools appear when supplied', () => {
+  const prompt = buildSystemPrompt({ name: 'Agent' }, {
+    tools: [
+      { name: 'search', description: 'Search remote records. ' + 'Details '.repeat(80) },
+      { name: 'tool_search', description: 'Find MCP tools.' },
+    ],
+  });
+  assert.ok(prompt.includes('- search: Search remote records. …'));
+  assert.ok(prompt.includes('- tool_search: Find MCP tools.'));
+  assert.ok(prompt.includes('Discover MCP tools with tool_search or codemode'));
 });
 
 test('default instructions have one source of truth and customized profiles survive migration', () => {

@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 export const BASIC_TOOLS = [
   { name: 'read', description: "Prefer this over shell scripts for reading text files up to 200000 bytes; optional 1-based offset and limit select lines, or use offset with inclusive endLine for a line range (e.g. offset 5, endLine 10). Files up to 5 MB can be read in ranges.", parameters: { type: 'object', properties: { path: { type: 'string' }, offset: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 1, maximum: 10000 }, endLine: { type: 'integer', minimum: 1 } }, required: ['path'], additionalProperties: false } },
   { name: 'find', description: "Find files or literal text under a repository path. query is a case-sensitive substring; mode defaults to path, content returns path:line:text. Skips sensitive files, symlinks, node_modules, dist, build, and vendor. Bounded results report truncation; narrow path/query if needed.", parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string', maxLength: 1000 }, mode: { type: 'string', enum: ['path', 'content'] }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, required: ['path'], additionalProperties: false } },
-  { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Use empty oldText to write a new or empty file; nonempty files are never overwritten in this mode.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['path', 'oldText', 'newText'], additionalProperties: false } },
+  { name: 'edit', description: "Prefer this over shell scripts for edits. Replace text that occurs exactly once using '<repo-name>/relative-path'. Supply one oldText/newText pair or an edits array for multiple replacements in the same file. Each oldText must match exactly once in the original file; all edits are validated before writing, and overlapping edits are rejected. Use empty oldText to create a new or empty file.", parameters: { type: 'object', properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' }, edits: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', properties: { oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['oldText', 'newText'], additionalProperties: false } } }, required: ['path'], additionalProperties: false } },
   { name: 'bash', description: 'Run a bash command from the agent workspace by default, or use path to start in an allowed repository or subdirectory. Commands may change directories. Optional timeout is in milliseconds (default 30000, maximum 300000).', parameters: { type: 'object', properties: { command: { type: 'string' }, path: { type: 'string' }, timeout: { type: 'integer', minimum: 1, maximum: 300000 } }, required: ['command'], additionalProperties: false } },
   { name: 'context_search', description: 'Search indexed context for relevant source passages. Use a short keyword or phrase query.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 300 } }, required: ['query'], additionalProperties: false } },
   { name: 'context_index', description: 'Index selected text or a durable note for future retrieval. For memory notes you create or update, use standardized Markdown: one # Title, then ## section headings, with each point as a - bullet under a section. Example: # Title\\n\\n## Section 1\\n- Point 1\\n- Point 2. Preserve the structure when updating existing memory pages. Do not force this format onto source documents being indexed verbatim. Re-indexing the same source replaces its content. Never index secrets or private user data.', parameters: { type: 'object', properties: { source: { type: 'string', minLength: 1, maxLength: 300 }, title: { type: 'string', minLength: 1, maxLength: 120 }, content: { type: 'string', minLength: 1, maxLength: 200000 } }, required: ['source', 'title', 'content'], additionalProperties: false } },
@@ -65,7 +65,13 @@ export async function executeTool(name, args, repositories, contextStore, signal
   const raw = args.path ?? '.';
   if (typeof raw !== 'string' || raw.includes('\\') || raw.startsWith('/') || raw.split('/').includes('..')) throw new Error('Invalid repository path');
   if (name === 'bash' && (typeof args.command !== 'string' || args.command.length > 10000 || (args.timeout !== undefined && (!Number.isInteger(args.timeout) || args.timeout < 1 || args.timeout > 300000)))) throw new Error('Invalid bash command or timeout');
-  if (name === 'edit' && (typeof args.oldText !== 'string' || typeof args.newText !== 'string' || args.newText.length > 50000)) throw new Error('Invalid edit arguments');
+  let edits;
+  if (name === 'edit') {
+    const hasSingleEdit = Object.hasOwn(args, 'oldText') || Object.hasOwn(args, 'newText');
+    if (hasSingleEdit === Object.hasOwn(args, 'edits') || (hasSingleEdit && (typeof args.oldText !== 'string' || typeof args.newText !== 'string')) || (Object.hasOwn(args, 'edits') && (!Array.isArray(args.edits) || args.edits.length < 1 || args.edits.length > 20))) throw new Error('Invalid edit arguments');
+    edits = hasSingleEdit ? [{ oldText: args.oldText, newText: args.newText }] : args.edits;
+    if (edits.some(edit => !edit || typeof edit.oldText !== 'string' || typeof edit.newText !== 'string') || edits.reduce((total, edit) => total + edit.newText.length, 0) > 50000) throw new Error('Invalid edit arguments');
+  }
   async function rootInfo(root) {
     const info = await lstat(root);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid repository root');
@@ -172,10 +178,22 @@ export async function executeTool(name, args, repositories, contextStore, signal
     const original = await handle.readFile();
     const content = original.toString('utf8');
     if (content.includes('\0') || !Buffer.from(content, 'utf8').equals(original)) throw new Error('Binary or invalid UTF-8 files are not supported');
-    const first = content.indexOf(args.oldText);
-    if (args.oldText === '' ? content.length > 0 : first < 0 || content.indexOf(args.oldText, first + 1) >= 0) throw new Error('Old text must match exactly once');
+    if (edits.some(edit => edit.oldText === '') && (edits.length !== 1 || content.length !== 0)) throw new Error('Empty oldText can only create an empty file');
+    const matches = edits.map(edit => {
+      const start = content.indexOf(edit.oldText);
+      if (edit.oldText === '' ? content.length !== 0 : start < 0 || content.indexOf(edit.oldText, start + 1) >= 0) throw new Error('Each oldText must match exactly once in the original file');
+      return { ...edit, start, end: start + edit.oldText.length };
+    });
+    for (let i = 0; i < matches.length; i++) for (let j = i + 1; j < matches.length; j++) {
+      const a = matches[i], b = matches[j];
+      const overlap = a.start < b.end && b.start < a.end;
+      const insertionInside = (a.start === a.end && a.start >= b.start && a.start <= b.end) || (b.start === b.end && b.start >= a.start && b.start <= a.end);
+      if (overlap || insertionInside) throw new Error('Edits must not overlap');
+    }
+    let updatedText = content;
+    for (const edit of matches.sort((a, b) => b.start - a.start)) updatedText = updatedText.slice(0, edit.start) + edit.newText + updatedText.slice(edit.end);
     await handle.truncate(0);
-    const updated = Buffer.from(content.slice(0, first) + args.newText + content.slice(first + args.oldText.length), 'utf8');
+    const updated = Buffer.from(updatedText, 'utf8');
     let offset = 0;
     while (offset < updated.length) offset += (await handle.write(updated, offset, updated.length - offset, offset)).bytesWritten;
     return 'File edited';

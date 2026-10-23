@@ -90,6 +90,30 @@ test('edit creates files with empty oldText without overwriting existing content
   } finally { await rm(repo, { recursive: true, force: true }); }
 });
 
+test('edit validates multiple unique non-overlapping replacements before modifying the file', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'sunday-multi-edit-'));
+  const path = `${repo.split('/').at(-1)}/sample.txt`;
+  try {
+    await writeFile(join(repo, 'sample.txt'), 'alpha beta gamma');
+    assert.equal(await executeTool('edit', { path, edits: [
+      { oldText: 'alpha', newText: 'A' },
+      { oldText: 'gamma', newText: 'G' },
+    ] }, [repo]), 'File edited');
+    assert.equal(await executeTool('read', { path }, [repo]), 'A beta G');
+
+    await assert.rejects(executeTool('edit', { path, edits: [
+      { oldText: 'beta', newText: 'B' },
+      { oldText: 'missing', newText: 'M' },
+    ] }, [repo]));
+    assert.equal(await executeTool('read', { path }, [repo]), 'A beta G');
+    await assert.rejects(executeTool('edit', { path, edits: [
+      { oldText: 'beta', newText: 'B' },
+      { oldText: 'beta G', newText: 'X' },
+    ] }, [repo]), /overlap/);
+    assert.equal(await executeTool('read', { path }, [repo]), 'A beta G');
+  } finally { await rm(repo, { recursive: true, force: true }); }
+});
+
 test('find searches paths and literal content without exposing sensitive or linked files', async () => {
   const repo = await mkdtemp(join(tmpdir(), 'sunday-find-'));
   const path = repo.split('/').at(-1);
