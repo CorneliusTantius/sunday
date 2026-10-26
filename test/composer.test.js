@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatCommands, composerToken, fileReferences } from '../src/web/composer.js';
 
-test('manual compaction is an available slash command', () => {
-  assert.ok(chatCommands.some(command => command.name === 'compact'));
+test('only supported slash commands are suggested, including manual compaction', () => {
+  assert.deepEqual(chatCommands.map(command => command.name), ['new', 'settings', 'compact']);
 });
 
 test('suggestions detect slash commands only at the start and file mentions at the caret', () => {

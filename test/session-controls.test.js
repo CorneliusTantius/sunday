@@ -518,7 +518,8 @@ test('slash suggestions accept with Enter and commands do not reach the model', 
   h.send();
   await waitFor(() => assert.equal(h.selected(), 'session-3'));
   h.submit('/help'); await delay(0); h.send();
-  await waitFor(() => assert.match(h.$('#toast').textContent, /@.*reference/));
+  await waitFor(() => assert.match(h.$('#toast').textContent, /Unknown command/));
+  assert.equal(h.$('#prompt').value, '/help');
   assert.equal(h.calls.some(call => call.url === '/api/chat'), false);
   h.submit('/unsupported'); await delay(0); h.send();
   await waitFor(() => assert.match(h.$('#toast').textContent, /Unknown command/));

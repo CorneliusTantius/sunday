@@ -2,7 +2,6 @@ export const chatCommands = [
   { name: 'new', description: 'Start a new session' },
   { name: 'settings', description: 'Open settings' },
   { name: 'compact', description: 'Compact earlier conversation context' },
-  { name: 'help', description: 'Show chat commands and file-reference help' },
 ];
 
 export function composerToken(text, caret) {

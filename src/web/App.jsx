@@ -503,7 +503,7 @@ export default function App() {
     if (!text.trim()) return;
     if (/^\/[a-z]*(?:\s|$)/i.test(text.trim())) {
       const command = text.trim().slice(1).toLowerCase();
-      if (!chatCommands.some(item => item.name === command)) { toast('Unknown command. Use /help to see available commands.'); return; }
+      if (!chatCommands.some(item => item.name === command)) { toast('Unknown command.'); return; }
       setPrompt('');
       if (command === 'new') return createSession();
       if (command === 'settings') { setSettingsOpen(true); return; }
@@ -511,8 +511,6 @@ export default function App() {
         const requestSessionId = activeSession.current;
         return connectChat(requestSessionId, -1, false, '', [], true);
       }
-      toast(`${chatCommands.map(item => `/${item.name} — ${item.description}`).join(' · ')} · @ — reference a repository file (up to 5).`);
-      return;
     }
     let references;
     try { references = fileReferences(text); } catch { toast('Invalid file reference. Choose a file from the @ suggestions.'); return; }
