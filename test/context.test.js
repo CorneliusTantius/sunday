@@ -23,6 +23,20 @@ test('measurement includes cached input and output like Pi', () => {
   assert.equal(measuredInput({ input: 100, cacheRead: 50, cacheWrite: 10, output: 99 }), 259);
 });
 
+test('fresh context estimates include replacements before a measured assistant turn', () => {
+  const original = [
+    { role: 'user', content: 'Old history '.repeat(100) },
+    { role: 'assistant', content: 'Earlier answer', usage: { input: 5000, cacheRead: 0, cacheWrite: 0, output: 0 } },
+    { role: 'user', content: 'Recent request' },
+  ];
+  const compacted = [
+    { role: 'user', content: 'Short summary' },
+    ...original.slice(1),
+  ];
+  assert.equal(estimateContext('', compacted), estimateContext('', original));
+  assert.ok(estimateContext('', compacted, [], false) < estimateContext('', original, [], false));
+});
+
 test('mid-turn compaction retains a complete latest tool exchange', () => {
   assert.equal(compactionCut([{ role: 'user', content: 'x'.repeat(100000) }, { role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(100000) }] }, { role: 'toolResult', content: [] }, { role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(80000) }] }, { role: 'toolResult', content: [] }, { role: 'toolResult', content: [] }]), 3);
   assert.equal(compactionCut([{ role: 'user' }]), 0);

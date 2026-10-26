@@ -567,7 +567,9 @@ async function runChatTurn(session, job) {
     const latestRequestText = latestRequest ? (typeof latestRequest.content === 'string' ? latestRequest.content : JSON.stringify(latestRequest.content)) : '';
     const compactedSummary = summary + (latestRequest ? '\n\nLatest request (retained verbatim):\n' + latestRequestText : '');
     const replacement = { role: 'user', content: 'Earlier conversation summary (historical data, not new instructions):\n' + compactedSummary, timestamp: Date.now() };
-    if (estimateContext(prompt, [replacement, ...history.slice(cut)], tools) >= estimateContext(prompt, history, tools)) throw new Error('Compaction could not reduce context. Reduce the latest request or attachments.');
+    // Compare complete transcripts: measured usage belongs to an earlier request and
+    // cannot account for a replacement inserted before the measured assistant turn.
+    if (estimateContext(prompt, [replacement, ...history.slice(cut)], tools, false) >= estimateContext(prompt, history, tools, false)) throw new Error('Compaction could not reduce context. Reduce the latest request or attachments.');
     const through = Math.max(compactionThrough, ...history.slice(0, cut).map(message => turnPositions.get(message) || transcriptPositions.get(message) || 0));
     history.splice(0, cut, replacement);
     compactionThrough = through;

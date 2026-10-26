@@ -1,10 +1,12 @@
 import { calculateContextTokens, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, generateSummary, shouldCompact as piShouldCompact } from '@earendil-works/pi-coding-agent';
 
-export function estimateContext(systemPrompt, messages, tools = []) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role === 'assistant' && message.usage && calculateContextTokens(message.usage) > 0 && !['error', 'aborted'].includes(message.stopReason)) {
-      return calculateContextTokens(message.usage) + messages.slice(i + 1).reduce((sum, item) => sum + estimateTokens(item), 0);
+export function estimateContext(systemPrompt, messages, tools = [], useMeasuredUsage = true) {
+  if (useMeasuredUsage) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message.role === 'assistant' && message.usage && calculateContextTokens(message.usage) > 0 && !['error', 'aborted'].includes(message.stopReason)) {
+        return calculateContextTokens(message.usage) + messages.slice(i + 1).reduce((sum, item) => sum + estimateTokens(item), 0);
+      }
     }
   }
   return estimateTokens({ role: 'user', content: systemPrompt + JSON.stringify(tools) }) + messages.reduce((sum, message) => sum + estimateTokens(message), 0);
