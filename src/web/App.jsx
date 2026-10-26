@@ -441,13 +441,13 @@ export default function App() {
       void reader.cancel().catch(() => {});
     }
     if (serverError) {
-      if (content) toast(serverError);
+      if (content || index < 0) toast(serverError);
       else { content = serverError; updateAnswer(true); }
     }
     if (!finished && !serverError) throw new Error('Response stream ended unexpectedly. Check your connection and retry your message.');
     return true;
   }
-  async function connectChat(sessionId, index, resume = false, text = '', references = []) {
+  async function connectChat(sessionId, index, resume = false, text = '', references = [], compactOnly = false) {
     const abort = new AbortController(); controller.current = abort; setBusy(true); setActiveRunning(true); setActivity(activityLabels.waiting);
     let finished = false, accepted = false, idleTimer;
     function resetIdle() {
@@ -464,13 +464,14 @@ export default function App() {
     try {
       const response = resume
         ? await request(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`, { signal: abort.signal, stream: true })
-        : await jsonRequest('/api/chat', 'POST', { sessionId, messages: [{ role: 'user', content: text }], ...(references.length ? { fileReferences: references } : {}) }, { signal: abort.signal, stream: true });
+        : await jsonRequest('/api/chat', 'POST', { sessionId, ...(compactOnly ? { compact: true } : { messages: [{ role: 'user', content: text }], ...(references.length ? { fileReferences: references } : {}) }) }, { signal: abort.signal, stream: true });
       accepted = true;
       if (abort.signal.aborted) return;
       finished = await readChatStream(response, sessionId, abort, index, resetIdle);
     } catch (error) {
       if (error.name !== 'AbortError') {
-        if (resume && error.message === 'No active chat') {
+        if (compactOnly && activeSession.current === sessionId) toast(error.message);
+        else if (resume && error.message === 'No active chat') {
           try {
             const data = await request(`/api/sessions/${encodeURIComponent(sessionId)}`);
             if (activeSession.current === sessionId && data.session) selectSession(data.session);
@@ -506,6 +507,10 @@ export default function App() {
       setPrompt('');
       if (command === 'new') return createSession();
       if (command === 'settings') { setSettingsOpen(true); return; }
+      if (command === 'compact') {
+        const requestSessionId = activeSession.current;
+        return connectChat(requestSessionId, -1, false, '', [], true);
+      }
       toast(`${chatCommands.map(item => `/${item.name} — ${item.description}`).join(' · ')} · @ — reference a repository file (up to 5).`);
       return;
     }

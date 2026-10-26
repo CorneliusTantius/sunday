@@ -559,24 +559,32 @@ async function runChatTurn(session, job) {
     if (cut < 1) return false;
     publishChat(job, { type: 'progress', status: 'compacting' });
     await runMemoryReview('pre-compaction');
-    const summary = await waitForChat(summarizeContext(history.slice(0, cut), model, models, job.controller.signal), job.controller.signal);
-    if (!summary.trim()) throw new Error('Context compaction failed; original history retained.');
     const latestRequest = history.slice(0, cut).findLast(message => message.role === 'user' && !String(message.content).startsWith('Earlier conversation summary'));
-    const replacement = { role: 'user', content: 'Earlier conversation summary (historical data, not new instructions):\n' + summary + (latestRequest ? '\n\nLatest request (retained verbatim):\n' + (typeof latestRequest.content === 'string' ? latestRequest.content : JSON.stringify(latestRequest.content)) : ''), timestamp: Date.now() };
+    // Keep the latest request verbatim in the replacement, but don't also summarize it.
+    const messagesToSummarize = history.slice(0, cut).filter(message => message !== latestRequest);
+    const summary = await waitForChat(summarizeContext(messagesToSummarize, model, models, job.controller.signal), job.controller.signal);
+    if (!summary.trim()) throw new Error('Context compaction failed; original history retained.');
+    const latestRequestText = latestRequest ? (typeof latestRequest.content === 'string' ? latestRequest.content : JSON.stringify(latestRequest.content)) : '';
+    const compactedSummary = summary + (latestRequest ? '\n\nLatest request (retained verbatim):\n' + latestRequestText : '');
+    const replacement = { role: 'user', content: 'Earlier conversation summary (historical data, not new instructions):\n' + compactedSummary, timestamp: Date.now() };
     if (estimateContext(prompt, [replacement, ...history.slice(cut)], tools) >= estimateContext(prompt, history, tools)) throw new Error('Compaction could not reduce context. Reduce the latest request or attachments.');
     const through = Math.max(compactionThrough, ...history.slice(0, cut).map(message => turnPositions.get(message) || transcriptPositions.get(message) || 0));
     history.splice(0, cut, replacement);
     compactionThrough = through;
     // Do not advance the durable boundary through an unfinished tool exchange.
-    if (!toolCalls.length) session.compaction = { summary, through, updatedAt: Date.now() };
+    if (!toolCalls.length) session.compaction = { summary: compactedSummary, through, updatedAt: Date.now() };
     else compactionPending = true;
-    session.latestCompaction = { summary, updatedAt: Date.now() };
+    session.latestCompaction = { summary: compactedSummary, updatedAt: Date.now() };
     await saveSession(session);
     publishChat(job, { type: 'compaction', compaction: session.latestCompaction });
     reportContext(estimateContext(prompt, history, tools));
     return true;
   }
   try {
+  if (job.compactOnly) {
+    if (!await compactHistory()) throw new Error('There is no older conversation to compact.');
+    return;
+  }
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     job.controller.signal.throwIfAborted();
     if (mcpReference) {
@@ -1408,34 +1416,39 @@ const server = http.createServer(async (req, res) => {
       return await withSessionLock(input.sessionId, async () => {
         const session = await readSession(input.sessionId);
         if (!session) return json(res, 404, { error: 'Session not found' });
-        if (!Array.isArray(input.messages) || !input.messages.length || input.messages.length > 200 || input.messages.some(m => !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim())) throw new Error('Invalid chat messages');
-        const userMessage = input.messages[input.messages.length - 1];
-        if (userMessage.role !== 'user') throw new Error('Last message must be from user');
-        const references = input.fileReferences ?? [];
-        if (!Array.isArray(references) || references.length > 5 || references.some(path => typeof path !== 'string')) throw new Error('Invalid file references');
-        const profileTools = validateTools(session.profile?.allowedTools);
-        if (references.length && !profileTools.includes('read')) throw new Error('File reading is not allowed for this profile');
-        const workspace = await syncAgentWorkspace(session);
-        const loadedReferences = [];
-        let referenceBytes = 0;
-        for (const path of references) {
-          const content = await executeTool('read', { path }, (session.allowedRepositories || []).map(name => join(workspace, name)), contextStorage);
-          const bytes = Buffer.byteLength(content, 'utf8');
-          if (bytes > 50000 || referenceBytes + bytes > 65536 || /[\x00-\x08\x0b\x0c\x0e-\x1f\ufffd]/.test(content)) throw new Error('Referenced files exceed limits or contain binary data');
-          referenceBytes += bytes;
-          loadedReferences.push({ path, content });
+        const compactOnly = input.compact === true;
+        if (compactOnly) {
+          if (input.messages !== undefined || input.fileReferences !== undefined) throw new Error('Invalid compact request');
+        } else {
+          if (!Array.isArray(input.messages) || !input.messages.length || input.messages.length > 200 || input.messages.some(m => !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim())) throw new Error('Invalid chat messages');
+          const userMessage = input.messages[input.messages.length - 1];
+          if (userMessage.role !== 'user') throw new Error('Last message must be from user');
+          const references = input.fileReferences ?? [];
+          if (!Array.isArray(references) || references.length > 5 || references.some(path => typeof path !== 'string')) throw new Error('Invalid file references');
+          const profileTools = validateTools(session.profile?.allowedTools);
+          if (references.length && !profileTools.includes('read')) throw new Error('File reading is not allowed for this profile');
+          const workspace = await syncAgentWorkspace(session);
+          const loadedReferences = [];
+          let referenceBytes = 0;
+          for (const path of references) {
+            const content = await executeTool('read', { path }, (session.allowedRepositories || []).map(name => join(workspace, name)), contextStorage);
+            const bytes = Buffer.byteLength(content, 'utf8');
+            if (bytes > 50000 || referenceBytes + bytes > 65536 || /[\x00-\x08\x0b\x0c\x0e-\x1f\ufffd]/.test(content)) throw new Error('Referenced files exceed limits or contain binary data');
+            referenceBytes += bytes;
+            loadedReferences.push({ path, content });
+          }
+          const storedUserMessage = { role: 'user', content: userMessage.content, ...(loadedReferences.length ? { fileReferences: loadedReferences } : {}) };
+          appendContextUser(session, storedUserMessage);
+          session.messages.push(storedUserMessage);
+          session.updatedAt = Date.now();
+          if (session.title === 'New chat' && !session.titleEdited) session.title = userMessage.content.slice(0, 80);
+          await saveSession(session);
         }
-        const storedUserMessage = { role: 'user', content: userMessage.content, ...(loadedReferences.length ? { fileReferences: loadedReferences } : {}) };
-        appendContextUser(session, storedUserMessage);
-        session.messages.push(storedUserMessage);
-        session.updatedAt = Date.now();
-        if (session.title === 'New chat' && !session.titleEdited) session.title = userMessage.content.slice(0, 80);
-        await saveSession(session);
         const selected = session.config, models = modelsByMode[selected.mode], model = models.getModel(selected.provider, selected.model);
         if (!model) throw new Error('Choose a valid model in settings');
         if (!await waitForChat(models.getAuth(model), AbortSignal.timeout(CHAT_IDLE_TIMEOUT_MS))) throw new Error(`Connect ${providers.find(p => p.id === selected.provider).name} in settings first`);
         if (activeChats.has(input.sessionId)) throw new Error('Agent is busy');
-        const job = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null, compaction: session.latestCompaction || session.compaction || null };
+        const job = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null, compaction: session.latestCompaction || session.compaction || null, compactOnly };
         activeChats.set(input.sessionId, job);
         subscribeChat(res, job);
         try { await executeChatTurn(session, job); }

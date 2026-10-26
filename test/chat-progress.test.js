@@ -364,8 +364,47 @@ test('compaction preserves original transcript and publishes a persisted summary
   await h.run();
   assert.deepEqual(h.session.messages.slice(0, original.length), original);
   assert.ok(h.session.compaction.through > 0);
-  assert.equal(h.session.latestCompaction.summary, 'Earlier work summary');
-  assert.ok(h.events.some(event => event.type === 'compaction' && event.compaction.summary === 'Earlier work summary'));
+  assert.match(h.session.latestCompaction.summary, /^Earlier work summary/);
+  assert.ok(h.events.some(event => event.type === 'compaction' && event.compaction.summary.startsWith('Earlier work summary')));
+});
+
+test('manual compaction summarizes history without sending a chat response', async () => {
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'unexpected response' }]), 100, 1000, [], 10000, {
+    contextOverrides: { compactionCut: () => 2 },
+  });
+  h.job.compactOnly = true;
+  h.session.messages = [
+    { role: 'user', content: 'Old request' },
+    { role: 'assistant', content: 'Old response '.repeat(10000) },
+    { role: 'user', content: 'Keep this recent request' },
+    { role: 'assistant', content: 'Recent response' },
+  ];
+  await h.run();
+  assert.equal(h.calls, 0);
+  assert.match(h.session.latestCompaction.summary, /^Earlier work summary/);
+  assert.ok(h.events.some(event => event.type === 'compaction'));
+});
+
+test('compaction excludes the verbatim latest request from the summary prompt', async () => {
+  let summarized;
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]), 100, 1000, [], 10000, {
+    contextOverrides: {
+      compactionCut: () => 3,
+      summarizeContext: async messages => { summarized = messages; return 'Short summary'; },
+    },
+  });
+  h.session.messages = [
+    { role: 'user', content: 'Old request' },
+    { role: 'assistant', content: 'Old response '.repeat(10000) },
+    { role: 'user', content: 'Latest request '.repeat(3000) },
+    { role: 'assistant', content: 'Recent response' },
+  ];
+  await h.run();
+  assert.ok(summarized);
+  assert.equal(summarized.some(message => String(message.content).startsWith('Latest request')), false);
+  assert.match(h.session.compaction.summary, /Short summary/);
+  assert.match(h.session.latestCompaction.summary, /Latest request \(retained verbatim\):/);
+  assert.match(h.session.latestCompaction.summary, /Latest request/);
 });
 
 test('in-turn compaction checkpoints completed tool messages without repeating the summary', async () => {
