@@ -409,6 +409,8 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .repos-list { list-style: none; padding: 0;  }
 .repos-list li { padding: 8px 0; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); }
 #clone-form .secondary-button { margin-top: 10px; }
+.repository-auto-pull { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.5; cursor: pointer; }
+.repository-auto-pull input { flex: none; margin-top: .2rem; accent-color: var(--accent); }
 
 .feature-link { color: var(--text); text-decoration: none; }
 .feature-heading:has(.feature-link:hover), .feature-heading.feature-link:hover { background: var(--panel2); }
