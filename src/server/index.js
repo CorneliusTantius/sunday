@@ -396,7 +396,6 @@ function withSessionLock(id, fn) {
 }
 const validSessionId = id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id);
 const CHAT_IDLE_TIMEOUT_MS = 120000;
-const CHAT_TURN_TIMEOUT_MS = 900000;
 const MAX_TOOL_ROUNDS = 20;
 const MAX_TIMEOUT_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
@@ -455,11 +454,10 @@ function waitForChat(promise, signal) {
   });
 }
 async function executeChatTurn(session, job) {
-  const timer = setTimeout(() => job.controller.abort(new Error('Agent turn timed out after 15 minutes. Retry with a smaller task.')), CHAT_TURN_TIMEOUT_MS);
   publishChat(job, { type: 'progress', status: 'waiting' });
   const heartbeat = setInterval(() => publishChat(job, { type: 'heartbeat' }), 15000);
   try { return await runChatTurn(session, job); }
-  finally { clearTimeout(timer); clearInterval(heartbeat); await job.mcp?.close(); job.mcp = null; }
+  finally { clearInterval(heartbeat); await job.mcp?.close(); job.mcp = null; }
 }
 async function runChatTurn(session, job) {
   const selected = session.config, models = modelsByMode[selected.mode], model = models.getModel(selected.provider, selected.model);

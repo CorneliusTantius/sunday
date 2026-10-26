@@ -201,11 +201,10 @@ test('idle provider that ignores abort cannot keep chat pending', async () => {
   assert.equal(h.options[0].signal.aborted, true);
 });
 
-test('total deadline bounds a provider continuously emitting reasoning', async () => {
-  const h = harness(() => ({ async *[Symbol.asyncIterator]() {
-    while (true) { await new Promise(resolve => setTimeout(resolve, 5)); yield { type: 'thinking_delta' }; }
-  }, result: () => new Promise(() => {}) }), 100, 35);
-  await assert.rejects(h.run(), /Agent turn timed out after 15 minutes/);
+test('chat turns have no fixed total deadline', async () => {
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'Done' }]));
+  assert.equal(await h.run(), 'Done');
+  assert.equal(h.delays.includes(900000), false);
 });
 
 test('explicit cancellation interrupts a provider that ignores abort', async () => {
