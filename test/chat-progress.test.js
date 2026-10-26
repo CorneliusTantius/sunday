@@ -368,6 +368,35 @@ test('compaction preserves original transcript and publishes a persisted summary
   assert.ok(h.events.some(event => event.type === 'compaction' && event.compaction.summary === 'Earlier work summary'));
 });
 
+test('in-turn compaction checkpoints completed tool messages without repeating the summary', async () => {
+  let summaries = 0;
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'lookup', name: 'bash', arguments: { command: 'printf 42' } }])
+    : stream([{ type: 'text_delta', delta: round === 1 ? 'Found 42.' : 'Still have it.' }]),
+  100, 1000, [], 1000, { nativeOutput: '42', contextOverrides: {
+    estimateContext: (_prompt, messages) => messages.some(message => message.role === 'toolResult') ? 1000 : 1,
+    compactionCut: messages => messages.some(message => message.role === 'toolResult') ? messages.length : 0,
+    summarizeContext: async () => { summaries++; return 'Summary after tool output'; },
+  } });
+  h.session.messages = [
+    { role: 'user', content: 'Earlier request' },
+    { role: 'assistant', content: 'Earlier answer' },
+  ];
+  h.appendUser('Current request');
+  const original = structuredClone(h.session.messages);
+
+  await h.run();
+  assert.deepEqual(h.session.messages.slice(0, original.length), original);
+  assert.equal(summaries, 1);
+  assert.equal(h.session.compaction.through, h.session.contextMessages.length - 1);
+
+  h.appendUser('Follow-up');
+  await h.run();
+  assert.equal(summaries, 1);
+  assert.match(h.inputs.at(-1).messages[0].content, /Summary after tool output/);
+  assert.equal(h.inputs.at(-1).messages.some(message => message.role === 'toolResult'), false);
+});
+
 test('chat discovers and executes real MCP tools and refreshes declarations between rounds', async () => {
   const args = { query: 'datadog' };
   const config = { mcpServers: { datadog: { command: process.execPath, args: ['--input-type=module', '-e', readFileSync(new URL('./fixtures/mcp-server.txt', import.meta.url), 'utf8')], env: { FIXTURE_DELAY: '200' } } } };

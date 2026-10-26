@@ -526,6 +526,14 @@ async function runChatTurn(session, job) {
     session.contextUsage = { tokens, measured, provider: model.provider, model: model.id, contextWindow: model.contextWindow, messageCount: session.messages.length };
     publishChat(job, { type: 'context_usage', ...session.contextUsage });
   };
+  const toolCalls = [], turnMessages = [], turnPositions = new Map();
+  let answer = '', failure, compactionThrough = contextThrough, compactionPending = false;
+  const appendTurnMessages = messages => {
+    for (const message of messages) {
+      turnMessages.push(message);
+      turnPositions.set(message, contextMessages.length + turnMessages.length);
+    }
+  };
   async function compactHistory() {
     // Retain the latest exchange without splitting tool calls from their results.
     const cut = compactionCut(history);
@@ -537,20 +545,18 @@ async function runChatTurn(session, job) {
     const latestRequest = history.slice(0, cut).findLast(message => message.role === 'user' && !String(message.content).startsWith('Earlier conversation summary'));
     const replacement = { role: 'user', content: 'Earlier conversation summary (historical data, not new instructions):\n' + summary + (latestRequest ? '\n\nLatest request (retained verbatim):\n' + (typeof latestRequest.content === 'string' ? latestRequest.content : JSON.stringify(latestRequest.content)) : ''), timestamp: Date.now() };
     if (estimateContext(prompt, [replacement, ...history.slice(cut)], tools) >= estimateContext(prompt, history, tools)) throw new Error('Compaction could not reduce context. Reduce the latest request or attachments.');
-    const through = Math.max(session.compaction?.through || 0, ...history.slice(0, cut).map(message => transcriptPositions.get(message) || 0));
+    const through = Math.max(compactionThrough, ...history.slice(0, cut).map(message => turnPositions.get(message) || transcriptPositions.get(message) || 0));
     history.splice(0, cut, replacement);
-    // Only persist a transcript boundary before tool rounds; in-turn summaries are transient.
-    if (!toolCalls.length) {
-      session.compaction = { summary, through, updatedAt: Date.now() };
-    }
+    compactionThrough = through;
+    // Do not advance the durable boundary through an unfinished tool exchange.
+    if (!toolCalls.length) session.compaction = { summary, through, updatedAt: Date.now() };
+    else compactionPending = true;
     session.latestCompaction = { summary, updatedAt: Date.now() };
     await saveSession(session);
     publishChat(job, { type: 'compaction', compaction: session.latestCompaction });
     reportContext(estimateContext(prompt, history, tools));
     return true;
   }
-  let answer = '', failure;
-  const toolCalls = [], turnMessages = [];
   try {
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     job.controller.signal.throwIfAborted();
@@ -624,7 +630,7 @@ async function runChatTurn(session, job) {
     const contextTokens = measuredInput(assistant.usage);
     if (assistant.usage && model.contextWindow) reportContext(contextTokens, true);
     history.push(assistant);
-    turnMessages.push(assistant);
+    appendTurnMessages([assistant]);
     const calls = assistant.content.filter(block => block.type === 'toolCall');
     if (!calls.length) break;
     if (round === MAX_TOOL_ROUNDS) throw new Error('Tool round limit reached');
@@ -658,7 +664,7 @@ async function runChatTurn(session, job) {
       toolCall.result = toolText;
       publishChat(job, { type: 'tool_complete', id: call.id, status: toolCall.status, result: toolText });
       return { role: 'toolResult', toolCallId: call.id, toolName: call.name, content: [{ type: 'text', text: toolText }], isError, timestamp: Date.now() };
-    }).then(results => { history.push(...results); turnMessages.push(...results); });
+    }).then(results => { history.push(...results); appendTurnMessages(results); });
   }
   } catch (error) {
     failure = error;
@@ -671,7 +677,11 @@ async function runChatTurn(session, job) {
     session.messages.push({ role: 'assistant', content: answer, ...(toolCalls.length ? { toolCalls } : {}) });
     // Avoid persisting an unmatched tool call from a failed turn.
     if (failure) { if (answer) contextMessages.push(contextAssistantMessage(answer, model)); }
-    else contextMessages.push(...turnMessages);
+    else {
+      contextMessages.push(...turnMessages);
+      // Commit in-turn compaction only once its transcript is complete.
+      if (compactionPending) session.compaction = { summary: session.latestCompaction.summary, through: compactionThrough, updatedAt: Date.now() };
+    }
     reportContext(estimateContext(prompt, history, tools)); session.updatedAt = Date.now(); await saveSession(session);
   }
   if (failure) throw failure;
