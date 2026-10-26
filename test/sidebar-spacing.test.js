@@ -37,6 +37,8 @@ test('Context knowledge graph renders linked dots with keyboard access and pan/z
   assert.match(memory, /Graph zoom controls/);
   assert.match(memory, /onPointerDown={startGraphPan}/);
   assert.match(css, /\.context-graph-node-dot \.context-graph-point/);
+  assert.match(css, /\.context-graph-node-dot text \{[^}]*opacity: 0; visibility: hidden;/);
+  assert.match(css, /\.context-graph-node-dot:hover text, \.context-graph-node-dot:focus-visible text/);
 });
 
 test('Context and Skills do not duplicate navigation between their top-level pages', () => {

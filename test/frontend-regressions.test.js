@@ -503,6 +503,8 @@ test('context notes show an Obsidian-style dot graph and selected-note link cont
   assert.match(source, /class="context-global-svg"/);
   assert.match(source, /class="context-global-edges"/);
   assert.match(source, /class={`context-graph-node-dot/);
+  assert.match(source, /const label = node\.title\.length/);
+  assert.doesNotMatch(source, /<title>\$\{node\.title\}/);
   assert.match(source, /aria-label="Graph zoom controls"/);
   assert.match(source, /aria-label={`Open note: \$\{node\.title\}`}/);
   assert.match(source, /Linked notes/);

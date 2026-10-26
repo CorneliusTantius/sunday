@@ -277,7 +277,6 @@ export default function Memory({ toast }) {
                 const label = node.title.length > 26 ? `${node.title.slice(0, 25)}…` : node.title;
                 const radius = 3.5 + Math.min(node.degree, 6) * 0.55;
                 return <g key={node.id} data-graph-node class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
-                  <title>{`${node.title}\n${node.source}`}</title>
                   <circle class="context-graph-hit" r="16" />
                   <circle class="context-graph-point" r={radius} />
                   <text x={labelSide * 11} y="4" text-anchor={labelSide < 0 ? 'end' : 'start'}>{label}</text>
