@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { BASIC_TOOLS } from '../src/server/tools.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph } from '../src/web/context-graph.js';
 
 const deferred = () => {
   let resolve;
@@ -22,7 +23,7 @@ function mount(name, props, request, jsonRequest = async () => ({}), globals = {
   const slots = [], effects = [], timers = new Map(), timerDelays = [];
   let cursor = 0, dirty = false, nextTimer = 0, view;
   const context = vm.createContext({
-    request, jsonRequest,
+    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph,
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
     setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, fn); timerDelays.push(ms); return id; },
@@ -39,6 +40,14 @@ function mount(name, props, request, jsonRequest = async () => ({}), globals = {
       const index = cursor++;
       if (!slots[index]) slots[index] = { current: initial };
       return slots[index];
+    },
+    useMemo(fn, deps) {
+      const index = cursor++;
+      const old = slots[index];
+      if (!old || deps.some((value, i) => !Object.is(value, old.deps[i]))) {
+        slots[index] = { deps, value: fn() };
+      }
+      return slots[index].value;
     },
     useEffect(fn, deps) {
       const index = cursor++;
@@ -485,14 +494,16 @@ test('context page opens on graph and hides notes until the Notes view is select
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
   assert.match(source, /\{!graphOpen && <div class="context-layout context-tab-view">/);
-  assert.match(source, /Select a note to highlight it; open Notes to read its content\./);
+  assert.match(source, /select a dot; switch to Notes to read its content\./);
 });
 
-test('context notes show a global directed graph and selected-note link controls', () => {
+test('context notes show an Obsidian-style dot graph and selected-note link controls', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  assert.match(source, /layoutContextGraph\(graph\.nodes, graph\.links\)/);
+  assert.match(source, /class="context-global-svg"/);
   assert.match(source, /class="context-global-edges"/);
-  assert.match(source, /Graph of all indexed context notes/);
-  assert.match(source, /context-link-arrow/);
+  assert.match(source, /class={`context-graph-node-dot/);
+  assert.match(source, /aria-label="Graph zoom controls"/);
   assert.match(source, /aria-label={`Open note: \$\{node\.title\}`}/);
   assert.match(source, /Linked notes/);
   assert.match(source, /aria-label="Relationship"/);

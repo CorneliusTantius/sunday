@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph } from '../context-graph.js';
 
 export default function Memory({ toast }) {
   const [sources, setSources] = useState([]);
@@ -14,6 +15,9 @@ export default function Memory({ toast }) {
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [graphLoading, setGraphLoading] = useState(true);
   const [graphOpen, setGraphOpen] = useState(true);
+  const [graphView, setGraphView] = useState({ x: 0, y: 0, scale: 1 });
+  const [hoveredGraphSource, setHoveredGraphSource] = useState('');
+  const graphDrag = useRef(null);
   const [source, setSource] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -128,6 +132,33 @@ export default function Memory({ toast }) {
     catch (reason) { setError(reason.message); }
   }
 
+  function zoomGraph(factor) {
+    setGraphView(current => {
+      const scale = Math.max(0.65, Math.min(2.4, current.scale * factor));
+      const ratio = scale / current.scale;
+      return { scale, x: CONTEXT_GRAPH_WIDTH / 2 - (CONTEXT_GRAPH_WIDTH / 2 - current.x) * ratio, y: CONTEXT_GRAPH_HEIGHT / 2 - (CONTEXT_GRAPH_HEIGHT / 2 - current.y) * ratio };
+    });
+  }
+
+  function startGraphPan(event) {
+    if (event.button !== 0 || event.target.closest?.('[data-graph-node]')) return;
+    graphDrag.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: graphView.x, y: graphView.y };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function moveGraphPan(event) {
+    const drag = graphDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const scale = Math.min(bounds.width / CONTEXT_GRAPH_WIDTH, bounds.height / CONTEXT_GRAPH_HEIGHT) || 1;
+    setGraphView(current => ({ ...current, x: drag.x + (event.clientX - drag.clientX) / (scale * current.scale), y: drag.y + (event.clientY - drag.clientY) / (scale * current.scale) }));
+  }
+
+  function stopGraphPan(event) {
+    graphDrag.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
   async function refreshLinks(sourceName) {
     const data = await request(`/api/context/links?source=${encodeURIComponent(sourceName)}`);
     setLinks(data.links);
@@ -184,17 +215,16 @@ export default function Memory({ toast }) {
   }
 
   const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const graphColumns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(graph.nodes.length))));
-  const graphRows = Math.ceil(graph.nodes.length / graphColumns);
-  const graphWidth = Math.max(420, graphColumns * 190 + 20);
-  const graphHeight = Math.max(190, graphRows * 110 + 25);
-  const graphOffsetX = (graphWidth - graphColumns * 190) / 2;
-  const graphNodes = graph.nodes.map((node, index) => ({
-    ...node,
-    x: graphOffsetX + 95 + (index % graphColumns) * 190,
-    y: 60 + Math.floor(index / graphColumns) * 110,
-  }));
-  const graphPositionBySource = new Map(graphNodes.map(node => [node.source, node]));
+  const graphNodes = useMemo(() => layoutContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
+  const graphPositionBySource = new Map(graphNodes.map(node => [node.source || node.id, node]));
+  const activeGraphSource = hoveredGraphSource || selected?.source || '';
+  const activeGraphNeighbors = new Set();
+  if (activeGraphSource) {
+    for (const link of graph.links) {
+      if (link.source === activeGraphSource) activeGraphNeighbors.add(link.target);
+      if (link.target === activeGraphSource) activeGraphNeighbors.add(link.source);
+    }
+  }
 
   return <section class="context-page" aria-labelledby="context-title">
     <header class="context-header">
@@ -211,24 +241,51 @@ export default function Memory({ toast }) {
     </div>
     {graphOpen && <section class="context-panel context-global-panel context-tab-view" aria-labelledby="context-global-title">
       <header class="context-global-header">
-        <div><h2 id="context-global-title">Knowledge graph</h2><p>All indexed notes and their directed links. Select a note to highlight it; open Notes to read its content.</p></div>
-        <div class="context-global-meta"><span>{graph.nodes.length} notes · {graph.links.length} links</span><button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button></div>
-      </header>
-      {graphLoading ? <p class="context-empty">Loading graph…</p> : graph.nodes.length ? <div class="context-global-scroll" role="group" aria-label="Graph of all indexed context notes">
-        <div class="context-global-canvas" style={{ width: `${graphWidth}px`, height: `${graphHeight}px` }}>
-          <svg class="context-global-edges" width={graphWidth} height={graphHeight} viewBox={`0 0 ${graphWidth} ${graphHeight}`} aria-hidden="true">
-            <defs><marker id="context-link-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
-            {graph.links.map(link => {
-              const from = graphPositionBySource.get(link.source), to = graphPositionBySource.get(link.target);
-              if (!from || !to) return null;
-              return <g key={`${link.source}:${link.target}`}>
-                <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#context-link-arrow)" />
-                <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 5}>{link.relation}</text>
-              </g>;
-            })}
-          </svg>
-          {graphNodes.map(node => <button key={node.id} class={`context-graph-node context-global-node${selected?.id === node.id ? ' active' : ''}`} type="button" title={node.source} aria-label={`Open note: ${node.title}`} style={{ left: `${node.x}px`, top: `${node.y}px` }} onClick={() => openSource(node.id)}><strong>{node.title}</strong><span>{node.source}</span></button>)}
+        <div><h2 id="context-global-title">Knowledge graph</h2><p>Explore links between notes. Drag to pan, zoom, and select a dot; switch to Notes to read its content.</p></div>
+        <div class="context-global-meta">
+          <span>{graph.nodes.length} notes · {graph.links.length} links</span>
+          <div class="context-graph-controls" role="group" aria-label="Graph zoom controls">
+            <button class="context-button secondary" type="button" aria-label="Zoom out" onClick={() => zoomGraph(0.82)}>−</button>
+            <button class="context-button secondary" type="button" onClick={() => setGraphView({ x: 0, y: 0, scale: 1 })}>Reset</button>
+            <button class="context-button secondary" type="button" aria-label="Zoom in" onClick={() => zoomGraph(1.22)}>＋</button>
+          </div>
+          <button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
         </div>
+      </header>
+      {graphLoading ? <p class="context-empty">Loading graph…</p> : graph.nodes.length ? <div class="context-global-scroll">
+        <svg class="context-global-svg" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph. Drag to pan; use the zoom controls to explore." onPointerDown={startGraphPan} onPointerMove={moveGraphPan} onPointerUp={stopGraphPan} onPointerCancel={stopGraphPan}>
+          <rect class="context-global-background" x="0" y="0" width={CONTEXT_GRAPH_WIDTH} height={CONTEXT_GRAPH_HEIGHT} />
+          <g transform={`translate(${graphView.x} ${graphView.y}) scale(${graphView.scale})`}>
+            <g class="context-global-edges" aria-hidden="true">
+              {graph.links.map((link, index) => {
+                const from = graphPositionBySource.get(link.source), to = graphPositionBySource.get(link.target);
+                if (!from || !to) return null;
+                const related = activeGraphSource && (link.source === activeGraphSource || link.target === activeGraphSource);
+                const dimmed = activeGraphSource && !related;
+                return <g key={`${link.source}:${link.target}:${link.relation || index}`} class={`context-graph-edge${related ? ' active' : ''}${dimmed ? ' dimmed' : ''}`}>
+                  <title>{`${from.title} ${link.relation || 'links to'} ${to.title}`}</title>
+                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                </g>;
+              })}
+            </g>
+            <g class="context-global-nodes">
+              {graphNodes.map(node => {
+                const sourceKey = node.source || node.id;
+                const isActive = hoveredGraphSource === sourceKey || selected?.source === sourceKey;
+                const isDimmed = Boolean(activeGraphSource && sourceKey !== activeGraphSource && !activeGraphNeighbors.has(sourceKey));
+                const labelSide = node.x > CONTEXT_GRAPH_WIDTH - 190 ? -1 : 1;
+                const label = node.title.length > 26 ? `${node.title.slice(0, 25)}…` : node.title;
+                const radius = 3.5 + Math.min(node.degree, 6) * 0.55;
+                return <g key={node.id} data-graph-node class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
+                  <title>{`${node.title}\n${node.source}`}</title>
+                  <circle class="context-graph-hit" r="16" />
+                  <circle class="context-graph-point" r={radius} />
+                  <text x={labelSide * 11} y="4" text-anchor={labelSide < 0 ? 'end' : 'start'}>{label}</text>
+                </g>;
+              })}
+            </g>
+          </g>
+        </svg>
       </div> : <p class="context-empty">No indexed notes yet. Index notes to populate the graph.</p>}
     </section>}
     {!graphOpen && <div class="context-layout context-tab-view">
