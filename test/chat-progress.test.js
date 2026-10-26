@@ -55,7 +55,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
   vm.runInContext(source.slice(source.indexOf('const CHAT_IDLE_TIMEOUT_MS'), source.indexOf('const defaultPersona')), context);
   const session = { id: 'session', messages: [], allowedRepositories: ['repo'], config: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' } };
   const job = { controller: new AbortController() };
-  return { events, prompts, options, delays, inputs, executions, contextSearches, outputs, session, job, run: () => context.executeChatTurn(session, job), get calls() { return calls; } };
+  return { events, prompts, options, delays, inputs, executions, contextSearches, outputs, session, job, appendUser(content) { const message = { role: 'user', content }; context.appendContextUser(session, message); session.messages.push(message); }, publicSession: context.publicSession, run: () => context.executeChatTurn(session, job), get calls() { return calls; } };
 }
 function stream(events, content = []) {
   return { async *[Symbol.asyncIterator]() { yield* events; }, result: async () => ({ role: 'assistant', api: 'test', provider: 'test', model: 'test', timestamp: Date.now(), content, usage: { input: 1 } }) };
@@ -75,6 +75,40 @@ test('chat publishes thinking and partial tools before completion without duplic
   assert.equal(h.session.messages[0].toolCalls.length, 1);
   assert.match(h.prompts[0], /Help users by reading, editing, and writing files and executing commands/);
   assert.match(h.prompts[0], /Ask only when urgently needed to proceed/);
+});
+
+test('later chat turns replay prior tool calls, results, and assistant replies', async () => {
+  const h = harness(round => round === 0
+    ? stream([], [{ type: 'toolCall', id: 'lookup', name: 'bash', arguments: { command: 'printf 42' } }])
+    : stream([{ type: 'text_delta', delta: round === 1 ? 'Found 42.' : 'I found 42 earlier.' }]));
+  h.appendUser('Find the value.');
+  await h.run();
+  h.appendUser('What did you find?');
+  await h.run();
+
+  const history = h.inputs.at(-1).messages;
+  assert.deepEqual(history.map(message => message.role), ['user', 'assistant', 'toolResult', 'assistant', 'user']);
+  assert.equal(history[1].content.find(block => block.type === 'toolCall').id, 'lookup');
+  assert.equal(history[2].content[0].text, 'ok');
+  assert.equal(history[3].content.find(block => block.type === 'text').text, 'Found 42.');
+  assert.match(history[4].content, /What did you find\?/);
+  assert.equal(h.publicSession(h.session).contextMessages, undefined);
+});
+
+test('legacy transcript tool results migrate into model history', async () => {
+  const h = harness(() => stream([{ type: 'text_delta', delta: 'The answer was 42.' }]));
+  h.session.messages = [
+    { role: 'user', content: 'Find the value.' },
+    { role: 'assistant', content: 'It was 42.', toolCalls: [{ id: 'old-call', name: 'bash', arguments: { command: 'printf 42' }, status: 'completed', result: '42' }] },
+    { role: 'user', content: 'What value?' },
+  ];
+  h.session.compaction = { summary: 'Earlier work', through: 2 };
+  await h.run();
+  assert.equal(h.session.compaction.through, 4);
+  assert.equal(h.session.contextMessages[2].role, 'toolResult');
+  assert.equal(h.session.contextMessages[2].content[0].text, '42');
+  assert.match(h.inputs[0].messages[0].content, /Earlier work/);
+  assert.match(h.inputs[0].messages.at(-1).content, /What value\?/);
 });
 
 test('chat retains oversized native tool output and provides search/fetch tools in the next round', async () => {
