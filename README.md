@@ -36,15 +36,6 @@ Sunday stores settings, provider credentials, and chat sessions under `~/sunday/
 
 Provider credentials are stored as plaintext in a separate owner-only file; they are not returned by settings endpoints or saved in browser storage. The server listens only on loopback and has no user login. Keep access private. For remote access, use a private network such as Tailscale Serve—do not expose Sunday to the public internet.
 
-## Run as a service
-
-To install the per-user systemd service and health check:
-
-```sh
-./install-systemctl.sh
-systemctl --user status sunday.service
-```
-
 ## Checks
 
 ```sh
