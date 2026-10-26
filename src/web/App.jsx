@@ -110,6 +110,8 @@ export default function App() {
   pageRef.current = page;
   const [dashboardExiting, setDashboardExiting] = useState(false);
   const dashboardExitTimer = useRef(null);
+  const [skillsExiting, setSkillsExiting] = useState(false);
+  const skillsExitTimer = useRef(null);
   const editorDirty = useRef(false);
   const editorSaving = useRef(false);
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 700px)').matches);
@@ -263,6 +265,14 @@ export default function App() {
       } else {
         setDashboardExiting(false);
       }
+      clearTimeout(skillsExitTimer.current);
+      if (pageRef.current === 'skills' && next !== 'skills') {
+        setSkillsExiting(true);
+        const delay = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
+        skillsExitTimer.current = setTimeout(() => { setSkillsExiting(false); skillsExitTimer.current = null; }, delay);
+      } else {
+        setSkillsExiting(false);
+      }
       pageRef.current = next;
       setPage(next);
     };
@@ -270,7 +280,7 @@ export default function App() {
     const resize = () => { setMobile(layout.matches); setSidebarOpen(!layout.matches); };
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('hashchange', route); layout.addEventListener('change', resize);
-    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(dashboardExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
+    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(dashboardExitTimer.current); clearTimeout(skillsExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
     document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'dashboard' ? 'Dashboard' : page === 'scheduled-job' ? 'Scheduled job' : page === 'context' ? 'Context' : 'Chat'}`;
@@ -600,7 +610,7 @@ export default function App() {
         {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}
-        {page === 'skills' && <Skills />}
+        {(page === 'skills' || skillsExiting) && <Skills exiting={skillsExiting} />}
         {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>

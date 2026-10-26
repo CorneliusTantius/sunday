@@ -16,13 +16,14 @@ test('Files route aliases preserve dirty and saving guards', () => {
   const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function greeting'));
   const route = source.slice(source.indexOf('const route = () =>'), source.indexOf('const layout = matchMedia'));
-  let page = 'editor', confirmations = 0, alerts = 0, discard = false, dashboardExiting = false;
+  let page = 'editor', confirmations = 0, alerts = 0, discard = false, dashboardExiting = false, skillsExiting = false;
   let nextTimer = 0;
   const timers = new Map(), timerDelays = [];
   const context = {
     location: { hash: '#editor' }, editorDirty: { current: true }, editorSaving: { current: false },
-    pageRef: { current: 'editor' }, dashboardExitTimer: { current: null },
-    setPage: next => { page = next; }, setDashboardExiting: value => { dashboardExiting = value; },
+    pageRef: { current: 'editor' }, dashboardExitTimer: { current: null }, skillsExitTimer: { current: null },
+    setPage: next => { page = next; }, setDashboardExiting: value => { dashboardExiting = value; }, setSkillsExiting: value => { skillsExiting = value; },
+    matchMedia: () => ({ matches: false }),
     setTimeout: (callback, delay) => { const id = ++nextTimer; timers.set(id, callback); timerDelays.push(delay); return id; },
     clearTimeout: id => timers.delete(id),
     window: { confirm: () => { confirmations++; return discard; }, alert: () => { alerts++; } },
@@ -56,6 +57,16 @@ test('Files route aliases preserve dirty and saving guards', () => {
   context.location.hash = '#dashboard'; navigate();
   assert.equal(dashboardExiting, false);
   assert.equal(timers.size, 0, 'a subsequent route cancels the pending exit cleanup');
+
+  context.pageRef.current = 'skills';
+  context.location.hash = '#chat'; navigate();
+  assert.equal(page, 'chat');
+  assert.equal(skillsExiting, true);
+  assert.equal(timerDelays.at(-1), 260);
+  assert.equal(timers.size, 1, 'the Skills page stays mounted for its exit animation');
+  context.location.hash = '#skills'; navigate();
+  assert.equal(skillsExiting, false);
+  assert.equal(timers.size, 0, 'navigating back cancels the pending Skills exit');
 });
 
 test('Files is a top-level navigation item matching Repositories', t => {

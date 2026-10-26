@@ -38,14 +38,30 @@ test('Skills does not duplicate the Memory/Skills context section switch', () =>
 
 test('skill builder and npm import forms are contained in a modal dialog', () => {
   const skills = readFileSync(new URL('../src/web/components/Skills.jsx', import.meta.url), 'utf8');
-  const start = skills.indexOf('<dialog ref={dialog} class="context-modal skills-dialog"');
+  const start = skills.indexOf('<dialog ref={dialog}');
   const end = skills.indexOf('</dialog>', start);
   assert.ok(start >= 0 && end > start);
   const modal = skills.slice(start, end);
+  assert.match(modal, /class=\{`context-modal skills-dialog/);
   assert.match(modal, /onSubmit={installNpmSkill}/);
   assert.match(modal, /onSubmit={saveSkill}/);
   assert.doesNotMatch(skills.slice(0, start), /<form class="skills-form/);
   assert.doesNotMatch(skills.slice(end), /<form class="skills-form/);
+  assert.match(skills, /element\.showModal\(\)/);
+  assert.match(skills, /dialogClosing \? ' closing' : ''/);
+});
+
+test('Skills library enter and exit animations respect reduced motion', () => {
+  const skills = readFileSync(new URL('../src/web/components/Skills.jsx', import.meta.url), 'utf8');
+  assert.match(skills, /changeSource\(next\)/);
+  assert.match(skills, /skills-content\$\{sourceLeaving \? ' leaving' : ''\}/);
+  assert.match(skills, /removingId === skill\.id \? ' leaving' : ''/);
+  assert.match(css, /\.skills-page\.exiting/);
+  assert.match(css, /@keyframes skills-page-in/);
+  assert.match(css, /@keyframes skills-page-out/);
+  assert.match(css, /@keyframes skills-content-out/);
+  assert.match(css, /@keyframes skills-card-out/);
+  assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 });
 
 test('nested agents use smaller text, avatars and spacing than parent navigation', () => {
