@@ -545,6 +545,12 @@ async function runChatTurn(session, job) {
     session.contextUsage = { tokens, measured, provider: model.provider, model: model.id, contextWindow: model.contextWindow, messageCount: session.messages.length };
     publishChat(job, { type: 'context_usage', ...session.contextUsage });
   };
+  const estimateCurrentContext = messages => {
+    const lastMeasuredAssistant = messages.findLast(message => message.role === 'assistant' && message.usage);
+    const compactionAt = session.latestCompaction?.updatedAt || session.compaction?.updatedAt || 0;
+    const usageIsCurrent = !compactionAt || (lastMeasuredAssistant?.timestamp || 0) > compactionAt;
+    return estimateContext(prompt, messages, tools, usageIsCurrent);
+  };
   const toolCalls = [], turnMessages = [], turnPositions = new Map();
   let answer = '', failure, compactionThrough = contextThrough, compactionPending = false;
   const appendTurnMessages = messages => {
@@ -579,7 +585,7 @@ async function runChatTurn(session, job) {
     session.latestCompaction = { summary: compactedSummary, updatedAt: Date.now() };
     await saveSession(session);
     publishChat(job, { type: 'compaction', compaction: session.latestCompaction });
-    reportContext(estimateContext(prompt, history, tools));
+    reportContext(estimateCurrentContext(history));
     return true;
   }
   try {
@@ -596,9 +602,9 @@ async function runChatTurn(session, job) {
     }
     // Discovery can activate tools after the initial MCP connection and after tool_search.
     tools.splice(0, tools.length, ...makeTools(allowed), ...job.mcp.tools, ...(outputToolsAdded ? TOOL_OUTPUT_TOOLS : []));
-    const estimate = estimateContext(prompt, history, tools);
+    const estimate = estimateCurrentContext(history);
     if (shouldCompact(Math.max(estimate, round === 0 && session.contextUsage?.model === model.id && session.contextUsage?.provider === model.provider ? session.contextUsage.tokens : 0), model.contextWindow)) await compactHistory();
-    reportContext(estimateContext(prompt, history, tools));
+    reportContext(estimateCurrentContext(history));
     publishChat(job, { type: 'progress', status: 'waiting' });
     let assistant, roundAnswer = '', overflowRetried = false;
     for (let attempt = 0; attempt <= MAX_TIMEOUT_RETRIES; attempt++) {

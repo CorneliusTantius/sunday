@@ -377,12 +377,15 @@ test('manual compaction summarizes history without sending a chat response', asy
     { role: 'user', content: 'Old request' },
     { role: 'assistant', content: 'Old response '.repeat(10000) },
     { role: 'user', content: 'Keep this recent request' },
-    { role: 'assistant', content: 'Recent response' },
+    { role: 'assistant', content: 'Recent response', usage: { input: 230000, cacheRead: 0, cacheWrite: 0, output: 0 } },
   ];
   await h.run();
   assert.equal(h.calls, 0);
   assert.match(h.session.latestCompaction.summary, /^Earlier work summary/);
   assert.ok(h.events.some(event => event.type === 'compaction'));
+  const usage = h.events.findLast(event => event.type === 'context_usage');
+  assert.ok(usage.tokens < 230000, 'post-compaction usage should not reuse the pre-compaction measured count');
+  assert.equal(usage.measured, false);
 });
 
 test('compaction excludes the verbatim latest request from the summary prompt', async () => {
