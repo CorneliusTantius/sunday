@@ -12,6 +12,7 @@ import { lazy, Suspense } from 'preact/compat';
 import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
 import MessageBubble from './components/MessageBubble.js';
+import SkillCommandMessage from './components/SkillCommandMessage.jsx';
 import ToolCalls from './components/ToolCalls.jsx';
 import CompactionSummary from './components/CompactionSummary.jsx';
 import MessageHistory from './components/MessageHistory.jsx';
@@ -623,7 +624,7 @@ export default function App() {
           {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="messages" id="messages">{memoryActivity && <p role="status" class="memory-activity">{memoryActivity} · Review notes in Memory</p>}<CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
-            {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <MessageBubble content={message.content} error={message.error} />}
+            {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <SkillCommandMessage content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>
         </section>
         <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">

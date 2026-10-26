@@ -109,6 +109,16 @@ body{margin:0;background:var(--bg);color:var(--text)}
 .assistant .message-bubble{max-width:100%;padding:3px 0}
 .assistant .message-bubble{text-shadow:0 1px 3px rgb(9 11 16 / 95%),0 0 8px rgb(9 11 16 / 75%)}
 .assistant-content{flex:1;min-width:0}
+.skill-command-pill{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin:0 0 7px;padding:4px 10px;border:1px solid color-mix(in srgb,var(--highlight) 38%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--highlight) 12%,var(--panel2));color:var(--highlight);font:600 12px 'DM Sans',sans-serif;cursor:pointer}
+.skill-command-pill:hover{border-color:var(--highlight);background:color-mix(in srgb,var(--highlight) 18%,var(--panel2))}
+.skill-command-pill:focus-visible{outline:2px solid var(--highlight);outline-offset:2px}
+.skill-command-task > :last-child{margin-bottom:0}
+.skill-details-dialog{width:min(680px,calc(100% - 32px));max-width:min(680px,calc(100% - 32px))}
+.skill-details-body{flex:1;min-height:0;overflow:auto;padding:18px 24px 24px}
+.skill-details-body h3{margin:22px 0 10px;font:700 15px Manrope,sans-serif}
+.skill-detail-description{margin:0 0 8px;color:var(--text)}
+.skill-detail-source{margin:0;color:var(--muted);font-size:12px}
+.skill-detail-content{margin:0;padding:14px;overflow:auto;max-height:48dvh;border:1px solid var(--line);border-radius:8px;background:var(--bg);font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .toolcalls-row{display:flex;align-items:center;gap:8px;min-height:28px;max-width:100%;min-width:0;margin:8px 0 0;padding:3px 9px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font:500 12px 'DM Sans',sans-serif;cursor:pointer}
 .toolcalls-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toolcalls-label-mobile{display:none}

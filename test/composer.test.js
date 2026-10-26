@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chatCommands, composerToken, fileReferences, skillSlashCommands } from '../src/web/composer.js';
+import { chatCommands, composerToken, fileReferences, parseSkillCommand, skillSlashCommands } from '../src/web/composer.js';
 
 test('only supported built-in slash commands are suggested', () => {
   assert.deepEqual(chatCommands.map(command => command.name), ['new', 'settings', 'compact']);
@@ -15,6 +15,8 @@ test('enabled skills become slash commands and disabled or invalid skills are ex
   assert.deepEqual(composerToken('/skill:code-review', '/skill:code-review'.length), {
     type: 'command', query: 'skill:code-review', start: 0, end: '/skill:code-review'.length,
   });
+  assert.deepEqual(parseSkillCommand('/skill:code-review Review this change'), { id: 'code-review', task: 'Review this change' });
+  assert.equal(parseSkillCommand('/not-a-skill hello'), null);
 });
 
 test('suggestions detect slash commands only at the start and file mentions at the caret', () => {

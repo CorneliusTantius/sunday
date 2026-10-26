@@ -9,6 +9,11 @@ export function skillSlashCommands(skills = []) {
     .map(skill => ({ name: `skill:${skill.id}`, description: `${skill.name}${skill.description ? ` — ${skill.description}` : ''}` }));
 }
 
+export function parseSkillCommand(content) {
+  const match = typeof content === 'string' ? content.match(/^\/skill:([a-z0-9-]+)(?:\s+([\s\S]*))?$/i) : null;
+  return match ? { id: match[1].toLowerCase(), task: match[2] || '' } : null;
+}
+
 export function composerToken(text, caret) {
   const before = text.slice(0, caret);
   if (/^\/(?:[a-z]*|skill:[a-z0-9-]*)$/i.test(before)) return { type: 'command', query: before.slice(1), start: 0, end: caret };

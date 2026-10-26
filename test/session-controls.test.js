@@ -530,7 +530,7 @@ test('slash suggestions accept with Enter and commands do not reach the model', 
 
 test('enabled skills are suggested as /skill commands and submitted as chat requests', async t => {
   const h = await mount(t, { skills: [
-    { id: 'code-review', name: 'Code Review', description: 'Review changes', enabled: true },
+    { id: 'code-review', name: 'Code Review', description: 'Review changes', content: 'Check correctness and edge cases.', enabled: true },
     { id: 'disabled-skill', name: 'Disabled', enabled: false },
   ] });
   h.submit('/skill:');
@@ -542,6 +542,14 @@ test('enabled skills are suggested as /skill commands and submitted as chat requ
   await waitFor(() => assert.ok(h.calls.some(call => call.url === '/api/chat')));
   const chat = h.calls.find(call => call.url === '/api/chat');
   assert.equal(chat.body.messages[0].content, '/skill:code-review Review this patch');
+  const pill = h.$('.skill-command-pill');
+  assert.ok(pill);
+  assert.equal(pill.textContent.includes('code-review'), true);
+  pill.click();
+  await waitFor(() => assert.equal(h.$('.skill-details-dialog').open, true));
+  await waitFor(() => assert.equal(h.$('.skill-detail-content')?.textContent, 'Check correctness and edge cases.'));
+  assert.match(h.$('.skill-details-dialog').textContent, /Code Review/);
+  assert.match(h.$('.skill-details-dialog').textContent, /Review changes/);
   h.finishStream();
 });
 
