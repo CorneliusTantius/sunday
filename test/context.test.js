@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow } from '../src/server/context.js';
+import { getContextMetrics } from '../src/web/context.js';
+test('context meter rejects stale session usage and estimates tool results', () => {
+  const messages = [{ role: 'assistant', content: '', toolCalls: [{ arguments: { path: 'file' }, result: 'x'.repeat(3000) }] }];
+  const metrics = getContextMetrics({ model: 'm', provider: 'p', messageCount: 10, contextWindow: 10000, tokens: 5000 }, { model: 'm', provider: 'p' }, messages, '', 10000);
+  assert.equal(metrics.measuredUsage, false);
+  assert.ok(metrics.contextTokens >= 1000);
+  assert.ok(metrics.contextTokens < 5000);
+});
+
 test('compaction uses Pi reserve-token threshold', () => {
   assert.equal(shouldCompact(83616, 100000), false);
   assert.equal(shouldCompact(83617, 100000), true);
