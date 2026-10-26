@@ -57,10 +57,22 @@ test('available tools and concise guidance are separate and follow actual grants
   assert.ok(all.includes('Available tools:\n- read: Short description for read.'));
   assert.ok(all.includes('- bash: Short description for bash.'));
   assert.ok(all.includes('- Use find to locate files or text, read to inspect file contents, edit for precise unique text replacements or new files, and bash for commands, builds, and tests. Prefer read over shell commands for file contents; use repository-relative paths allowed by session context.'));
-  assert.ok(all.includes('- Use context_search to find prior notes. When you discover a new or important finding, add or update it with context_index; use context_link to connect it to related notes.'));
+  assert.ok(all.includes('- Use context_search to find prior notes.'));
+  assert.ok(all.includes('- As you make changes, use context_index to record them along the way.'));
+  assert.ok(all.includes('- Use context_link to connect related notes.'));
   assert.equal(all.match(/^Guidance:$/gm)?.length, 1);
   assert.ok(!all.includes('Bash is not a filesystem sandbox'));
   assert.ok(!all.includes('No repository tools are enabled'));
+});
+
+test('context guidance only mentions tools granted to the agent', () => {
+  const searchOnly = buildSystemPrompt({ name: 'Agent' }, options(['context_search']));
+  assert.ok(searchOnly.includes('Use context_search to find prior notes.'));
+  assert.ok(!searchOnly.includes('context_index'));
+
+  const indexOnly = buildSystemPrompt({ name: 'Agent' }, options(['context_index']));
+  assert.ok(indexOnly.includes('As you make changes, use context_index to record them along the way.'));
+  assert.ok(!indexOnly.includes('context_search'));
 });
 
 test('available tool descriptions are concise and MCP tools appear when supplied', () => {

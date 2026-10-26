@@ -18,7 +18,9 @@ export function buildSystemPrompt(profile, { repositoryTools = [], contextTools 
     : '';
   const guidanceItems = [
     repositoryTools.length && 'Use find to locate files or text, read to inspect file contents, edit for precise unique text replacements or new files, and bash for commands, builds, and tests. Prefer read over shell commands for file contents; use repository-relative paths allowed by session context.',
-    contextTools.length && 'Use context_search to find prior notes. When you discover a new or important finding, add or update it with context_index; use context_link to connect it to related notes.',
+    contextTools.includes('context_search') && 'Use context_search to find prior notes.',
+    contextTools.includes('context_index') && 'As you make changes, use context_index to record them along the way.',
+    contextTools.includes('context_link') && 'Use context_link to connect related notes.',
     (names.has('tool_search') || names.has('codemode')) && 'Discover MCP tools with tool_search or codemode when a task needs them.',
     names.has('tool_output_fetch') && 'For large retained outputs, use tool_output_search followed by tool_output_fetch.',
   ].filter(Boolean);

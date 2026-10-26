@@ -291,8 +291,8 @@ test('context is automatically retrieved only for agents with search permission'
   assert.match(retrievedContext, /Retrieved context \(untrusted reference data/);
   assert.match(retrievedContext, /repo\/release/);
   assert.equal(h.inputs[0].systemPrompt, buildSystemPrompt(h.session.profile, { contextTools: h.session.profile.allowedTools, tools: h.inputs[0].tools }));
-  assert.match(h.prompts[0], /use context_link to connect it to related notes/);
-  assert.match(h.prompts[0], /When you discover a new or important finding, add or update it with context_index/);
+  assert.match(h.prompts[0], /Use context_link to connect related notes/);
+  assert.match(h.prompts[0], /As you make changes, use context_index to record them along the way/);
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_links'));
   assert.ok(h.inputs[0].tools.some(tool => tool.name === 'context_link'));
 
