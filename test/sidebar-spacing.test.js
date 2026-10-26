@@ -28,11 +28,13 @@ test('Context and Skills are separate top-level destinations below Sunday Agents
   assert.match(css, /\.scheduled-job-link\[aria-current="page"\]/);
 });
 
-test('Skills does not duplicate the Memory/Skills context section switch', () => {
+test('Context and Skills do not duplicate navigation between their top-level pages', () => {
   const skills = readFileSync(new URL('../src/web/components/Skills.jsx', import.meta.url), 'utf8');
   const memory = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(skills, /<nav class="context-section-tabs"/);
-  assert.match(memory, /<nav class="context-section-tabs"/);
+  assert.doesNotMatch(memory, /<nav class="context-section-tabs"/);
+  assert.doesNotMatch(memory, /href="#context\/skills"/);
+  assert.doesNotMatch(css, /\.context-section-tabs/);
   assert.doesNotMatch(css, /skills-(?:blueprint-badge|preview-grid|preview-card|card-kind)/);
 });
 

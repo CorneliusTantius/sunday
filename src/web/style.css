@@ -1246,10 +1246,6 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 }
 
 /* Context index */
-.context-section-tabs{display:flex;gap:6px;margin:-5px 0 20px;padding:4px;width:max-content;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 80%,transparent)}
-.context-section-tabs a{padding:7px 13px;border-radius:7px;color:var(--muted);font-size:12px;text-decoration:none}
-.context-section-tabs a:hover{color:var(--text);background:color-mix(in srgb,var(--highlight) 8%,var(--panel))}
-.context-section-tabs a[aria-current="page"]{background:color-mix(in srgb,var(--highlight) 16%,var(--panel));color:var(--text);font-weight:700}
 .skills-intro{display:flex;align-items:center;justify-content:space-between;gap:28px;margin-bottom:22px}
 .skills-intro h2{margin:0 0 7px;font:700 19px Manrope,sans-serif}
 .skills-intro p:not(.eyebrow){max-width:600px;margin:0;color:var(--muted);font-size:13px;line-height:1.6}

@@ -204,10 +204,6 @@ export default function Memory({ toast }) {
         <button ref={indexButton} class="context-button" type="button" onClick={openIndexer}>＋ Index a source</button>
       </div>
     </header>
-    <nav class="context-section-tabs" aria-label="Context sections">
-      <a href="#context" aria-current="page">Memory</a>
-      <a href="#context/skills">Skills</a>
-    </nav>
     {error && !indexOpen && <p class="context-error" role="alert">{error}</p>}
     <div class="context-view-controls" role="group" aria-label="Memory view">
       <button class={`context-button${!graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
