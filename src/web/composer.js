@@ -4,9 +4,14 @@ export const chatCommands = [
   { name: 'compact', description: 'Compact earlier conversation context' },
 ];
 
+export function skillSlashCommands(skills = []) {
+  return skills.filter(skill => skill?.enabled && /^[a-z0-9-]+$/.test(skill.id || ''))
+    .map(skill => ({ name: `skill:${skill.id}`, description: `${skill.name}${skill.description ? ` — ${skill.description}` : ''}` }));
+}
+
 export function composerToken(text, caret) {
   const before = text.slice(0, caret);
-  if (/^\/[a-z]*$/i.test(before)) return { type: 'command', query: before.slice(1), start: 0, end: caret };
+  if (/^\/(?:[a-z]*|skill:[a-z0-9-]*)$/i.test(before)) return { type: 'command', query: before.slice(1), start: 0, end: caret };
   const match = before.match(/(?:^|\s)@([^\s@"']*)$/);
   return match ? { type: 'file', query: match[1], start: caret - match[1].length - 1, end: caret } : null;
 }

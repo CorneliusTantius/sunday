@@ -92,6 +92,8 @@ async function mount(t, options = {}) {
     const method = requestOptions.method || 'GET';
     calls.push({ url, method, ...(requestOptions.body ? { body: JSON.parse(requestOptions.body) } : {}) });
     if (url === '/api/settings') return response(defaults);
+    if (url === '/api/skills') return response({ skills: options.skills || [] });
+    if (url === '/api/skills/device') return response({ skills: options.deviceSkills || [] });
     if (url === '/api/personas') return response({ personas: [{ id: 'sunday', name: 'Sunday' }] });
     if (url === '/api/repos') return response({ repos: [] });
     if (/^\/api\/sessions\/[^/]+\/files\?/.test(url)) return response({ files: options.files || ['repo/src/main.js', 'repo/read me.txt'] });
@@ -524,6 +526,23 @@ test('slash suggestions accept with Enter and commands do not reach the model', 
   h.submit('/unsupported'); await delay(0); h.send();
   await waitFor(() => assert.match(h.$('#toast').textContent, /Unknown command/));
   assert.equal(h.$('#prompt').value, '/unsupported');
+});
+
+test('enabled skills are suggested as /skill commands and submitted as chat requests', async t => {
+  const h = await mount(t, { skills: [
+    { id: 'code-review', name: 'Code Review', description: 'Review changes', enabled: true },
+    { id: 'disabled-skill', name: 'Disabled', enabled: false },
+  ] });
+  h.submit('/skill:');
+  await waitFor(() => assert.ok([...h.$('#composer-options').querySelectorAll('[role="option"]')].some(option => option.textContent.includes('/skill:code-review'))));
+  assert.equal([...h.$('#composer-options').querySelectorAll('[role="option"]')].some(option => option.textContent.includes('/skill:disabled-skill')), false);
+  h.submit('/skill:code-review Review this patch');
+  await delay(0);
+  h.send();
+  await waitFor(() => assert.ok(h.calls.some(call => call.url === '/api/chat')));
+  const chat = h.calls.find(call => call.url === '/api/chat');
+  assert.equal(chat.body.messages[0].content, '/skill:code-review Review this patch');
+  h.finishStream();
 });
 
 test('file suggestions support keyboard selection, spaces, and separate reference payloads', async t => {

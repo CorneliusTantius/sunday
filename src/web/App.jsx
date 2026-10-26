@@ -511,15 +511,21 @@ export default function App() {
     if (!ready || !activeSession.current || sessionLock.current) { toast('Chat is still loading'); return; }
     const text = prompt;
     if (!text.trim()) return;
-    if (/^\/[a-z]*(?:\s|$)/i.test(text.trim())) {
-      const command = text.trim().slice(1).toLowerCase();
-      if (!chatCommands.some(item => item.name === command)) { toast('Unknown command.'); return; }
-      setPrompt('');
-      if (command === 'new') return createSession();
-      if (command === 'settings') { setSettingsOpen(true); return; }
-      if (command === 'compact') {
-        const requestSessionId = activeSession.current;
-        return connectChat(requestSessionId, -1, false, '', [], true);
+    const slashMatch = text.trim().match(/^\/(\S*)(?:\s|$)/);
+    if (slashMatch) {
+      const command = slashMatch[1].toLowerCase();
+      const skillCommand = /^skill:[a-z0-9-]+$/.test(command);
+      if (skillCommand) {
+        // Skill commands are sent as user messages so the matching enabled skill can guide the task.
+      } else {
+        if (!chatCommands.some(item => item.name === command)) { toast('Unknown command.'); return; }
+        setPrompt('');
+        if (command === 'new') return createSession();
+        if (command === 'settings') { setSettingsOpen(true); return; }
+        if (command === 'compact') {
+          const requestSessionId = activeSession.current;
+          return connectChat(requestSessionId, -1, false, '', [], true);
+        }
       }
     }
     let references;

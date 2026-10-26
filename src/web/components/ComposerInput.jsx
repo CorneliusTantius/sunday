@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { request } from '../api.js';
-import { chatCommands, composerToken } from '../composer.js';
+import { chatCommands, composerToken, skillSlashCommands } from '../composer.js';
 
 export default function ComposerInput({ value, onChange, inputRef, sessionId, disabled }) {
   const [caret, setCaret] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [files, setFiles] = useState([]);
+  const [skills, setSkills] = useState([]);
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState(0);
   const token = !disabled && !dismissed ? composerToken(value, caret) : null;
@@ -23,9 +24,20 @@ export default function ComposerInput({ value, onChange, inputRef, sessionId, di
     }, 120);
     return () => { clearTimeout(timer); abort.abort(); };
   }, [type, query, sessionId]);
+  useEffect(() => {
+    if (type !== 'command' || !sessionId) return;
+    const abort = new AbortController();
+    Promise.all([
+      request('/api/skills', { signal: abort.signal }),
+      request('/api/skills/device', { signal: abort.signal }),
+    ]).then(([managed, device]) => {
+      if (!abort.signal.aborted) setSkills(skillSlashCommands([...(managed.skills || []), ...(device.skills || [])]));
+    }).catch(() => { if (!abort.signal.aborted) setSkills([]); });
+    return () => abort.abort();
+  }, [type, sessionId]);
   useEffect(() => { setDismissed(false); setCaret(0); }, [sessionId]);
   const options = type === 'command'
-    ? chatCommands.filter(command => command.name.startsWith(query.toLowerCase()))
+    ? [...chatCommands, ...skills].filter(command => command.name.startsWith(query.toLowerCase()))
     : type === 'file' ? files.slice(0, 8).map(path => ({ name: path })) : [];
   const expanded = Boolean(token && (options.length || status));
   function updateCaret(event) {
