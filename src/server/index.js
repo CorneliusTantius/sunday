@@ -175,7 +175,8 @@ async function cancelLogin(message = 'Sign-in cancelled') {
   await attempt.promise;
 }
 function startLogin(provider) {
-  const state = { status: 'pending', provider, events: [], startedAt: Date.now(), expiresAt: Date.now() + LOGIN_TIMEOUT_MS };
+  const startedAt = Date.now();
+  const state = { status: 'pending', provider, events: [], startedAt, expiresAt: startedAt + LOGIN_TIMEOUT_MS };
   const attempt = { state, controller: new AbortController() };
   login = state; loginAttempt = attempt;
   const timer = setTimeout(() => { void cancelLogin('Sign-in timed out; try again'); }, LOGIN_TIMEOUT_MS);

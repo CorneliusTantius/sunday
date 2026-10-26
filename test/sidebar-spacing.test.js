@@ -36,6 +36,18 @@ test('Skills does not duplicate the Memory/Skills context section switch', () =>
   assert.doesNotMatch(css, /skills-(?:blueprint-badge|preview-grid|preview-card|card-kind)/);
 });
 
+test('skill builder and npm import forms are contained in a modal dialog', () => {
+  const skills = readFileSync(new URL('../src/web/components/Skills.jsx', import.meta.url), 'utf8');
+  const start = skills.indexOf('<dialog ref={dialog} class="context-modal skills-dialog"');
+  const end = skills.indexOf('</dialog>', start);
+  assert.ok(start >= 0 && end > start);
+  const modal = skills.slice(start, end);
+  assert.match(modal, /onSubmit={installNpmSkill}/);
+  assert.match(modal, /onSubmit={saveSkill}/);
+  assert.doesNotMatch(skills.slice(0, start), /<form class="skills-form/);
+  assert.doesNotMatch(skills.slice(end), /<form class="skills-form/);
+});
+
 test('nested agents use smaller text, avatars and spacing than parent navigation', () => {
   assert.match(css, /\.agents-sessions \.new-chat \{ height: 32px; padding: 0 10px; font-size: 13px;/);
   assert.match(css, /\.agents-sessions \.sessions-list \{ gap: 6px; \}/);

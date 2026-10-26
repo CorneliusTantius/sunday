@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { jsonRequest, request } from '../api.js';
 
 const blankDraft = { name: '', description: '', content: '' };
@@ -6,6 +6,7 @@ const blankDraft = { name: '', description: '', content: '' };
 export default function Skills() {
   const [skills, setSkills] = useState([]);
   const [deviceSkills, setDeviceSkills] = useState([]);
+  const dialog = useRef(null);
   const [source, setSource] = useState('sunday');
   const [form, setForm] = useState('');
   const [draft, setDraft] = useState(blankDraft);
@@ -28,12 +29,17 @@ export default function Skills() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+  useEffect(() => {
+    const element = dialog.current;
+    if (form && element && !element.open) element.showModal();
+    else if (!form && element?.open) element.close();
+  }, [form]);
 
   function startCreate() {
-    setDraft(blankDraft); setEditingId(''); setError(''); setNotice(''); setForm('create');
+    setDraft(blankDraft); setEditingId(''); setError(''); setNotice(''); setSource('sunday'); setForm('create');
   }
   function startImport() {
-    setPackageName(''); setError(''); setNotice(''); setForm('npm');
+    setPackageName(''); setError(''); setNotice(''); setSource('npm'); setForm('npm');
   }
   function startEdit(skill) {
     setDraft({ name: skill.name, description: skill.description, content: skill.content });
@@ -112,24 +118,28 @@ export default function Skills() {
       </div>
     </section>
 
-    {error && <p class="skills-message skills-error" role="alert">{error}</p>}
+    {error && !form && <p class="skills-message skills-error" role="alert">{error}</p>}
     {notice && <p class="skills-message" role="status">{notice}</p>}
 
-    {form === 'npm' && <form class="skills-form context-panel" onSubmit={installNpmSkill} aria-labelledby="skills-form-title">
-      <div class="skills-form-heading"><div><p class="eyebrow">NPM PACKAGE</p><h2 id="skills-form-title">Install skill instructions</h2></div><button class="context-button secondary" type="button" onClick={closeForm} disabled={busy}>Cancel</button></div>
-      <label>Package name or version<input value={packageName} onInput={event => setPackageName(event.currentTarget.value)} placeholder="@team/code-review-skill" required maxLength={214} autoFocus /></label>
-      <p class="skills-safety-note">Sunday downloads the package archive to find <code>SKILL.md</code>. It does not run npm install or package scripts. Imported skills are stored separately from skills you build here and start disabled.</p>
-      <button class="context-button" type="submit" disabled={busy}>{busy ? 'Installing…' : 'Download and review'}</button>
-    </form>}
+    <dialog ref={dialog} class="context-modal skills-dialog" aria-labelledby="skills-form-title" onClose={() => { setForm(''); setError(''); }} onCancel={event => { if (busy) event.preventDefault(); }} onClick={event => { if (event.target === dialog.current && !busy) closeForm(); }}>
+      {form === 'npm' && <form class="skills-form" onSubmit={installNpmSkill} aria-labelledby="skills-form-title">
+        <div class="skills-form-heading context-modal-header"><div><p class="eyebrow">NPM PACKAGE</p><h2 id="skills-form-title">Install skill instructions</h2></div><button class="context-button secondary" type="button" onClick={closeForm} disabled={busy}>Cancel</button></div>
+        {error && <p class="skills-message skills-error" role="alert">{error}</p>}
+        <label>Package name or version<input value={packageName} onInput={event => setPackageName(event.currentTarget.value)} placeholder="@team/code-review-skill" required maxLength={214} autoFocus /></label>
+        <p class="skills-safety-note">Sunday downloads the package archive to find <code>SKILL.md</code>. It does not run npm install or package scripts. Imported skills are stored separately from skills you build here and start disabled.</p>
+        <button class="context-button" type="submit" disabled={busy}>{busy ? 'Installing…' : 'Download and review'}</button>
+      </form>}
 
-    {(form === 'create' || form === 'edit') && <form class="skills-form context-panel" onSubmit={saveSkill} aria-labelledby="skills-form-title">
-      <div class="skills-form-heading"><div><p class="eyebrow">{form === 'edit' ? 'EDIT SKILL' : 'SUNDAY SKILL BUILDER'}</p><h2 id="skills-form-title">{form === 'edit' ? 'Update skill' : 'Create a skill'}</h2></div><button class="context-button secondary" type="button" onClick={closeForm} disabled={busy}>Cancel</button></div>
-      <label>Name<input value={draft.name} onInput={event => updateDraft('name', event.currentTarget.value)} required maxLength={80} autoFocus /></label>
-      <label>Description<input value={draft.description} onInput={event => updateDraft('description', event.currentTarget.value)} required maxLength={500} /></label>
-      <label>Instructions<textarea value={draft.content} onInput={event => updateDraft('content', event.currentTarget.value)} required maxLength={50000} rows={12} placeholder="Write clear, reusable guidance for the agent…" /></label>
-      <p class="skills-safety-note">Instructions are shared with all Sunday agents when enabled. They cannot grant tools or permissions. New skills start disabled.</p>
-      <button class="context-button" type="submit" disabled={busy}>{busy ? 'Saving…' : form === 'edit' ? 'Save changes' : 'Create skill'}</button>
-    </form>}
+      {(form === 'create' || form === 'edit') && <form class="skills-form" onSubmit={saveSkill} aria-labelledby="skills-form-title">
+        <div class="skills-form-heading context-modal-header"><div><p class="eyebrow">{form === 'edit' ? 'EDIT SKILL' : 'SUNDAY SKILL BUILDER'}</p><h2 id="skills-form-title">{form === 'edit' ? 'Update skill' : 'Create a skill'}</h2></div><button class="context-button secondary" type="button" onClick={closeForm} disabled={busy}>Cancel</button></div>
+        {error && <p class="skills-message skills-error" role="alert">{error}</p>}
+        <label>Name<input value={draft.name} onInput={event => updateDraft('name', event.currentTarget.value)} required maxLength={80} autoFocus /></label>
+        <label>Description<input value={draft.description} onInput={event => updateDraft('description', event.currentTarget.value)} required maxLength={500} /></label>
+        <label>Instructions<textarea value={draft.content} onInput={event => updateDraft('content', event.currentTarget.value)} required maxLength={50000} rows={12} placeholder="Write clear, reusable guidance for the agent…" /></label>
+        <p class="skills-safety-note">Instructions are shared with all Sunday agents when enabled. They cannot grant tools or permissions. New skills start disabled.</p>
+        <button class="context-button" type="submit" disabled={busy}>{busy ? 'Saving…' : form === 'edit' ? 'Save changes' : 'Create skill'}</button>
+      </form>}
+    </dialog>
 
     <div class="skills-library-heading">
       <div><h2>Skill library</h2><p>Manage Sunday-built skills separately from npm skills.</p></div>

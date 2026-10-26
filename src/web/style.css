@@ -1365,6 +1365,9 @@ button.context-graph-node:hover { border-color: var(--highlight); background: co
 .mcp-server-dialog .text-input, .mcp-server-dialog .select { width: 100%; }
 
 /* Skills library and builder */
+.skills-dialog{width:min(720px,calc(100% - 28px));max-height:min(90vh,860px)}
+.skills-dialog::backdrop{background:rgb(0 0 0 / 55%)}
+.skills-dialog .skills-form{margin:0}
 .skills-actions{justify-content:flex-end;gap:8px}
 .skills-form{display:grid;gap:14px;margin-bottom:22px}
 .skills-form-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
