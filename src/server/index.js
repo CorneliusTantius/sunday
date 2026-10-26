@@ -18,6 +18,9 @@ import { uniqueSessionName } from './session-names.js';
 import { buildSystemPrompt } from './prompts.js';
 import { seededPersonas, migratePersonaInstructions } from './personas.js';
 import { createConfigStorage } from './config-storage.js';
+import { SkillError, createSkill, createImportedSkill, updateSkill } from './skill-library.js';
+import { downloadNpmSkills } from './npm-skill-import.js';
+import { discoverDeviceSkills } from './device-skills.js';
 import { createSessionStorage } from './session-storage.js';
 import { createScheduledJobsStorage } from './scheduled-jobs-storage.js';
 import { validateScheduledJob } from './scheduled-jobs.js';
@@ -74,6 +77,22 @@ if (Object.hasOwn(settings, 'subagents')) {
 }
 let auth = Object.fromEntries(configStorage.listCredentials());
 let mcpConfig = validateMcpConfig(configStorage.getMcpConfig({ mcpServers: {} }));
+let skills = configStorage.listSkills();
+const deviceSkillRoots = [
+  { path: join(homeDir, '.agents', 'skills'), label: '~/.agents/skills' },
+  { path: join(homeDir, '.claude', 'skills'), label: '~/.claude/skills' },
+  { path: join(workspaceDir, '.agents', 'skills'), label: 'workspace/.agents/skills' },
+  { path: join(workspaceDir, '.claude', 'skills'), label: 'workspace/.claude/skills' },
+];
+async function getDeviceSkills() {
+  const enabled = new Map(configStorage.listDeviceSkillPreferences());
+  return (await discoverDeviceSkills(deviceSkillRoots)).map(skill => ({ ...skill, enabled: enabled.get(skill.id) === true }));
+}
+async function getEnabledDeviceSkills() { return (await getDeviceSkills()).filter(skill => skill.enabled); }
+function assertSkillPromptBudget(records) {
+  const total = records.filter(skill => skill.enabled).reduce((sum, skill) => sum + skill.content.length, 0);
+  if (total > 100_000) throw new SkillError('Enabled skill instructions cannot exceed 100,000 characters in total');
+}
 settings.deviceId ||= randomUUID();
 let queue = Promise.resolve();
 function serialize(fn) { const next = queue.then(fn); queue = next.catch(() => {}); return next; }
@@ -500,7 +519,8 @@ async function runChatTurn(session, job) {
     }
   };
   exposeOutputTools();
-  const prompt = buildSystemPrompt(profile, { repositoryTools, contextTools, tools });
+  const promptSkills = [...skills, ...(await getEnabledDeviceSkills())];
+  const prompt = buildSystemPrompt(profile, { repositoryTools, contextTools, tools, skills: promptSkills });
   const contextMessages = ensureContextMessages(session, model), contextThrough = session.compaction?.through || 0;
   const history = contextMessages.slice(contextThrough).map(message => message.role === 'user' ? { ...message } : message);
   const transcriptPositions = new Map(history.map((message, index) => [message, contextThrough + index + 1]));
@@ -904,6 +924,104 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, mcpLoginState(id, login));
     }
     if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { status: 'ok' });
+    if (url.pathname === '/api/skills/device') {
+      if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+      return json(res, 200, { skills: await getDeviceSkills() });
+    }
+    const deviceSkillId = url.pathname.startsWith('/api/skills/device/') ? url.pathname.slice('/api/skills/device/'.length) : '';
+    if (/^device-[a-f0-9]{16}$/.test(deviceSkillId)) {
+      if (req.method !== 'PUT') return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      try {
+        const input = await body(req);
+        if (typeof input.enabled !== 'boolean') throw new SkillError('Skill enabled must be true or false');
+        const skill = (await discoverDeviceSkills(deviceSkillRoots)).find(item => item.id === deviceSkillId);
+        if (!skill) return json(res, 404, { error: 'Installed device skill not found' });
+        await serialize(async () => {
+          const deviceSkills = await getDeviceSkills();
+          const updatedDeviceSkills = deviceSkills.map(item => item.id === skill.id ? { ...item, enabled: input.enabled } : item);
+          assertSkillPromptBudget([...skills, ...updatedDeviceSkills]);
+          configStorage.saveDeviceSkillPreference(skill.id, input.enabled);
+        });
+        return json(res, 200, { skill: { ...skill, enabled: input.enabled } });
+      } catch (error) {
+        if (error instanceof SkillError) return json(res, error.statusCode, { error: error.message });
+        throw error;
+      }
+    }
+    if (url.pathname === '/api/skills') {
+      if (req.method === 'GET') return json(res, 200, { skills });
+      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      try {
+        const input = await body(req);
+        const skill = await serialize(async () => {
+          const next = createSkill(input, skills);
+          configStorage.saveSkill(next);
+          skills = [...skills, next];
+          return next;
+        });
+        return json(res, 201, { skill });
+      } catch (error) {
+        if (error instanceof SkillError) return json(res, error.statusCode, { error: error.message });
+        throw error;
+      }
+    }
+    if (url.pathname === '/api/skills/npm') {
+      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      try {
+        const input = await body(req);
+        const imported = await downloadNpmSkills(input?.package);
+        const added = await serialize(async () => {
+          const next = [...skills];
+          const created = imported.map(item => {
+            const skill = createImportedSkill(item, next);
+            next.push(skill);
+            return skill;
+          });
+          configStorage.saveSkills(created);
+          skills = next;
+          return created;
+        });
+        return json(res, 201, { skills: added });
+      } catch (error) {
+        if (error instanceof SkillError) return json(res, error.statusCode, { error: error.message });
+        throw error;
+      }
+    }
+    const skillMatch = url.pathname.startsWith('/api/skills/') ? url.pathname.slice('/api/skills/'.length).match(/^([a-z0-9-]+)$/) : null;
+    if (skillMatch) {
+      const id = skillMatch[1];
+      const current = skills.find(skill => skill.id === id);
+      if (!current) return json(res, 404, { error: 'Skill not found' });
+      if (req.method === 'DELETE') {
+        await serialize(async () => {
+          configStorage.removeSkill(id);
+          skills = skills.filter(skill => skill.id !== id);
+        });
+        return json(res, 200, {});
+      }
+      if (req.method !== 'PUT') return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      try {
+        const input = await body(req);
+        const saved = await serialize(async () => {
+          const latest = skills.find(skill => skill.id === id);
+          if (!latest) throw new SkillError('Skill not found', 404);
+          const updated = updateSkill(latest, input, skills);
+          const nextSkills = skills.map(skill => skill.id === id ? updated : skill);
+          assertSkillPromptBudget([...nextSkills, ...(await getDeviceSkills())]);
+          configStorage.saveSkills([updated], updated.id === id ? [] : [id]);
+          skills = nextSkills;
+          return updated;
+        });
+        return json(res, 200, { skill: saved });
+      } catch (error) {
+        if (error instanceof SkillError) return json(res, error.statusCode, { error: error.message });
+        throw error;
+      }
+    }
     if (url.pathname === '/api/context/sources') {
       if (req.method === 'GET') return json(res, 200, { sources: contextStorage.listSources() });
       if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });

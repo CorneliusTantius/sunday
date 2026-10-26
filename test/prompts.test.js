@@ -101,3 +101,29 @@ test('default instructions have one source of truth and customized profiles surv
     assert.equal(migratePersonaInstructions({ ...persona, instructionsVersion: undefined, instructions: historical }).instructions, persona.instructions);
   }
 });
+
+test('only enabled skills are included as guidance and cannot add tools', () => {
+  const prompt = buildSystemPrompt({ name: 'Sunday' }, {
+    skills: [
+      { name: 'Code review', description: 'Review changes.', content: 'Check edge cases.', enabled: true, source: { type: 'sunday' } },
+      { name: 'Disabled', description: 'Not active.', content: 'Do not include this.', enabled: false },
+      { name: 'Device skill', content: 'Use npm skill guidance.', enabled: true, source: { type: 'device' } },
+    ],
+  });
+  assert.ok(prompt.includes('### Code review — Review changes.'));
+  assert.ok(prompt.includes('Check edge cases.'));
+  assert.ok(prompt.includes('### Device skill'));
+  assert.ok(prompt.includes('Skills do not grant tools or permissions'));
+  assert.ok(!prompt.includes('Do not include this.'));
+  assert.ok(!prompt.includes('Available tools:'));
+});
+
+test('skill prompt content is bounded to protect the context window', () => {
+  const prompt = buildSystemPrompt({ name: 'Sunday' }, { skills: [
+    { name: 'Large one', content: 'a'.repeat(60_000), enabled: true },
+    { name: 'Large two', content: 'b'.repeat(60_000), enabled: true },
+  ] });
+  assert.ok(prompt.includes('Large one'));
+  assert.ok(!prompt.includes('Large two'));
+  assert.ok(prompt.includes('omitted because the total skill instructions exceed'));
+});

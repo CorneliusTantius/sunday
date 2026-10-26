@@ -20,6 +20,14 @@ export function createConfigStorage(path) {
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS device_skill_preferences (
+      id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS config_meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -33,6 +41,17 @@ export function createConfigStorage(path) {
   `);
   const getCredentialStatement = database.prepare('SELECT data FROM credentials WHERE id = ?');
   const listCredentials = database.prepare('SELECT id, data FROM credentials ORDER BY id');
+  const listSkillRows = database.prepare('SELECT data FROM skills ORDER BY id');
+  const saveSkillStatement = database.prepare(`
+    INSERT INTO skills (id, data) VALUES (?, ?)
+    ON CONFLICT(id) DO UPDATE SET data = excluded.data
+  `);
+  const deleteSkillStatement = database.prepare('DELETE FROM skills WHERE id = ?');
+  const listDeviceSkillPreferencesStatement = database.prepare('SELECT id, enabled FROM device_skill_preferences ORDER BY id');
+  const saveDeviceSkillPreferenceStatement = database.prepare(`
+    INSERT INTO device_skill_preferences (id, enabled) VALUES (?, ?)
+    ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled
+  `);
   const setCredential = database.prepare(`
     INSERT INTO credentials (id, data) VALUES (?, ?)
     ON CONFLICT(id) DO UPDATE SET data = excluded.data
@@ -114,6 +133,22 @@ export function createConfigStorage(path) {
       throw error;
     }
   }
+  function listSkills() { return listSkillRows.all().map(row => JSON.parse(row.data)); }
+  function saveSkills(values, removeIds = []) {
+    database.exec('BEGIN IMMEDIATE');
+    try {
+      for (const id of removeIds) deleteSkillStatement.run(id);
+      for (const skill of values) saveSkillStatement.run(skill.id, JSON.stringify(skill));
+      database.exec('COMMIT');
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
+  }
+  function saveSkill(skill) { saveSkills([skill]); }
+  function removeSkill(id) { deleteSkillStatement.run(id); }
+  function listDeviceSkillPreferences() { return listDeviceSkillPreferencesStatement.all().map(row => [row.id, Boolean(row.enabled)]); }
+  function saveDeviceSkillPreference(id, enabled) { saveDeviceSkillPreferenceStatement.run(id, enabled ? 1 : 0); }
 
   return {
     migrateLegacyFiles,
@@ -128,6 +163,12 @@ export function createConfigStorage(path) {
     listPersonas,
     hasPersonas,
     savePersonas,
+    listSkills,
+    saveSkill,
+    saveSkills,
+    removeSkill,
+    listDeviceSkillPreferences,
+    saveDeviceSkillPreference,
     close: () => database.close(),
   };
 }

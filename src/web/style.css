@@ -1373,3 +1373,40 @@ button.context-graph-node:hover { border-color: var(--highlight); background: co
 .mcp-server-dialog fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .mcp-server-dialog .field-label { display: block; margin-top: 16px; }
 .mcp-server-dialog .text-input, .mcp-server-dialog .select { width: 100%; }
+
+/* Skills library and builder */
+.skills-actions{justify-content:flex-end;gap:8px}
+.skills-intro{margin-bottom:22px}
+.skills-form{display:grid;gap:14px;margin-bottom:22px}
+.skills-form-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.skills-form-heading h2{margin:0;font:700 18px Manrope,sans-serif}
+.skills-form-heading .eyebrow{margin:0 0 5px;color:var(--highlight);font-size:10px;font-weight:700;letter-spacing:1.1px}
+.skills-form>label{display:grid;gap:6px;color:var(--text);font-size:12px;font-weight:600}
+.skills-form input,.skills-form textarea{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:400 13px 'DM Sans',sans-serif}
+.skills-form textarea{resize:vertical;min-height:190px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+.skills-form input:focus,.skills-form textarea:focus{outline:2px solid color-mix(in srgb,var(--highlight) 55%,transparent);outline-offset:1px}
+.skills-safety-note{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
+.skills-safety-note code{color:var(--text)}
+.skills-message{padding:10px 13px;margin:0 0 14px;border:1px solid color-mix(in srgb,var(--highlight) 40%,var(--line));border-radius:9px;color:var(--text);font-size:12px}
+.skills-error{border-color:color-mix(in srgb,#e26060 60%,var(--line));color:var(--text)}
+.skills-source-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:4px;width:max-content;max-width:100%;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 80%,transparent)}
+.skills-source-tabs button{display:flex;align-items:center;gap:8px;padding:7px 11px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:500 12px 'DM Sans',sans-serif;cursor:pointer}
+.skills-source-tabs button.active{background:color-mix(in srgb,var(--highlight) 16%,var(--panel));color:var(--text);font-weight:700}
+.skills-source-tabs button span{display:inline-grid;min-width:19px;height:19px;place-items:center;border-radius:10px;background:color-mix(in srgb,var(--line) 45%,transparent);font-size:10px}
+.skills-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:12px}
+.skills-card{min-width:0;padding:16px}
+.skills-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.skills-card-header h3{margin:7px 0 0;font:700 16px Manrope,sans-serif;overflow-wrap:anywhere}
+.skills-origin{color:var(--highlight);font-size:9px;font-weight:700;letter-spacing:1px}
+.skills-origin.npm{color:var(--muted)}
+.skills-status{flex:none;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:10px}
+.skills-status.enabled{border-color:color-mix(in srgb,var(--highlight) 50%,var(--line));color:var(--highlight)}
+.skills-description{margin:10px 0;color:var(--muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.skills-package{margin:0 0 10px;color:var(--muted);font-size:10px;overflow-wrap:anywhere}
+.skills-review{margin:10px 0;color:var(--muted);font-size:11px}
+.skills-review summary{cursor:pointer;color:var(--text);font-weight:600}
+.skills-review pre{max-height:260px;overflow:auto;margin:9px 0 0;padding:11px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--text);font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.skills-card-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.skills-card-actions .danger{color:#e28080}
+.skills-empty .context-button{margin-top:17px}
+@media(max-width:700px){.skills-actions{justify-content:flex-start;flex-wrap:wrap}.skills-source-tabs{width:100%}.skills-source-tabs button{flex:1;justify-content:center;padding-inline:7px}.skills-form-heading{align-items:flex-start}.skills-card-actions .context-button{flex:1}}

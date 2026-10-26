@@ -40,6 +40,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
     summarizeContext: async () => 'Earlier work summary',
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,
     settings: { mode: 'api_key', provider: 'test', model: 'test', thinkingLevel: 'off' },
+    skills: [], getEnabledDeviceSkills: async () => [],
     modelsByMode: { api_key: { getModel: () => model, getAuth: async () => true,
       streamSimple: (m, input, opts) => { inputs.push({ ...input, tools: input.tools ? [...input.tools] : undefined, messages: structuredClone(input.messages) }); prompts.push(input.systemPrompt); options.push(opts); return streams(calls++); } } },
     providers: [{ id: 'test', name: 'Test' }], syncAgentWorkspace: async () => '/workspace',

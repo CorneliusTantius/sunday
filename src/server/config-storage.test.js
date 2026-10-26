@@ -55,3 +55,28 @@ test('configuration storage migrates legacy JSON files and persists settings, cr
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('skill records and device enablement persist separately', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sunday-skill-storage-'));
+  const databasePath = join(directory, 'skills.sqlite');
+  const sundaySkill = { id: 'hello', name: 'Hello', description: 'Greeting', content: 'Be friendly.', source: { type: 'sunday' }, enabled: true };
+  const npmSkill = { id: 'npm-review', name: 'Review', description: 'Review code', content: 'Check tests.', source: { type: 'npm', package: 'review-skill', path: 'SKILL.md' }, enabled: false };
+  try {
+    let storage = createConfigStorage(databasePath);
+    storage.saveSkills([sundaySkill, npmSkill]);
+    storage.saveDeviceSkillPreference('device-abcd', true);
+    assert.deepEqual(storage.listSkills(), [sundaySkill, npmSkill]);
+    assert.deepEqual(storage.listDeviceSkillPreferences(), [['device-abcd', true]]);
+    storage.saveSkills([npmSkill], ['hello']);
+    storage.close();
+
+    storage = createConfigStorage(databasePath);
+    assert.deepEqual(storage.listSkills(), [npmSkill]);
+    assert.deepEqual(storage.listDeviceSkillPreferences(), [['device-abcd', true]]);
+    storage.removeSkill('npm-review');
+    assert.deepEqual(storage.listSkills(), []);
+    storage.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
