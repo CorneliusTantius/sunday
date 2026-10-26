@@ -28,6 +28,14 @@ test('Context and Skills are separate top-level destinations below Sunday Agents
   assert.match(css, /\.scheduled-job-link\[aria-current="page"\]/);
 });
 
+test('Skills does not duplicate the Memory/Skills context section switch', () => {
+  const skills = readFileSync(new URL('../src/web/components/Skills.jsx', import.meta.url), 'utf8');
+  const memory = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(skills, /<nav class="context-section-tabs"/);
+  assert.match(memory, /<nav class="context-section-tabs"/);
+  assert.doesNotMatch(css, /skills-(?:blueprint-badge|preview-grid|preview-card|card-kind)/);
+});
+
 test('nested agents use smaller text, avatars and spacing than parent navigation', () => {
   assert.match(css, /\.agents-sessions \.new-chat \{ height: 32px; padding: 0 10px; font-size: 13px;/);
   assert.match(css, /\.agents-sessions \.sessions-list \{ gap: 6px; \}/);

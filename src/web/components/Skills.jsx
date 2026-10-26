@@ -99,11 +99,6 @@ export default function Skills() {
       </div>
     </header>
 
-    <nav class="context-section-tabs" aria-label="Context sections">
-      <a href="#context">Memory</a>
-      <a href="#context/skills" aria-current="page">Skills</a>
-    </nav>
-
     <section class="skills-intro context-panel" aria-labelledby="skills-intro-title">
       <div>
         <p class="eyebrow">SHARED LIBRARY</p>
