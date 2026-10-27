@@ -48,7 +48,7 @@ test('mobile styles reduce spacing and text size while keeping controls and long
   for (const selector of ['.context-meter-label', '.code-row', '.settings-page-heading']) {
     assert.equal(css(selector).flexWrap, 'wrap');
   }
-  assert.equal(css('.settings-nav').minWidth, '0px');
+  assert.equal(css('.settings-nav').minWidth, 'max-content', 'settings section pills must retain their labels instead of shrinking');
   assert.equal(css('.settings-nav').width, 'auto');
   assert.equal(css('.toast').maxWidth, 'calc(100% - 24px)');
 });

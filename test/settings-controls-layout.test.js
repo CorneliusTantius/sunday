@@ -18,6 +18,16 @@ test('model refresh also updates the active chat model selector', () => {
   assert.match(app, /sessionConfigRef\.current = session\.config \|\| null/);
 });
 
+test('mobile settings uses a full-height layout and swipeable section pills', () => {
+  const mobileRules = read('style.css').split('/* Settings becomes a full-height mobile workspace')[1];
+  assert.match(mobileRules, /@media \(max-width: 700px\)[\s\S]*?#settings-backdrop \{ place-items: stretch; padding: 0; \}/);
+  assert.match(mobileRules, /\.settings-modal \{[^}]*height: 100dvh;[^}]*max-height: 100dvh;/s);
+  assert.match(mobileRules, /\.settings-providers \{[^}]*overflow-x: auto;[^}]*overflow-y: hidden;[^}]*-webkit-overflow-scrolling: touch;/s);
+  assert.match(mobileRules, /\.settings-nav \{[^}]*flex: 0 0 auto;[^}]*min-width: max-content;[^}]*border-radius: 999px;/s);
+  assert.match(mobileRules, /\.settings-detail \{[^}]*overflow-y: auto;/s);
+  assert.match(mobileRules, /@media \(max-width: 440px\)[\s\S]*?\.settings-select-row \{[^}]*grid-template-columns: minmax\(0, 1fr\);/s);
+});
+
 test('settings dropdowns use shared balanced rows', () => {
   const settings = read('components/Settings.jsx');
   assert.equal((settings.match(/class="settings-select-row"/g) || []).length, 5);
