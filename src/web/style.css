@@ -487,6 +487,7 @@ button, .composer, .select, .text-input, .session-row, .feature-heading, .provid
 .settings-nav { width: 100%; padding: 14px 16px; margin-bottom: 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
 .settings-nav.active { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--panel)); }
 .settings-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.settings-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .settings-page-heading h3 { margin: 0; }
 .settings-section-save { margin-top: 4px; }
 #settings-connect-page h3 { margin-top: 20px; }

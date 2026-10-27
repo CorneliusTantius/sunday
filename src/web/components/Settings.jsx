@@ -165,15 +165,23 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     setDetails({});
     try {
       const data = await request(`/api/settings?provider=${encodeURIComponent(nextProvider)}&mode=${encodeURIComponent(nextMode)}`);
-      if (!alive.current || current !== generation.current) return;
+      if (!alive.current || current !== generation.current) return null;
       setProviders(data.providers || []);
       setConnectedModels(data.connectedModels || []);
       setDetails(data);
       setModels(data.models || []);
       setModel(data.model || data.models?.[0]?.id || '');
       setThinking(data.thinkingLevel || 'off');
-    } catch (error) { if (alive.current && current === generation.current) setError(error.message); }
-    finally { if (alive.current && current === generation.current) setLoading(false); }
+      return data;
+    } catch (error) {
+      if (alive.current && current === generation.current) setError(error.message);
+      return null;
+    } finally { if (alive.current && current === generation.current) setLoading(false); }
+  }
+
+  async function refreshModels() {
+    const data = await refresh(provider, mode);
+    if (data) toast('Model list refreshed.');
   }
 
   useEffect(() => {
@@ -402,7 +410,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </nav>
         <div class={`settings-detail${page === 'personas' ? ' settings-detail-personas' : ''}`}>
           <section inert={page !== 'providers'} id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
-            <div class="settings-page-heading"><h3>Connected providers</h3><button class="secondary-button" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div>
+            <div class="settings-page-heading"><h3>Connected providers</h3><div class="settings-heading-actions"><button class="secondary-button" id="refresh-models" type="button" disabled={saving || loading} onClick={refreshModels} aria-label="Refresh available models" title="Fetch models from Sunday’s current provider catalog. Update Sunday if a newly released model is missing.">{loading ? 'Refreshing…' : '↻ Refresh models'}</button><button class="secondary-button" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div></div>
             <p class="field-note">Manage the providers you have connected.</p>
             <div id="provider-list" class="provider-list">
               {available.map(item => <button key={item.id} type="button" class="provider-card" data-provider={item.id} aria-pressed={provider === item.id} disabled={saving} onClick={() => { chooseProvider(item.id); navigate('connect'); }}>
