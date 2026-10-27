@@ -31,6 +31,7 @@ const mcpLogins = new Map();
 function mcpLoginState(id, login) { return { id, status: ['starting', 'waiting'].includes(login.status) ? 'pending' : login.status, url: login.url, error: login.error }; }
 import { providers, credentialId, createModelsByMode } from './provider-models.js';
 import { loadModelCatalogs, refreshModelCatalog } from './model-catalog.js';
+import { sortModelsAlphabetically } from './model-sorting.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
 let updateRunning = false;
@@ -131,7 +132,7 @@ if (!modelsByMode[settings.mode].getModel(settings.provider, settings.model)) se
 settings.thinkingLevel = clampThinkingLevel(modelsByMode[settings.mode].getModel(settings.provider, settings.model), settings.thinkingLevel || 'off');
 configStorage.saveSetting(settings);
 function sessionConfig() { return { provider: settings.provider, mode: settings.mode, model: settings.model, thinkingLevel: settings.thinkingLevel }; }
-function sessionModels(config) { return modelsByMode[config.mode].getAvailable(config.provider).then(list => list.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) }))); }
+function sessionModels(config) { return modelsByMode[config.mode].getAvailable(config.provider).then(list => sortModelsAlphabetically(list.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })))); }
 function configureSession(session, patch) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Invalid session config');
   const config = { ...session.config };
@@ -155,16 +156,16 @@ async function publicSettings(provider = settings.provider, mode) {
     return { id: p.id, name: p.name, modes: p.modes, connected: mode === 'oauth' ? oauthConnected : hasApiKey, hasApiKey, oauthConnected };
   }));
   const available = await modelsByMode[mode].getAvailable(provider);
-  const connectedModels = (await Promise.all(providers.flatMap(entry => entry.modes.map(async authorization => {
+  const connectedModels = sortModelsAlphabetically((await Promise.all(providers.flatMap(entry => entry.modes.map(async authorization => {
     const status = statuses.find(item => item.id === entry.id);
     if (authorization === 'api_key' ? !status.hasApiKey : !status.oauthConnected) return [];
     const list = await modelsByMode[authorization].getAvailable(entry.id);
     return list.map(item => ({ ...item, provider: entry.id, providerName: entry.name, mode: authorization, thinkingLevels: getSupportedThinkingLevels(item) }));
-  })))).flat();
+  })))).flat());
   const modelId = provider === settings.provider && mode === settings.mode ? settings.model : defaultModel(provider, mode, available);
   const model = available.find(m => m.id === modelId) || available.find(m => m.id === defaultModel(provider, mode, available));
   const status = statuses.find(p => p.id === provider);
-  return { personas: personas.map(({ id, name }) => ({ id, name })), defaultPersonaId: defaultPersona().id, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) })), connectedModels, dataDir, workspaceDir };
+  return { personas: personas.map(({ id, name }) => ({ id, name })), defaultPersonaId: defaultPersona().id, provider, mode, selectedProvider: settings.provider, selectedMode: settings.mode, model: model?.id || null, thinkingLevel: model ? clampThinkingLevel(model, settings.thinkingLevel) : 'off', connected: status.connected, hasApiKey: status.hasApiKey, oauthConnected: status.oauthConnected, providers: statuses, models: sortModelsAlphabetically(available.map(m => ({ id: m.id, name: m.name, contextWindow: m.contextWindow, thinkingLevels: getSupportedThinkingLevels(m) }))), connectedModels, dataDir, workspaceDir };
 }
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 let login = { status: 'idle', events: [] }, loginAttempt;

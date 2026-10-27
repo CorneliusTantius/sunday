@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { sortModelsAlphabetically } from '../src/server/model-sorting.js';
 
 test('provider credentials and model catalogs are isolated and persist', async () => {
   const home = await mkdtemp(join(tmpdir(), 'sunday-provider-'));
@@ -62,6 +63,8 @@ test('provider credentials and model catalogs are isolated and persist', async (
     assert.ok(settings.body.models.every(model => model.id && model.name && Array.isArray(model.thinkingLevels)));
     assert.deepEqual(new Set(settings.body.connectedModels.map(model => model.provider)), new Set(['openai', 'anthropic', 'google']));
     assert.ok(settings.body.connectedModels.every(model => model.providerName && model.mode === 'api_key' && Array.isArray(model.thinkingLevels)));
+    assert.deepEqual(settings.body.models.map(model => model.id), sortModelsAlphabetically(settings.body.models).map(model => model.id));
+    assert.deepEqual(settings.body.connectedModels.map(model => model.id), sortModelsAlphabetically(settings.body.connectedModels).map(model => model.id));
 
     assert.equal(settings.body.defaultPersonaId, 'sunday');
     assert.ok(settings.body.personas.some(persona => persona.id === 'coding-agent'));
@@ -76,6 +79,7 @@ test('provider credentials and model catalogs are isolated and persist', async (
     assert.equal(second.profile.personaId, 'coding-agent');
     assert.equal(first.config.model, defaults.model);
     assert.equal(first.config.thinkingLevel, defaults.thinkingLevel);
+    assert.deepEqual(first.models.map(model => model.id), sortModelsAlphabetically(first.models).map(model => model.id));
     const alternative = first.models.find(model => model.id !== defaults.model);
     assert.ok(alternative);
     const changed = await api(`/api/sessions/${first.id}`, { config: { model: alternative.id } }, 'PATCH');
