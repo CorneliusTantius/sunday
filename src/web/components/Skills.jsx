@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { jsonRequest, request } from '../api.js';
+import { sortSkillsAlphabetically } from '../skill-sorting.js';
 
 const blankDraft = { name: '', description: '', content: '' };
 const SKILLS_MOTION_MS = 200;
@@ -132,7 +133,7 @@ export default function Skills({ exiting = false } = {}) {
     finally { setRemovingId(''); setBusy(false); }
   }
 
-  const visibleSkills = displayedSource === 'device' ? deviceSkills : skills.filter(skill => skill.source.type === displayedSource);
+  const visibleSkills = sortSkillsAlphabetically(displayedSource === 'device' ? deviceSkills : skills.filter(skill => skill.source.type === displayedSource));
   const sundayCount = skills.filter(skill => skill.source.type === 'sunday').length;
   const npmCount = skills.filter(skill => skill.source.type === 'npm').length;
 
