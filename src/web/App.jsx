@@ -89,6 +89,7 @@ export default function App() {
   });
   const [sessionId, setSessionId] = useState(null);
   const [sessionConfig, setSessionConfig] = useState(null);
+  const sessionConfigRef = useRef(null);
   const [sessionModels, setSessionModels] = useState([]);
   const configPending = useRef(false);
   const [messages, setMessages] = useState([]);
@@ -142,8 +143,19 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToastText(''), 2800);
   }, []);
   const loadSettings = useCallback(async () => {
-    try { const data = await request('/api/settings'); setSettings(data); setSettingsError(false); return data; }
-    catch { setSettingsError(true); }
+    try {
+      const data = await request('/api/settings');
+      setSettings(data);
+      setSettingsError(false);
+      const config = sessionConfigRef.current;
+      if (config) {
+        const models = (data.connectedModels || [])
+          .filter(item => item.provider === config.provider && item.mode === config.mode)
+          .map(({ id, name, contextWindow, thinkingLevels }) => ({ id, name, contextWindow, thinkingLevels }));
+        setSessionModels(models);
+      }
+      return data;
+    } catch { setSettingsError(true); }
   }, []);
   const loadSessions = useCallback(async () => {
     const generation = ++sessionsGeneration.current;
@@ -163,6 +175,7 @@ export default function App() {
     setMessages(nextMessages);
     setCompaction(session.latestCompaction || (session.compaction?.summary ? session.compaction : null));
     setContextUsage(session.contextUsage || null);
+    sessionConfigRef.current = session.config || null;
     setSessionConfig(session.config || null);
     setSessionModels(session.models || []);
     setPrompt(''); setReady(true);
@@ -545,7 +558,7 @@ export default function App() {
     configPending.current = true; setUpdatingSettings(true);
     try {
       const data = await jsonRequest(`/api/sessions/${encodeURIComponent(id)}`, 'PATCH', { config: change });
-      if (activeSession.current === id) { setSessionConfig(data.session.config); setSessionModels(data.session.models || []); }
+      if (activeSession.current === id) { sessionConfigRef.current = data.session.config; setSessionConfig(data.session.config); setSessionModels(data.session.models || []); }
     } catch (error) { toast(error.message); }
     finally { configPending.current = false; setUpdatingSettings(false); }
   }

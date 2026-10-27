@@ -192,6 +192,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
       setModels(data.models || []);
       setModel(data.model || data.models?.[0]?.id || '');
       setThinking(data.thinkingLevel || 'off');
+      await onReload?.();
       toast('Model list refreshed.');
     } catch (error) {
       if (alive.current && current === generation.current) setError(error.message);
