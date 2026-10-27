@@ -6,7 +6,7 @@ test('provider settings can re-fetch the current provider model list', () => {
   const settings = read('components/Settings.jsx');
   assert.match(settings, /class="settings-heading-actions"><button class="secondary-button" id="refresh-models"/);
   assert.match(settings, /id="add-provider"/);
-  assert.match(settings, /async function refreshModels\(\)[\s\S]*?refresh\(provider, mode\)[\s\S]*?toast\('Model list refreshed\.'\)/);
+  assert.match(settings, /async function refreshModels\(\)[\s\S]*?jsonRequest\('\/api\/settings\/models\/refresh', 'POST', \{ provider, mode \}\)[\s\S]*?setModels\(data\.models \|\| \[\]\)[\s\S]*?toast\('Model list refreshed\.'\)/);
   assert.match(settings, /\/api\/settings\?provider=\$\{encodeURIComponent\(nextProvider\)\}&mode=\$\{encodeURIComponent\(nextMode\)\}/);
   assert.match(settings, /disabled=\{saving \|\| loading\}/);
 });

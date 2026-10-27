@@ -30,6 +30,7 @@ import { connectMcp, validateMcpConfig, createMcpLogin, mcpAuthStatus } from './
 const mcpLogins = new Map();
 function mcpLoginState(id, login) { return { id, status: ['starting', 'waiting'].includes(login.status) ? 'pending' : login.status, url: login.url, error: login.error }; }
 import { providers, credentialId, createModelsByMode } from './provider-models.js';
+import { loadModelCatalogs, refreshModelCatalog } from './model-catalog.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
 let updateRunning = false;
@@ -55,6 +56,8 @@ const reposDir = join(workspaceDir, 'repos');
 const agentWorkspacesDir = join(homeDir, 'workspace-agents');
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
 await chmod(dataDir, 0o700);
+const modelCatalogPath = join(dataDir, 'model-catalogs.json');
+await loadModelCatalogs(modelCatalogPath);
 await mkdir(workspaceDir, { recursive: true, mode: 0o700 });
 await mkdir(reposDir, { recursive: true, mode: 0o700 });
 await mkdir(agentWorkspacesDir, { recursive: true, mode: 0o700 });
@@ -1358,6 +1361,12 @@ const server = http.createServer(async (req, res) => {
       updateRunning = true;
       try { return json(res, 200, await pullUpdate()); }
       finally { updateRunning = false; }
+    }
+    if (url.pathname === '/api/settings/models/refresh' && req.method === 'POST') {
+      const input = await body(req);
+      const { provider, mode } = selection(input.provider ?? settings.provider, input.mode);
+      await refreshModelCatalog(provider, modelCatalogPath);
+      return json(res, 200, await publicSettings(provider, mode));
     }
     if (url.pathname === '/api/settings' && req.method === 'GET') return json(res, 200, await publicSettings(url.searchParams.get('provider') ?? settings.provider, url.searchParams.get('mode') ?? undefined));
     if (url.pathname === '/api/providers' && req.method === 'POST') {

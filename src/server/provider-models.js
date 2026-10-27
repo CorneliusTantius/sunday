@@ -2,11 +2,12 @@ import { createModels } from '@earendil-works/pi-ai';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
+import { withRemoteCatalog } from './model-catalog.js';
 
 export const providers = [
-  { ...openaiProvider(), modes: ['api_key', 'oauth'] },
-  { ...anthropicProvider(), modes: ['api_key'] },
-  { ...googleProvider(), modes: ['api_key'] },
+  { ...withRemoteCatalog(openaiProvider()), modes: ['api_key', 'oauth'] },
+  { ...withRemoteCatalog(anthropicProvider()), modes: ['api_key'] },
+  { ...withRemoteCatalog(googleProvider()), modes: ['api_key'] },
 ];
 export const credentialId = (provider, mode) => mode === 'oauth' ? 'openai-chatgpt' : provider;
 

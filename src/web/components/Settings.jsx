@@ -180,8 +180,24 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   }
 
   async function refreshModels() {
-    const data = await refresh(provider, mode);
-    if (data) toast('Model list refreshed.');
+    const current = ++generation.current;
+    setLoading(true);
+    setError('');
+    try {
+      const data = await jsonRequest('/api/settings/models/refresh', 'POST', { provider, mode });
+      if (!alive.current || current !== generation.current) return;
+      setProviders(data.providers || []);
+      setConnectedModels(data.connectedModels || []);
+      setDetails(data);
+      setModels(data.models || []);
+      setModel(data.model || data.models?.[0]?.id || '');
+      setThinking(data.thinkingLevel || 'off');
+      toast('Model list refreshed.');
+    } catch (error) {
+      if (alive.current && current === generation.current) setError(error.message);
+    } finally {
+      if (alive.current && current === generation.current) setLoading(false);
+    }
   }
 
   useEffect(() => {
