@@ -490,11 +490,50 @@ test('context notes load, create, and remove directed links', async () => {
   h.unmount();
 });
 
+test('context graph drags nodes without opening them and resets their positions', async () => {
+  const nodes = [{ id: 'a', source: 'a.md', title: 'A' }, { id: 'b', source: 'b.md', title: 'B' }];
+  const calls = [];
+  const h = mount('Memory', { toast() {} }, async url => {
+    calls.push(url);
+    if (url === '/api/context/graph') return { nodes, links: [{ source: 'a.md', target: 'b.md' }] };
+    if (url === '/api/context/sources') return { sources: [] };
+    if (url === '/api/context/sources/a') return { source: nodes[0] };
+    if (url.startsWith('/api/context/links?')) return { links: [] };
+    assert.fail(`Unexpected request: ${url}`);
+  });
+  await h.settle();
+  const node = { getAttribute: () => 'a.md', setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {} };
+  const svg = { getBoundingClientRect: () => ({ width: 1000, height: 620 }) };
+  h.view.startGraphPan({ button: 0, pointerId: 1, clientX: 100, clientY: 100, target: { closest: () => node }, currentTarget: svg });
+  h.view.moveGraphPan({ pointerId: 1, clientX: 140, clientY: 120, currentTarget: svg });
+  h.render();
+  const original = layoutContextGraph(nodes, [{ source: 'a.md', target: 'b.md' }])[0];
+  assert.equal(h.view.graphPositions.positions['a.md'].x, original.x + 40);
+  assert.equal(h.view.graphPositions.positions['a.md'].y, original.y + 20);
+  h.view.stopGraphPan({ pointerId: 1, type: 'pointerup' });
+  h.view.selectGraphNode('a');
+  await h.settle();
+  assert.equal(calls.filter(url => url === '/api/context/sources/a').length, 0);
+  h.view.resetGraph(); h.render();
+  assert.equal(h.view.graphPositions.graph, null);
+  h.view.zoomGraph(2); h.render();
+  const beforePan = { ...h.view.graphView };
+  svg.setPointerCapture = () => {};
+  h.view.startGraphPan({ button: 0, pointerId: 2, clientX: 0, clientY: 0, target: { closest: () => null }, currentTarget: svg });
+  h.view.moveGraphPan({ pointerId: 2, clientX: 40, clientY: 20, currentTarget: svg }); h.render();
+  assert.equal(h.view.graphView.x, beforePan.x + 40);
+  assert.equal(h.view.graphView.y, beforePan.y + 20);
+  h.view.stopGraphPan({ pointerId: 2, type: 'pointerup' });
+  h.view.selectGraphNode('a'); await h.settle();
+  assert.equal(calls.filter(url => url === '/api/context/sources/a').length, 1);
+  h.unmount();
+});
+
 test('context page opens on graph and hides notes until the Notes view is selected', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
   assert.match(source, /\{!graphOpen && <div class="context-layout context-tab-view">/);
-  assert.match(source, /select a dot; switch to Notes to read its content\./);
+  assert.match(source, /Drag a note to move it or the background to pan/);
 });
 
 test('context notes show an Obsidian-style dot graph and selected-note link controls', () => {

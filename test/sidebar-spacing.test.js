@@ -32,7 +32,7 @@ test('Context knowledge graph renders linked dots with keyboard access and pan/z
   const memory = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(memory, /layoutContextGraph\(graph\.nodes, graph\.links\)/);
   assert.match(memory, /class="context-global-svg"/);
-  assert.match(memory, /data-graph-node[^>]*role="button" tabIndex="0"/);
+  assert.match(memory, /data-graph-node=\{sourceKey\}[^>]*role="button" tabIndex="0"/);
   assert.match(memory, /onKeyDown={event => \{ if \(event\.key === 'Enter' \|\| event\.key === ' '\)/);
   assert.match(memory, /Graph zoom controls/);
   assert.match(memory, /onPointerDown={startGraphPan}/);
