@@ -41,6 +41,15 @@ test('persona tools are in an initially open native disclosure', () => {
   assert.match(read('components/Personas.jsx'), /<\/div><\/fieldset><\/details>/);
 });
 
+test('persona tool descriptions wrap inside the available list width', () => {
+  const css = read('style.css');
+  assert.match(css, /#persona-tools \.repository-checkbox\s*\{[^}]*grid-template-columns:\s*18px minmax\(0, 1fr\);/s);
+  assert.doesNotMatch(css, /#persona-tools \.repository-checkbox > span:first-of-type\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(css, /#persona-tools \.persona-tool-detail\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/s);
+  assert.match(css, /#persona-tools \.persona-tool-list li\s*\{[^}]*white-space:\s*normal;[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/s);
+  assert.match(css, /#persona-tools code\s*\{[^}]*white-space:\s*normal;[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/s);
+});
+
 test('persona identity inputs share the balanced settings rows', () => {
   const personas = read('components/Personas.jsx');
   for (const id of ['persona-name', 'persona-specialty']) {
