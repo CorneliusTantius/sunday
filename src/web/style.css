@@ -1328,12 +1328,15 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .context-graph-node-dot .context-graph-hit { fill: transparent; stroke: none; pointer-events: all; }
 .context-graph-node-dot .context-graph-point { fill: color-mix(in srgb, var(--highlight) 78%, var(--text)); stroke: color-mix(in srgb, var(--bg) 65%, var(--highlight)); stroke-width: 1.6; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--highlight) 55%, transparent)); vector-effect: non-scaling-stroke; transform-box: fill-box; transform-origin: center; transition: fill 180ms ease, stroke 180ms ease, transform 180ms ease; }
 .context-graph-node-dot.isolated .context-graph-point { fill: var(--muted); filter: none; }
-.context-graph-node-dot text { fill: var(--text); stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; font: 700 12px 'DM Sans', sans-serif; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 160ms ease, visibility 160ms ease; }
-.context-graph-node-dot:hover text, .context-graph-node-dot:focus-visible text { opacity: 1; visibility: visible; }
+.context-graph-tooltip { pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 160ms ease, visibility 160ms ease; }
+.context-graph-tooltip-content { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); box-shadow: 0 4px 16px #0003; font: 600 11px/1.4 'DM Sans', sans-serif; overflow-wrap: anywhere; }
+.context-graph-tooltip-content strong, .context-graph-tooltip-content span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.context-graph-tooltip-content span { margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 400; }
+.context-graph-node-dot:hover .context-graph-tooltip, .context-graph-node-dot:focus-visible .context-graph-tooltip { opacity: 1; visibility: visible; }
 .context-graph-node-dot.active .context-graph-point { fill: var(--highlight); stroke: var(--text); transform: scale(1.45); }
 .context-graph-node-dot.dimmed { opacity: .22; }
 .context-graph-node-dot:focus-visible .context-graph-point { stroke: var(--text); stroke-width: 2.5; }
-@media (prefers-reduced-motion: reduce) { .context-graph-edge, .context-graph-edge line, .context-graph-node-dot, .context-graph-node-dot .context-graph-point, .context-graph-node-dot text { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .context-graph-edge, .context-graph-edge line, .context-graph-node-dot, .context-graph-node-dot .context-graph-point, .context-graph-tooltip { transition: none; } }
 .context-link-list { display: grid; gap: 5px; max-height: 200px; overflow: auto; margin: 12px 0; padding: 0; list-style: none; }
 .context-link-list li { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
 .context-link-list span { flex: 1; color: var(--muted); font-size: 11px; text-align: right; }
