@@ -32,13 +32,15 @@ test('Context knowledge graph renders linked dots with keyboard access and pan/z
   const memory = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(memory, /layoutContextGraph\(graph\.nodes, graph\.links\)/);
   assert.match(memory, /class="context-global-svg"/);
-  assert.match(memory, /data-graph-node[^>]*role="button" tabIndex="0"/);
+  assert.match(memory, /data-graph-node=\{sourceKey\}[^>]*role="button" tabIndex="0"/);
   assert.match(memory, /onKeyDown={event => \{ if \(event\.key === 'Enter' \|\| event\.key === ' '\)/);
   assert.match(memory, /Graph zoom controls/);
   assert.match(memory, /onPointerDown={startGraphPan}/);
   assert.match(css, /\.context-graph-node-dot \.context-graph-point/);
-  assert.match(css, /\.context-graph-node-dot text \{[^}]*opacity: 0; visibility: hidden;/);
-  assert.match(css, /\.context-graph-node-dot:hover text, \.context-graph-node-dot:focus-visible text/);
+  assert.match(memory, /class="context-graph-tooltip"[^>]*aria-hidden="true"/);
+  assert.match(memory, /<strong>\{node\.title\}<\/strong><span>\{node\.source\}<\/span>/);
+  assert.match(css, /\.context-graph-tooltip \{[^}]*opacity: 0; visibility: hidden;/);
+  assert.match(css, /\.context-graph-node-dot:hover \.context-graph-tooltip, \.context-graph-node-dot:focus-visible \.context-graph-tooltip/);
 });
 
 test('Context and Skills do not duplicate navigation between their top-level pages', () => {

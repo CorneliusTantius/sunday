@@ -17,7 +17,9 @@ export default function Memory({ toast }) {
   const [graphOpen, setGraphOpen] = useState(true);
   const [graphView, setGraphView] = useState({ x: 0, y: 0, scale: 1 });
   const [hoveredGraphSource, setHoveredGraphSource] = useState('');
+  const [graphPositions, setGraphPositions] = useState({ graph: null, positions: {} });
   const graphDrag = useRef(null);
+  const graphSuppressClick = useRef(false);
   const [source, setSource] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -141,22 +143,48 @@ export default function Memory({ toast }) {
   }
 
   function startGraphPan(event) {
-    if (event.button !== 0 || event.target.closest?.('[data-graph-node]')) return;
-    graphDrag.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: graphView.x, y: graphView.y };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    if (event.button !== 0 || graphDrag.current) return;
+    const element = event.target.closest?.('[data-graph-node]');
+    const key = element?.getAttribute('data-graph-node');
+    const node = key ? graphPositionBySource.get(key) : null;
+    graphSuppressClick.current = false;
+    const capture = node ? element : event.currentTarget;
+    graphDrag.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: graphView.x, y: graphView.y, node, capture, moved: false };
+    capture.setPointerCapture?.(event.pointerId);
   }
 
   function moveGraphPan(event) {
     const drag = graphDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.clientX, dy = event.clientY - drag.clientY;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    drag.moved = true;
     const bounds = event.currentTarget.getBoundingClientRect();
     const scale = Math.min(bounds.width / CONTEXT_GRAPH_WIDTH, bounds.height / CONTEXT_GRAPH_HEIGHT) || 1;
-    setGraphView(current => ({ ...current, x: drag.x + (event.clientX - drag.clientX) / (scale * current.scale), y: drag.y + (event.clientY - drag.clientY) / (scale * current.scale) }));
+    if (drag.node) {
+      const key = drag.node.source || drag.node.id;
+      setGraphPositions(current => ({ graph, positions: { ...(current.graph === graph ? current.positions : {}), [key]: { x: drag.node.x + dx / (scale * graphView.scale), y: drag.node.y + dy / (scale * graphView.scale) } } }));
+    } else {
+      setGraphView(current => ({ ...current, x: drag.x + dx / scale, y: drag.y + dy / scale }));
+    }
   }
 
   function stopGraphPan(event) {
+    if (graphDrag.current?.pointerId !== event.pointerId) return;
+    const drag = graphDrag.current;
+    graphSuppressClick.current = event.type !== 'pointercancel' && Boolean(drag.node && drag.moved);
     graphDrag.current = null;
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (drag.capture.hasPointerCapture?.(event.pointerId)) drag.capture.releasePointerCapture(event.pointerId);
+  }
+
+  function selectGraphNode(id) {
+    if (graphSuppressClick.current) { graphSuppressClick.current = false; return; }
+    openSource(id);
+  }
+
+  function resetGraph() {
+    setGraphView({ x: 0, y: 0, scale: 1 });
+    setGraphPositions({ graph: null, positions: {} });
   }
 
   async function refreshLinks(sourceName) {
@@ -215,9 +243,10 @@ export default function Memory({ toast }) {
   }
 
   const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const graphNodes = useMemo(() => layoutContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
-  const graphPositionBySource = new Map(graphNodes.map(node => [node.source || node.id, node]));
-  const activeGraphSource = hoveredGraphSource || selected?.source || '';
+  const graphLayout = useMemo(() => layoutContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
+  const graphNodes = graphLayout.map(node => ({ ...node, ...(graphPositions.graph === graph ? graphPositions.positions[node.source || node.id] : null) }));
+  const graphPositionBySource = new Map(graphNodes.map(node => [String(node.source || node.id), node]));
+  const activeGraphSource = hoveredGraphSource;
   const activeGraphNeighbors = new Set();
   if (activeGraphSource) {
     for (const link of graph.links) {
@@ -241,12 +270,12 @@ export default function Memory({ toast }) {
     </div>
     {graphOpen && <section class="context-panel context-global-panel context-tab-view" aria-labelledby="context-global-title">
       <header class="context-global-header">
-        <div><h2 id="context-global-title">Knowledge graph</h2><p>Explore links between notes. Drag to pan, zoom, and select a dot; switch to Notes to read its content.</p></div>
+        <div><h2 id="context-global-title">Knowledge graph</h2><p>Drag a note to move it or the background to pan. Select a dot, then switch to Notes to read it.</p></div>
         <div class="context-global-meta">
           <span>{graph.nodes.length} notes · {graph.links.length} links</span>
           <div class="context-graph-controls" role="group" aria-label="Graph zoom controls">
             <button class="context-button secondary" type="button" aria-label="Zoom out" onClick={() => zoomGraph(0.82)}>−</button>
-            <button class="context-button secondary" type="button" onClick={() => setGraphView({ x: 0, y: 0, scale: 1 })}>Reset</button>
+            <button class="context-button secondary" type="button" onClick={resetGraph}>Reset</button>
             <button class="context-button secondary" type="button" aria-label="Zoom in" onClick={() => zoomGraph(1.22)}>＋</button>
           </div>
           <button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
@@ -273,13 +302,15 @@ export default function Memory({ toast }) {
                 const sourceKey = node.source || node.id;
                 const isActive = hoveredGraphSource === sourceKey || selected?.source === sourceKey;
                 const isDimmed = Boolean(activeGraphSource && sourceKey !== activeGraphSource && !activeGraphNeighbors.has(sourceKey));
-                const labelSide = node.x > CONTEXT_GRAPH_WIDTH - 190 ? -1 : 1;
-                const label = node.title.length > 26 ? `${node.title.slice(0, 25)}…` : node.title;
+                const tooltipX = node.x > CONTEXT_GRAPH_WIDTH - 220 ? -210 : 10;
+                const tooltipY = node.y > CONTEXT_GRAPH_HEIGHT - 110 ? -100 : 10;
                 const radius = 3.5 + Math.min(node.degree, 6) * 0.55;
-                return <g key={node.id} data-graph-node class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
+                return <g key={node.id} data-graph-node={sourceKey} class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => selectGraphNode(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
                   <circle class="context-graph-hit" r="16" />
                   <circle class="context-graph-point" r={radius} />
-                  <text x={labelSide * 11} y="4" text-anchor={labelSide < 0 ? 'end' : 'start'}>{label}</text>
+                  <foreignObject class="context-graph-tooltip" x={tooltipX} y={tooltipY} width="200" height="100" aria-hidden="true">
+                    <div class="context-graph-tooltip-content"><strong>{node.title}</strong><span>{node.source}</span></div>
+                  </foreignObject>
                 </g>;
               })}
             </g>
