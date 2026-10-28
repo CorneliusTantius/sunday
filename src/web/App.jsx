@@ -544,7 +544,7 @@ export default function App() {
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
     return <div class="card card-border flex-row items-center gap-1 bg-base-200 p-2" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
-      <Character profile={session.profile || {}} /><button class={`btn btn-ghost btn-sm min-w-0 flex-1 justify-start truncate ${session.id === sessionId ? 'btn-active' : ''}`}  title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="truncate">{session.title || 'New agent'}</span></button>
+      <button class={`btn btn-ghost btn-sm min-w-0 flex-1 justify-start truncate ${session.id === sessionId ? 'btn-active' : ''}`}  title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="truncate">{session.title || 'New agent'}</span></button>
       {(session.id === sessionId ? activeRunning : session.running) && <span class="badge badge-success badge-xs" role="img" aria-label="Running" title="Running" />}
       <button class={`btn btn-ghost btn-square btn-xs ${pinned ? 'text-primary' : ''}`}  data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       <button class="btn btn-ghost btn-square btn-xs" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={sessionIsRunning(session) || loadingSession} onClick={event => { if (sessionIsRunning(session) || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
@@ -553,28 +553,31 @@ export default function App() {
 
   return <>
     <div class="flex h-dvh min-h-0 overflow-hidden bg-base-100 text-base-content" ref={shell}>
-      <aside ref={sidebar} class={`z-20 flex h-full w-72 shrink-0 flex-col overflow-y-auto border-r border-base-300 bg-base-200 p-4 transition-transform max-[700px]:fixed max-[700px]:inset-y-0 max-[700px]:left-0 max-[700px]:w-[min(20rem,85vw)] ${mobile ? sidebarOpen ? 'translate-x-0' : '-translate-x-full' : sidebarOpen ? '' : 'hidden'}`} id="sidebar">
+      <aside ref={sidebar} class={`z-20 flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden border-r border-base-300 bg-base-200 p-4 transition-transform max-[700px]:fixed max-[700px]:inset-y-0 max-[700px]:left-0 max-[700px]:w-[min(20rem,85vw)] ${mobile ? sidebarOpen ? 'translate-x-0' : '-translate-x-full' : sidebarOpen ? '' : 'hidden'}`} id="sidebar">
         <div class="navbar min-h-0 border-b border-base-300 px-0 pb-4"><a class="navbar-start flex min-w-0 items-center gap-3 text-lg font-bold text-base-content no-underline" href="#" aria-label="Sunday home"><Character brand /><span>Sunday</span></a><button ref={collapseButton} class="btn btn-ghost btn-square btn-sm" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
-        <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-4">
+        <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain py-4">
         <section class="rounded-box border border-base-300 bg-base-100 p-2" aria-labelledby="agents-title">
           <div class="flex items-center justify-between gap-2"><a class="flex min-w-0 flex-1 items-center gap-3 rounded-field px-3 py-2 font-semibold text-base-content hover:bg-base-200 aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="btn btn-ghost btn-square btn-sm" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
-          <div id="agents-sessions" class={expanded ? 'mt-2' : 'hidden'} inert={!expanded} aria-hidden={!expanded}>
+        </section>
+        <ul class="menu menu-sm w-full gap-1 p-0">
+          <li><a class={page === 'context' ? 'active' : ''} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" />Context</a></li>
+          <li><a class={page === 'skills' ? 'active' : ''} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" />Skills</a></li>
+          <li><a class={page === 'scheduled-job' ? 'active' : ''} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Automations</a></li>
+          <li><a class={page === 'repositories' ? 'active' : ''} id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
+          <li><a class={page === 'editor' ? 'active' : ''} id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" />Files</a></li>
+          <li><a class={page === 'socials' ? 'active' : ''} id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" />Socials</a></li>
+        </ul>
+        <hr class="divider my-1" aria-hidden="true" />
+        <section aria-label="Sunday Agents sessions" class="min-h-0">
+          <div id="agents-sessions" class={expanded ? '' : 'hidden'} inert={!expanded} aria-hidden={!expanded}>
             <div class="flex flex-col gap-2"><button class="btn btn-outline btn-sm justify-start" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span aria-hidden="true">＋</span> New agent</button>
-            <nav class="flex w-full flex-col gap-1" id="sessions-list" aria-label="Sunday Agents">
+            <nav class="flex max-h-[40dvh] min-h-0 w-full flex-col gap-1 overflow-y-auto overscroll-y-contain" id="sessions-list" aria-label="Sunday Agents">
               {pinnedSessions.map(renderSession)}
               {unpinnedSessions.map(renderSession)}
             </nav>
             </div>
           </div>
         </section>
-        <ul class="menu menu-sm w-full gap-1 p-0">
-          <li><a class={page === 'context' ? 'active' : ''} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" />Context</a></li>
-          <li><a class={page === 'skills' ? 'active' : ''} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" />Skills</a></li>
-          <li><a class={page === 'scheduled-job' ? 'active' : ''} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Scheduled job</a></li>
-          <li><a class={page === 'repositories' ? 'active' : ''} id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
-          <li><a class={page === 'editor' ? 'active' : ''} id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" />Files</a></li>
-          <li><a class={page === 'socials' ? 'active' : ''} id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" />Socials</a></li>
-        </ul>
         <div class="mt-auto flex justify-end border-t border-base-300 pt-3"><button ref={settingsButton} class="btn btn-ghost btn-square" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
         </div>
       </aside>
