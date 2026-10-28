@@ -6,7 +6,7 @@ function faceImage(color) {
 }
 export default function Character({ profile, brand = false, welcome = false }) {
   const color = colors[profile?.color] || colors.cyan;
-  return <span class={`relative block flex-none ${welcome ? 'mx-auto mb-[22px] h-[72px] w-[72px]' : brand ? 'h-7 w-7' : 'h-9 w-9'}`} aria-hidden={welcome ? undefined : 'true'} role={welcome ? 'img' : undefined} aria-label={welcome ? 'Sunday, a square character' : undefined}>
-    <span class="absolute inset-0 grid place-items-center rounded-[20px] bg-base-100 font-mono text-[0px]" aria-hidden="true" style={{ backgroundImage: faceImage(color), backgroundPosition: 'center', backgroundSize: 'contain', backgroundRepeat: 'no-repeat' }}>c_c</span>
+  return <span class={`relative block flex-none ${welcome ? 'mx-auto mb-[22px] h-[72px] w-[72px]' : brand ? 'h-7 w-7' : 'h-9 w-9'}`} aria-hidden={welcome ? undefined : 'true'} role={welcome ? 'img' : undefined} aria-label={welcome ? 'Sunday, a rounded-square character' : undefined}>
+    <span class="absolute inset-0 grid place-items-center overflow-hidden rounded-[31%] bg-base-100 font-mono text-[0px]" aria-hidden="true" style={{ backgroundImage: faceImage(color), backgroundPosition: 'center', backgroundSize: 'contain', backgroundRepeat: 'no-repeat' }}>c_c</span>
   </span>;
 }

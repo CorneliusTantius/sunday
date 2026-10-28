@@ -108,7 +108,7 @@ export default function Personas({ hidden, toast, onReload }) {
         {id && <option value="__new__">＋ New persona</option>}
       </select>
     </div>
-    <form id="persona-form" class="grid gap-5 rounded-box border border-base-300 bg-base-200/30 p-4 sm:p-6" aria-labelledby="persona-config-heading" onSubmit={save}>
+    <form id="persona-form" class="grid min-w-0 gap-5 rounded-box border border-base-300 bg-base-200/30 p-4 sm:p-6" aria-labelledby="persona-config-heading" onSubmit={save}>
       <header class="grid gap-1 border-b border-base-300 pb-4">
         <h4 id="persona-config-heading" class="text-lg font-semibold">Persona configuration</h4>
         <p class="text-sm leading-relaxed text-base-content/70">Shape this profile’s identity, instructions, and tool permissions.</p>
@@ -124,16 +124,16 @@ export default function Personas({ hidden, toast, onReload }) {
         </select>
       </div>
       <div class="grid gap-2"><label class="label-text font-medium" for="persona-instructions">Custom instructions</label><textarea class="textarea textarea-bordered rounded-box w-full" id="persona-instructions" rows="6" maxLength="8000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} /><p id="persona-instructions-note" class="text-sm leading-relaxed text-base-content/70">Edit the persona’s responsibilities and workflow here. Sunday and Coding Agent start with editable defaults; shared system rules and tool guidance are added separately.</p></div>
-      <details class="collapse collapse-arrow rounded-box border border-base-300 bg-base-200" open><summary>Tool permissions</summary><fieldset class="grid gap-2"><legend class="sr-only">Tool permissions</legend><div id="persona-tools" class="grid gap-2">
+      <details class="collapse collapse-arrow min-w-0 rounded-box border border-base-300 bg-base-200" open><summary>Tool permissions</summary><fieldset class="grid w-full min-w-0 gap-2 p-3"><legend class="sr-only">Tool permissions</legend><div id="persona-tools" class="grid min-w-0 gap-2">
         {toolPermissionItems.map(item => {
           if (!item.group) {
             const { tool } = item;
-            return <label key={tool.name} class="flex items-center gap-3 rounded-box p-2 hover:bg-base-300"><input class="checkbox checkbox-primary rounded-md" type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="grid min-w-0 flex-1 gap-1 break-words"><strong>{tool.name === 'bash' ? 'Bash' : tool.name}</strong><ul class="m-0 w-full list-disc pl-5 [&_li]:my-1 [&_li]:break-words"><li><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li></ul></span></label>;
+            return <label key={tool.name} class="flex min-w-0 items-center gap-3 rounded-box p-2 hover:bg-base-300"><input class="checkbox checkbox-primary rounded-md" type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="grid min-w-0 flex-1 gap-1 break-words"><strong>{tool.name === 'bash' ? 'Bash' : tool.name}</strong><ul class="m-0 w-full list-disc pl-5 [&_li]:my-1 [&_li]:break-words"><li><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li></ul></span></label>;
           }
           const { group, tools: groupedTools } = item;
           const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
           const checked = enabled === groupedTools.length;
-          return <label class="flex items-start gap-3 rounded-box border border-base-300 p-2" key={group.name}><input class="checkbox checkbox-primary rounded-md" type="checkbox" value={group.name} disabled={busy} checked={checked} onChange={event => {
+          return <label class="flex min-w-0 items-start gap-3 rounded-box border border-base-300 p-2" key={group.name}><input class="checkbox checkbox-primary rounded-md" type="checkbox" value={group.name} disabled={busy} checked={checked} onChange={event => {
             const names = groupedTools.map(tool => tool.name);
             change('allowedTools', event.currentTarget.checked
               ? [...new Set([...profile.allowedTools, ...names])]

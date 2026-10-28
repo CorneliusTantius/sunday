@@ -46,5 +46,5 @@ test('sidebar controls have borderless hover states and keep the brand character
   assert.match(collapse, /ml-auto/);
   const character = readFileSync(new URL('../src/web/components/Character.jsx', import.meta.url), 'utf8');
   assert.match(character, /rx="20"/);
-  assert.match(character, /rounded-\[20px\]/);
+  assert.match(character, /overflow-hidden rounded-\[31%\]/);
 });

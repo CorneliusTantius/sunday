@@ -433,7 +433,7 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
     "tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
   assert.doesNotMatch(source, /subagent|agent_whisper|agent_list/);
-  assert.match(source, /<fieldset class="grid gap-2"><legend class="sr-only">Tool permissions<\/legend>/);
+  assert.match(source, /<fieldset class="grid w-full min-w-0 gap-2 p-3"><legend class="sr-only">Tool permissions<\/legend>/);
   assert.match(source, /<input class="checkbox checkbox-primary rounded-md" type="checkbox" value=\{group\.name\}/);
   assert.match(source, /groupedTools\.map\(tool => tool\.name\)/);
   assert.match(source, /groupedTools\.map\(tool => <li key=\{tool\.name\}><code>\{tool\.name\}<\/code>:/);
