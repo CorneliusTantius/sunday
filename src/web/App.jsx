@@ -552,7 +552,7 @@ export default function App() {
 
   return <>
     <div class="flex h-dvh w-full min-h-0 overflow-hidden bg-base-100 text-base-content" ref={shell}>
-      <aside ref={sidebar} class={`z-20 flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden border-r border-base-300 bg-base-200 p-4 transition-transform max-[700px]:fixed max-[700px]:inset-y-0 max-[700px]:left-0 max-[700px]:w-[min(20rem,85vw)] ${mobile ? sidebarOpen ? 'translate-x-0' : '-translate-x-full' : sidebarOpen ? '' : 'hidden'}`} id="sidebar">
+      <aside ref={sidebar} class={`z-20 flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden border-r border-base-300 bg-base-200 p-4 transition-[width,transform,opacity,padding] duration-300 ease-in-out motion-reduce:transition-none max-[700px]:fixed max-[700px]:inset-y-0 max-[700px]:left-0 max-[700px]:w-[min(20rem,85vw)] ${mobile ? sidebarOpen ? 'translate-x-0' : '-translate-x-full' : sidebarOpen ? 'translate-x-0 opacity-100' : 'w-0 -translate-x-3 border-r-0 p-0 opacity-0 pointer-events-none'}`} id="sidebar">
         <div class="navbar min-h-0 border-b border-base-300 px-0 pb-4"><a class="navbar-start flex min-w-0 items-center gap-3 text-lg font-bold text-base-content no-underline" href="#" aria-label="Sunday home"><Character brand /><span>Sunday</span></a><button ref={collapseButton} class="btn btn-ghost btn-square btn-sm ml-auto hover:border-transparent" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
         <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain py-4">
         <ul class="menu menu-sm w-full gap-1 p-0">
@@ -576,7 +576,7 @@ export default function App() {
         </div>
       </aside>
       <button ref={menu} class={`btn btn-ghost btn-square fixed left-3 top-3 z-10 hover:border-transparent ${!mobile && sidebarOpen ? 'hidden' : ''}`}  id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
-      <button class={`fixed inset-0 z-10 bg-neutral/60 ${mobile && sidebarOpen ? '' : 'hidden'}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
+      <button class={`fixed inset-0 z-10 bg-neutral/60 transition-opacity duration-300 ease-in-out motion-reduce:transition-none ${mobile && sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" inert={!mobile || !sidebarOpen} onClick={closeSidebar} />
       <main key={page} class="page-enter relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden motion-reduce:animate-none">
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'socials' && <Socials />}
@@ -588,13 +588,13 @@ export default function App() {
           <div class={`m-auto max-w-xl px-4 py-16 text-center ${messages.length ? 'hidden' : ''}`}  id="welcome"><Character welcome /><h1 class="text-3xl font-semibold tracking-tight" id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="alert alert-info my-3" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class={`flex flex-col gap-6 ${messages.length ? 'py-6' : ''}`} id="messages">{memoryActivity && <p role="status" class="badge badge-info badge-outline self-start">{memoryActivity} · Review notes in Memory</p>}<CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`flex items-start gap-3 ${message.role === 'user' ? 'user justify-end' : 'assistant'}`} >
-            {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
+            {message.role === 'assistant' && <div class="avatar shrink-0 self-start"><Character profile={profile || {}} mobileCompact /></div>}
             {message.role === 'assistant' ? <div class="min-w-0 flex-1"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <SkillCommandMessage content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>
         </section>
         <div class={`mx-auto w-full max-w-5xl flex-none px-4 pb-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="chat-composer">
-          {showLatest && <button class="btn btn-sm btn-outline mb-2" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
-          {busy && activity && <div class="badge badge-ghost mb-2" id="response-activity" role="status">{activity}</div>}
+          {showLatest && <button class="btn btn-sm btn-ghost mb-2 text-primary hover:bg-base-200" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
+          {busy && activity && <div class="badge badge-ghost badge-sm mb-2 h-auto max-w-full whitespace-normal px-2 py-1 text-[11px] leading-tight" id="response-activity" role="status">{activity}</div>}
           <form class="card card-border bg-base-200 p-4" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="flex items-center justify-between gap-3 pt-2">{contextWindow > 0 && <div class="min-w-0 flex-1" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction reserves space for the model response.">
             <div class="mb-1 flex justify-between gap-3 text-[11px] text-base-content/70"><span><i class="mr-1 inline-block size-2 rounded-full bg-success" />CONTEXT <small>{measuredUsage && contextUsage.measured ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
             <div class="h-1.5 overflow-hidden rounded-full bg-base-300" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="h-full rounded-full bg-primary transition-[width]" style={{ width: `${contextPercent}%` }} /></div>

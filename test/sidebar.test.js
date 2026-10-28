@@ -154,9 +154,14 @@ test('desktop collapse and rapid reopen keep the sidebar and backdrop mounted', 
   for (let i = 0; i < 3; i++) {
     app.click('collapse-sidebar');
     state(app, { mobile: false, open: false });
+    assert.ok(sidebar.className.includes('transition-[width,transform,opacity,padding]'));
+    assert.ok(sidebar.classList.contains('w-0'));
+    assert.ok(sidebar.classList.contains('opacity-0'));
+    assert.ok(!sidebar.classList.contains('hidden'), 'closed sidebar stays mounted to animate');
     assert.equal(app.window.document.activeElement, app.get('mobile-menu'));
     app.click('mobile-menu');
     state(app, { mobile: false, open: true });
+    assert.ok(sidebar.classList.contains('opacity-100'));
     assert.equal(app.get('sidebar'), sidebar);
     assert.equal(app.get('sidebar-backdrop'), backdrop);
   }
@@ -168,9 +173,14 @@ test('mobile close button, Escape and backdrop close restore menu focus; reopeni
   const app = await mount(t, true);
   const sidebar = app.get('sidebar'), backdrop = app.get('sidebar-backdrop');
   state(app, { mobile: true, open: false });
+  assert.ok(sidebar.classList.contains('-translate-x-full'));
+  assert.ok(backdrop.classList.contains('opacity-0'));
+  assert.ok(backdrop.classList.contains('pointer-events-none'));
   for (const close of [() => app.click('collapse-sidebar'), () => app.key('Escape'), () => app.click('sidebar-backdrop')]) {
     app.click('mobile-menu');
     state(app, { mobile: true, open: true });
+    assert.ok(sidebar.classList.contains('translate-x-0'));
+    assert.ok(backdrop.classList.contains('opacity-100'));
     assert.equal(app.window.document.activeElement, app.get('collapse-sidebar'));
     close();
     state(app, { mobile: true, open: false });

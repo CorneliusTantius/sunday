@@ -64,9 +64,11 @@ test('Skills page and create forms use explicit DaisyUI controls and readable hi
   assert.match(skills, /<section class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-y-auto overscroll-y-contain px-4 py-8 sm:px-6"/);
   assert.match(skills, /class="modal-box max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto/);
   assert.match(skills, /id="skills-title" class="text-3xl font-bold tracking-tight"/);
-  assert.match(skills, /class="input input-bordered w-full" value=\{draft\.name\}/);
-  assert.match(skills, /class="input input-bordered w-full" value=\{draft\.description\}/);
-  assert.match(skills, /label class="grid gap-1\.5 text-sm font-medium">Instructions<textarea/);
+  assert.match(skills, /class="input input-bordered w-full bg-base-200" value=\{draft\.name\}/);
+  assert.match(skills, /class="input input-bordered w-full bg-base-200" value=\{draft\.description\}/);
+  assert.match(skills, /label class="grid gap-1\.5 text-sm font-medium">Instructions<textarea class="textarea textarea-bordered rounded-box w-full bg-base-200"/);
+  assert.match(skills, /badge badge-sm h-auto max-w-full whitespace-normal px-2 py-1 text-\[10px\] leading-tight text-center/);
+  assert.match(skills, /badge badge-sm h-auto flex-none whitespace-nowrap px-2 py-1 text-\[10px\] leading-tight/);
   assert.match(skills, /class="text-xl font-semibold">\{form === 'edit' \?/);
   assert.match(skills, /<pre class="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words/);
 });

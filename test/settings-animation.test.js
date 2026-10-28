@@ -23,6 +23,14 @@ test('settings modal animates efficiently and respects reduced motion', () => {
   assert.match(styles, /\.settings-backdrop-enter, \.settings-backdrop-exit, \.settings-modal-enter, \.settings-modal-exit \{ animation: none; will-change: auto; \}/);
 });
 
+test('settings fills the mobile viewport with compact scrollable section navigation', () => {
+  assert.match(settings, /grid place-items-center p-0 sm:p-4/);
+  assert.match(settings, /h-\[100dvh\] max-h-\[100dvh\][^\"]*rounded-none border-0[^\"]*sm:rounded-box sm:border/);
+  assert.match(settings, /grid h-full min-h-0 grid-cols-1 gap-3 p-3 sm:grid-cols-/);
+  assert.match(settings, /min-w-0 min-h-0 gap-1 overflow-x-auto/);
+  assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full/g) || []).length, 5);
+});
+
 test('settings tab content animates in and respects reduced motion', () => {
   for (const [id, page] of [['provider', 'providers'], ['connect', 'connect'], ['config', 'config'], ['mcp', 'mcp']]) {
     assert.ok(settings.includes(`id="settings-${id}-page" class={page === '${page}' ? 'settings-view-enter' : 'hidden'}`));

@@ -4,9 +4,9 @@ function faceImage(color) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="20" fill="#2E3440" stroke="${color}" stroke-width="3"/><path d="${facePath}" fill="none" stroke="${color}" stroke-width="3"/></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
-export default function Character({ profile, brand = false, welcome = false }) {
+export default function Character({ profile, brand = false, welcome = false, mobileCompact = false }) {
   const color = colors[profile?.color] || colors.cyan;
-  return <span class={`relative block flex-none ${welcome ? 'mx-auto mb-[22px] h-[72px] w-[72px]' : brand ? 'h-7 w-7' : 'h-9 w-9'}`} aria-hidden={welcome ? undefined : 'true'} role={welcome ? 'img' : undefined} aria-label={welcome ? 'Sunday, a rounded-square character' : undefined}>
+  return <span class={`relative block flex-none ${welcome ? 'mx-auto mb-[22px] h-[72px] w-[72px]' : brand ? 'h-7 w-7' : `h-9 w-9 ${mobileCompact ? 'max-[700px]:h-7 max-[700px]:w-7' : ''}`}`} aria-hidden={welcome ? undefined : 'true'} role={welcome ? 'img' : undefined} aria-label={welcome ? 'Sunday, a rounded-square character' : undefined}>
     <span class="absolute inset-0 grid place-items-center overflow-hidden rounded-[31%] bg-base-100 font-mono text-[0px]" aria-hidden="true" style={{ backgroundImage: faceImage(color), backgroundPosition: 'center', backgroundSize: 'contain', backgroundRepeat: 'no-repeat' }}>c_c</span>
   </span>;
 }

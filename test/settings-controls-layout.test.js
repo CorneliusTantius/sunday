@@ -77,7 +77,7 @@ test('Settings has an enlarged top X and no redundant bottom Close button', () =
 test('settings section navigation is compact, left-aligned, and has no hover border highlight', () => {
   const settings = read('components/Settings.jsx');
   assert.match(settings, /<nav class="[^\"]*gap-1[^\"]*" aria-label="Settings sections">/);
-  assert.equal((settings.match(/btn-ghost w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent/g) || []).length, 5);
+  assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent/g) || []).length, 5);
 });
 
 test('config controls use darker Nord backgrounds and retain a primary keyboard focus indicator', () => {
