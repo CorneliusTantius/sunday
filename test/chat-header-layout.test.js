@@ -20,6 +20,11 @@ test('chat activity and assistant avatar stay compact and top-aligned on mobile'
   assert.match(character, /mobileCompact \? 'max-\[700px\]:h-7 max-\[700px\]:w-7'/);
 });
 
+test('sidebar brand is a larger text-only title', () => {
+  assert.match(app, /class="navbar-start flex min-w-0 items-center text-2xl font-bold tracking-tight[^"]*"[^>]*>Sunday<\/a>/);
+  assert.doesNotMatch(app, /navbar-start[^\n]*<Character brand/);
+});
+
 test('scroll-to-latest has no outlined border', () => {
   const button = app.match(/<button class="([^\"]+)" id="scroll-to-latest"/)?.[1];
   assert.ok(button);

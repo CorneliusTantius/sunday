@@ -27,9 +27,9 @@ export default function ToolCalls({ calls = [] }) {
       <div class="modal-box flex h-[75dvh] max-h-[calc(100dvh-40px)] w-[min(560px,calc(100%-32px))] max-w-none flex-col overflow-hidden border border-base-300 bg-base-100 p-0 text-base-content shadow-2xl">
         <header class="flex items-center justify-between gap-4 border-b border-base-300 p-4 sm:p-5"><div><div class="mb-1 text-xs font-bold tracking-widest text-primary">AGENT ACTIVITY</div><h2 class="m-0 text-xl font-bold" id="toolcalls-title">Tool calls</h2></div><button class="btn btn-ghost btn-circle btn-sm" type="button" aria-label="Close tool calls" onClick={close}>×</button></header>
         <div class="min-h-0 flex-1 overflow-auto px-4 py-2 sm:px-6">{calls.map((call, index) => <section class="space-y-3 border-b border-base-300 py-3" key={call.id || index}>
-        <div class="flex items-center justify-between gap-3 capitalize"><strong>{call.name}</strong><span class={`badge ${call.status === 'failed' ? 'badge-error' : call.status === 'running' ? 'badge-info' : 'badge-success'}`}>{call.status === 'running' ? 'Running' : call.status === 'failed' ? 'Failed' : 'Succeeded'}</span></div>
-        <div><strong>Arguments</strong><pre class="mockup-code max-h-60 overflow-auto whitespace-pre-wrap bg-base-200 p-3 text-base-content">{JSON.stringify(call.arguments ?? {}, null, 2)}</pre></div>
-        {call.result !== undefined && <div><strong>Result</strong><pre class="mockup-code max-h-60 overflow-auto whitespace-pre-wrap bg-base-200 p-3 text-base-content">{call.result}</pre></div>}
+        <div class="flex items-center justify-between gap-3 capitalize"><strong>{call.name}</strong><span class={`badge badge-sm max-w-full flex-none whitespace-nowrap px-2 text-[10px] leading-tight ${call.status === 'failed' ? 'badge-error' : call.status === 'running' ? 'badge-info' : 'badge-success'}`}>{call.status === 'running' ? 'Running' : call.status === 'failed' ? 'Failed' : 'Succeeded'}</span></div>
+        <div><strong>Arguments</strong><pre class="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-box border border-base-300 bg-base-200 p-3 font-mono text-xs text-base-content">{JSON.stringify(call.arguments ?? {}, null, 2)}</pre></div>
+        {call.result !== undefined && <div><strong>Result</strong><pre class="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-box border border-base-300 bg-base-200 p-3 font-mono text-xs text-base-content">{call.result}</pre></div>}
         </section>)}</div>
       </div>
     </dialog>
