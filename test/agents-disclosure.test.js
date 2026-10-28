@@ -27,10 +27,24 @@ test('agent row actions share a rounded pill without a hover border', () => {
   const rowEnd = app.indexOf('\n  };', rowStart);
   const row = app.slice(rowStart, rowEnd);
   assert.match(row, /<div class="flex flex-row items-center[^\"]*rounded-full border border-base-300/);
-  assert.doesNotMatch(row, /card-border|hover:border/);
+  assert.doesNotMatch(row, /card-border/);
+  assert.equal((row.match(/hover:border-transparent/g) || []).length, 4, 'the agent row and its title, pin, and settings controls stay borderless on hover');
   assert.match(row, /title=\{session\.title \|\| 'New agent'\}/);
   assert.match(row, /title=\{pinned \? 'Unpin agent' : 'Pin agent'\} aria-label=\{`\$\{pinned \? 'Unpin' : 'Pin'\} agent:/);
   assert.match(row, /aria-pressed=\{pinned\} onClick=\{\(\) => togglePinnedAgent\(session\)\}/);
   assert.match(row, /title="Configure agent" aria-label=\{`Configure agent:/);
   assert.match(row, /disabled=\{sessionIsRunning\(session\) \|\| loadingSession\}/);
+});
+
+test('sidebar controls have borderless hover states and keep the brand character squircle-shaped', () => {
+  for (const id of ['collapse-sidebar', 'new-chat', 'open-settings', 'mobile-menu']) {
+    const start = app.indexOf(`id="${id}"`);
+    const button = app.slice(app.lastIndexOf('<button', start), app.indexOf('>', start));
+    assert.ok(start >= 0 && button.includes('hover:border-transparent'), `${id} needs a borderless hover state`);
+  }
+  const collapse = app.slice(app.lastIndexOf('<button', app.indexOf('id="collapse-sidebar"')), app.indexOf('>', app.indexOf('id="collapse-sidebar"')));
+  assert.match(collapse, /ml-auto/);
+  const character = readFileSync(new URL('../src/web/components/Character.jsx', import.meta.url), 'utf8');
+  assert.match(character, /rx="20"/);
+  assert.match(character, /rounded-\[20px\]/);
 });
