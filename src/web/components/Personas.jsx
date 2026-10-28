@@ -99,7 +99,7 @@ export default function Personas({ hidden, toast, onReload }) {
     </header>
     <div class="grid gap-2 rounded-box border border-base-300 bg-base-200/50 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div class="grid gap-1"><label class="font-semibold" for="persona-select">Choose a profile</label><p class="text-sm text-base-content/70">Select a persona to edit or start a new one.</p></div>
-      <select id="persona-select" class="select select-bordered w-full sm:min-w-64" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
+      <select id="persona-select" class="select w-full sm:min-w-64" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
         if (event.currentTarget.value === '__new__') { select(personas, ''); nameInput.current?.focus(); }
         else select(personas, event.currentTarget.value);
       }}>
@@ -119,7 +119,7 @@ export default function Personas({ hidden, toast, onReload }) {
       </div>
       <div class="grid gap-3 rounded-box border border-base-300 bg-base-100/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div class="flex items-center gap-3"><div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div><div class="grid gap-1"><label class="font-medium" for="persona-color">Character color</label><span class="text-sm text-base-content/70">Choose the accent for this persona’s character.</span></div></div>
-        <select class="select select-bordered border-base-300 w-full sm:min-w-48" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
+        <select class="select w-full sm:min-w-48" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
           {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
         </select>
       </div>

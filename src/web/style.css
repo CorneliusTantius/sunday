@@ -37,12 +37,8 @@
   --color-error-content: #ECEFF4;
 }
 
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select {
-  border-color: var(--color-base-300);
-}
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover {
-  border-color: var(--color-base-300);
-}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover,
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, textarea:focus, select:focus {
   border-color: transparent;
 }

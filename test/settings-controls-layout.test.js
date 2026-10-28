@@ -22,9 +22,10 @@ test('model refresh also updates the active chat model selector', () => {
 test('settings model selector is populated from connected models', () => {
   assert.match(read('components/Settings.jsx'), /connectedModels\.map\(item => <option/);
 });
-test('persona character color selector has a subtle visible boundary', () => {
+test('persona selectors use borderless fields', () => {
   const personas = read('components/Personas.jsx');
-  assert.match(personas, /<select class="select select-bordered border-base-300[^"]*" id="persona-color"/);
+  assert.match(personas, /<select id="persona-select" class="select w-full sm:min-w-64"/);
+  assert.match(personas, /<select class="select w-full sm:min-w-48" id="persona-color"/);
 });
 test('requested icons, controls, and composer use borderless and transparent styling', () => {
   const settings = read('components/Settings.jsx');
@@ -52,11 +53,9 @@ test('persona tools are in an initially open native disclosure', () => {
   assert.match(personas, /<\/div><\/fieldset><\/details>/);
 });
 
-test('form controls use restrained borders and retain an accessible keyboard focus ring', () => {
+test('form controls stay borderless in every pointer state and retain an accessible keyboard focus ring', () => {
   const css = read('style.css');
-  assert.match(css, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\), textarea, select \{\s*border-color: var\(--color-base-300\);/);
-  assert.match(css, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):hover, textarea:hover, select:hover \{\s*border-color: var\(--color-base-300\);/);
-  assert.match(css, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):focus, textarea:focus, select:focus \{\s*border-color: transparent;/);
+  assert.match(css, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\), textarea, select,\s*input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):hover, textarea:hover, select:hover,\s*input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):focus, textarea:focus, select:focus \{\s*border-color: transparent;/);
   assert.match(css, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):focus-visible, textarea:focus-visible, select:focus-visible \{\s*outline: 2px solid var\(--color-primary\);\s*outline-offset: 2px;/);
 });
 
