@@ -59,9 +59,17 @@ test('form controls stay borderless in every pointer state and retain an accessi
   assert.match(css, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):focus-visible, textarea:focus-visible, select:focus-visible \{\s*outline: 2px solid var\(--color-primary\);\s*outline-offset: 2px;/);
 });
 
-test('Settings spacing and close button are visually distinct without a white border', () => {
+test('Persona color preview has a clipped squircle shape', () => {
+  const css = read('style.css');
+  const personas = read('components/Personas.jsx');
+  assert.match(personas, /id="persona-preview" aria-label="Persona character preview"><Character profile=\{profile\} \/><\/div>/);
+  assert.match(css, /#persona-preview \{\s*width: 2\.25rem;\s*height: 2\.25rem;\s*overflow: hidden;\s*border-radius: 31%;/);
+});
+
+test('Settings spacing and close button use a borderless pill with a subtle surface', () => {
   const settings = read('components/Settings.jsx');
-  assert.match(settings, /class="btn btn-ghost btn-square border-0 bg-black\/10 hover:bg-black\/20 focus-visible:outline[^\"]*" id="close-settings"/);
+  assert.match(settings, /class="btn btn-ghost h-9 min-h-9 w-12 rounded-full border-0 bg-black\/10 hover:bg-black\/20 focus-visible:outline[^\"]*" id="close-settings"/);
+  assert.doesNotMatch(settings, /btn-square[^\"]*id="close-settings"/);
   assert.match(settings, /id="settings-update-page" class=\{page === 'update' \? 'grid gap-3' : 'hidden'\}/);
 });
 
