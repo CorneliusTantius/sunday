@@ -1313,19 +1313,15 @@ textarea.text-input, #session-config-repos, .code-editor-host,
 .context-global-header h2 { margin: 0 0 4px; font: 700 16px Manrope, sans-serif; }
 .context-global-header p { margin: 0; color: var(--muted); font-size: 12px; }
 .context-global-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; white-space: nowrap; }
-.context-graph-controls { display: flex; align-items: center; gap: 4px; }
-.context-graph-controls .context-button { min-width: 34px; padding: 5px 9px; }
-.context-global-scroll { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); touch-action: none; }
-.context-global-svg { display: block; width: 100%; height: min(620px, 65vh); min-height: 360px; touch-action: none; user-select: none; cursor: grab; }
-.context-global-svg:active { cursor: grabbing; }
+.context-global-scroll { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.context-global-svg { display: block; width: 100%; height: min(620px, 65vh); min-height: 360px; user-select: none; }
 .context-global-background { fill: transparent; }
 .context-global-edges { pointer-events: none; }
 .context-graph-edge { transition: opacity 180ms ease; }
 .context-graph-edge line { stroke: color-mix(in srgb, var(--muted) 54%, var(--line)); stroke-width: 1.15; opacity: .72; vector-effect: non-scaling-stroke; transition: stroke 180ms ease, opacity 180ms ease, stroke-width 180ms ease; }
 .context-graph-edge.active line { stroke: var(--highlight); stroke-width: 1.7; opacity: .95; }
 .context-graph-edge.dimmed { opacity: .15; }
-.context-graph-node-dot { cursor: grab; outline: none; transition: opacity 180ms ease; }
-.context-graph-node-dot:active { cursor: grabbing; }
+.context-graph-node-dot { cursor: pointer; outline: none; transition: opacity 180ms ease; }
 .context-graph-node-dot .context-graph-hit { fill: transparent; stroke: none; pointer-events: all; }
 .context-graph-node-dot .context-graph-point { fill: color-mix(in srgb, var(--text) 68%, var(--muted)); stroke: var(--bg); stroke-width: 1; vector-effect: non-scaling-stroke; transform-box: fill-box; transform-origin: center; transition: fill 180ms ease, stroke 180ms ease, transform 180ms ease; }
 .context-graph-node-dot.isolated .context-graph-point { fill: var(--muted); }

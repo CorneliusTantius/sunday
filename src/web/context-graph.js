@@ -3,6 +3,15 @@ export const CONTEXT_GRAPH_HEIGHT = 620;
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
+// A damped spring expands the settled layout from the center and gently overshoots.
+export function animateContextGraph(nodes, progress) {
+  if (progress >= 1) return nodes;
+  const time = Math.max(0, progress);
+  const scale = 1 - 0.55 * Math.exp(-5 * time) * Math.cos(12 * time);
+  const centerX = CONTEXT_GRAPH_WIDTH / 2, centerY = CONTEXT_GRAPH_HEIGHT / 2;
+  return nodes.map(node => ({ ...node, x: centerX + (node.x - centerX) * scale, y: centerY + (node.y - centerY) * scale }));
+}
+
 /** Lay out context notes with a small deterministic force simulation. */
 export function layoutContextGraph(nodes = [], links = []) {
   if (!nodes.length) return [];

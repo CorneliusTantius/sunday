@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { BASIC_TOOLS } from '../src/server/tools.js';
-import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph } from '../src/web/context-graph.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph } from '../src/web/context-graph.js';
 
 const deferred = () => {
   let resolve;
@@ -23,7 +23,7 @@ function mount(name, props, request, jsonRequest = async () => ({}), globals = {
   const slots = [], effects = [], timers = new Map(), timerDelays = [];
   let cursor = 0, dirty = false, nextTimer = 0, view;
   const context = vm.createContext({
-    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph,
+    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph,
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
     setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, fn); timerDelays.push(ms); return id; },
@@ -490,42 +490,40 @@ test('context notes load, create, and remove directed links', async () => {
   h.unmount();
 });
 
-test('context graph drags nodes without opening them and resets their positions', async () => {
-  const nodes = [{ id: 'a', source: 'a.md', title: 'A' }, { id: 'b', source: 'b.md', title: 'B' }];
-  const calls = [];
+test('context graph animates on load and cancels when reduced motion is enabled', async () => {
+  const nodes = [{ id: 'a', source: 'a.md', title: 'A' }];
+  const frames = new Map(); let nextFrame = 0, listener;
+  const media = { matches: false, addEventListener(_type, fn) { listener = fn; }, removeEventListener() { listener = null; } };
+  const browser = {
+    requestAnimationFrame(fn) { const id = ++nextFrame; frames.set(id, fn); return id; },
+    cancelAnimationFrame(id) { frames.delete(id); },
+    matchMedia: () => media,
+  };
   const h = mount('Memory', { toast() {} }, async url => {
-    calls.push(url);
-    if (url === '/api/context/graph') return { nodes, links: [{ source: 'a.md', target: 'b.md' }] };
+    if (url === '/api/context/graph') return { nodes, links: [] };
     if (url === '/api/context/sources') return { sources: [] };
-    if (url === '/api/context/sources/a') return { source: nodes[0] };
-    if (url.startsWith('/api/context/links?')) return { links: [] };
     assert.fail(`Unexpected request: ${url}`);
-  });
+  }, undefined, { window: browser });
   await h.settle();
-  const node = { getAttribute: () => 'a.md', setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {} };
-  const svg = { getBoundingClientRect: () => ({ width: 1000, height: 620 }) };
-  h.view.startGraphPan({ button: 0, pointerId: 1, clientX: 100, clientY: 100, target: { closest: () => node }, currentTarget: svg });
-  h.view.moveGraphPan({ pointerId: 1, clientX: 140, clientY: 120, currentTarget: svg });
-  h.render();
-  const original = layoutContextGraph(nodes, [{ source: 'a.md', target: 'b.md' }])[0];
-  assert.equal(h.view.graphPositions.positions['a.md'].x, original.x + 40);
-  assert.equal(h.view.graphPositions.positions['a.md'].y, original.y + 20);
-  h.view.stopGraphPan({ pointerId: 1, type: 'pointerup' });
-  h.view.selectGraphNode('a');
+  assert.equal(h.view.graphAnimation.progress, 0);
+  function step(time) { const [id, fn] = frames.entries().next().value; frames.delete(id); fn(time); h.render(); }
+  step(100); step(800);
+  assert.equal(h.view.graphAnimation.progress, 0.5);
+  media.matches = true; listener(); h.render();
+  assert.equal(h.view.graphAnimation.progress, 1);
+  assert.equal(frames.size, 0);
+  h.unmount();
+});
+
+test('context graph skips animation when reduced motion is already enabled', async () => {
+  let frames = 0;
+  const browser = { requestAnimationFrame() { frames++; }, matchMedia: () => ({ matches: true }) };
+  const h = mount('Memory', { toast() {} }, async url => url === '/api/context/graph'
+    ? { nodes: [{ id: 'a', source: 'a.md', title: 'A' }], links: [] }
+    : { sources: [] }, undefined, { window: browser });
   await h.settle();
-  assert.equal(calls.filter(url => url === '/api/context/sources/a').length, 0);
-  h.view.resetGraph(); h.render();
-  assert.equal(h.view.graphPositions.graph, null);
-  h.view.zoomGraph(2); h.render();
-  const beforePan = { ...h.view.graphView };
-  svg.setPointerCapture = () => {};
-  h.view.startGraphPan({ button: 0, pointerId: 2, clientX: 0, clientY: 0, target: { closest: () => null }, currentTarget: svg });
-  h.view.moveGraphPan({ pointerId: 2, clientX: 40, clientY: 20, currentTarget: svg }); h.render();
-  assert.equal(h.view.graphView.x, beforePan.x + 40);
-  assert.equal(h.view.graphView.y, beforePan.y + 20);
-  h.view.stopGraphPan({ pointerId: 2, type: 'pointerup' });
-  h.view.selectGraphNode('a'); await h.settle();
-  assert.equal(calls.filter(url => url === '/api/context/sources/a').length, 1);
+  assert.equal(frames, 0);
+  assert.equal(h.view.graphAnimation.progress, 1);
   h.unmount();
 });
 
@@ -533,7 +531,7 @@ test('context page opens on graph and hides notes until the Notes view is select
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
   assert.match(source, /\{!graphOpen && <div class="context-layout context-tab-view">/);
-  assert.match(source, /Drag a note to move it or the background to pan/);
+  assert.match(source, /Select a dot, then switch to Notes to read it/);
 });
 
 test('context notes show an Obsidian-style dot graph and selected-note link controls', () => {
@@ -545,7 +543,7 @@ test('context notes show an Obsidian-style dot graph and selected-note link cont
   assert.match(source, /class="context-graph-tooltip"[^>]*aria-hidden="true"/);
   assert.match(source, /<strong>\{node\.title\}<\/strong><span>\{node\.source\}<\/span>/);
   assert.doesNotMatch(source, /<title>\$\{node\.title\}/);
-  assert.match(source, /aria-label="Graph zoom controls"/);
+  assert.doesNotMatch(source, /Graph zoom controls|startGraphPan|graphView|graphPositions/);
   assert.match(source, /aria-label={`Open note: \$\{node\.title\}`}/);
   assert.match(source, /Linked notes/);
   assert.match(source, /aria-label="Relationship"/);

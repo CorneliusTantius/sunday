@@ -28,14 +28,14 @@ test('Context and Skills are separate top-level destinations below Sunday Agents
   assert.match(css, /\.scheduled-job-link\[aria-current="page"\]/);
 });
 
-test('Context knowledge graph renders linked dots with keyboard access and pan/zoom controls', () => {
+test('Context knowledge graph renders animated linked dots with keyboard access and a fixed viewport', () => {
   const memory = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(memory, /layoutContextGraph\(graph\.nodes, graph\.links\)/);
   assert.match(memory, /class="context-global-svg"/);
   assert.match(memory, /data-graph-node=\{sourceKey\}[^>]*role="button" tabIndex="0"/);
   assert.match(memory, /onKeyDown={event => \{ if \(event\.key === 'Enter' \|\| event\.key === ' '\)/);
-  assert.match(memory, /Graph zoom controls/);
-  assert.match(memory, /onPointerDown={startGraphPan}/);
+  assert.match(memory, /animateContextGraph\(graphLayout/);
+  assert.doesNotMatch(memory, /Graph zoom controls|onPointerDown={startGraphPan}/);
   assert.match(css, /\.context-graph-node-dot \.context-graph-point/);
   assert.match(memory, /class="context-graph-tooltip"[^>]*aria-hidden="true"/);
   assert.match(memory, /<strong>\{node\.title\}<\/strong><span>\{node\.source\}<\/span>/);

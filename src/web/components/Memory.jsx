@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
-import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph } from '../context-graph.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph } from '../context-graph.js';
 
 export default function Memory({ toast }) {
   const [sources, setSources] = useState([]);
@@ -15,11 +15,8 @@ export default function Memory({ toast }) {
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [graphLoading, setGraphLoading] = useState(true);
   const [graphOpen, setGraphOpen] = useState(true);
-  const [graphView, setGraphView] = useState({ x: 0, y: 0, scale: 1 });
   const [hoveredGraphSource, setHoveredGraphSource] = useState('');
-  const [graphPositions, setGraphPositions] = useState({ graph: null, positions: {} });
-  const graphDrag = useRef(null);
-  const graphSuppressClick = useRef(false);
+  const [graphAnimation, setGraphAnimation] = useState({ layout: null, progress: 1 });
   const [source, setSource] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -134,59 +131,6 @@ export default function Memory({ toast }) {
     catch (reason) { setError(reason.message); }
   }
 
-  function zoomGraph(factor) {
-    setGraphView(current => {
-      const scale = Math.max(0.65, Math.min(2.4, current.scale * factor));
-      const ratio = scale / current.scale;
-      return { scale, x: CONTEXT_GRAPH_WIDTH / 2 - (CONTEXT_GRAPH_WIDTH / 2 - current.x) * ratio, y: CONTEXT_GRAPH_HEIGHT / 2 - (CONTEXT_GRAPH_HEIGHT / 2 - current.y) * ratio };
-    });
-  }
-
-  function startGraphPan(event) {
-    if (event.button !== 0 || graphDrag.current) return;
-    const element = event.target.closest?.('[data-graph-node]');
-    const key = element?.getAttribute('data-graph-node');
-    const node = key ? graphPositionBySource.get(key) : null;
-    graphSuppressClick.current = false;
-    const capture = node ? element : event.currentTarget;
-    graphDrag.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: graphView.x, y: graphView.y, node, capture, moved: false };
-    capture.setPointerCapture?.(event.pointerId);
-  }
-
-  function moveGraphPan(event) {
-    const drag = graphDrag.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.clientX, dy = event.clientY - drag.clientY;
-    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-    drag.moved = true;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const scale = Math.min(bounds.width / CONTEXT_GRAPH_WIDTH, bounds.height / CONTEXT_GRAPH_HEIGHT) || 1;
-    if (drag.node) {
-      const key = drag.node.source || drag.node.id;
-      setGraphPositions(current => ({ graph, positions: { ...(current.graph === graph ? current.positions : {}), [key]: { x: drag.node.x + dx / (scale * graphView.scale), y: drag.node.y + dy / (scale * graphView.scale) } } }));
-    } else {
-      setGraphView(current => ({ ...current, x: drag.x + dx / scale, y: drag.y + dy / scale }));
-    }
-  }
-
-  function stopGraphPan(event) {
-    if (graphDrag.current?.pointerId !== event.pointerId) return;
-    const drag = graphDrag.current;
-    graphSuppressClick.current = event.type !== 'pointercancel' && Boolean(drag.node && drag.moved);
-    graphDrag.current = null;
-    if (drag.capture.hasPointerCapture?.(event.pointerId)) drag.capture.releasePointerCapture(event.pointerId);
-  }
-
-  function selectGraphNode(id) {
-    if (graphSuppressClick.current) { graphSuppressClick.current = false; return; }
-    openSource(id);
-  }
-
-  function resetGraph() {
-    setGraphView({ x: 0, y: 0, scale: 1 });
-    setGraphPositions({ graph: null, positions: {} });
-  }
-
   async function refreshLinks(sourceName) {
     const data = await request(`/api/context/links?source=${encodeURIComponent(sourceName)}`);
     setLinks(data.links);
@@ -244,7 +188,28 @@ export default function Memory({ toast }) {
 
   const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
   const graphLayout = useMemo(() => layoutContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
-  const graphNodes = graphLayout.map(node => ({ ...node, ...(graphPositions.graph === graph ? graphPositions.positions[node.source || node.id] : null) }));
+  useEffect(() => {
+    if (!graphOpen || !graphLayout.length || typeof window === 'undefined' || !window.requestAnimationFrame) return;
+    const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    let frame, start;
+    const stopForReducedMotion = () => {
+      if (!motion?.matches) return;
+      window.cancelAnimationFrame(frame);
+      setGraphAnimation({ layout: graphLayout, progress: 1 });
+    };
+    if (motion?.matches) { setGraphAnimation({ layout: graphLayout, progress: 1 }); return; }
+    setGraphAnimation({ layout: graphLayout, progress: 0 });
+    const tick = now => {
+      if (start === undefined) start = now;
+      const progress = Math.min(1, (now - start) / 1400);
+      setGraphAnimation({ layout: graphLayout, progress });
+      if (progress < 1) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    motion?.addEventListener?.('change', stopForReducedMotion);
+    return () => { window.cancelAnimationFrame(frame); motion?.removeEventListener?.('change', stopForReducedMotion); };
+  }, [graphLayout, graphOpen]);
+  const graphNodes = animateContextGraph(graphLayout, graphAnimation.layout === graphLayout ? graphAnimation.progress : 1);
   const graphPositionBySource = new Map(graphNodes.map(node => [String(node.source || node.id), node]));
   const activeGraphSource = hoveredGraphSource;
   const activeGraphNeighbors = new Set();
@@ -270,21 +235,16 @@ export default function Memory({ toast }) {
     </div>
     {graphOpen && <section class="context-panel context-global-panel context-tab-view" aria-labelledby="context-global-title">
       <header class="context-global-header">
-        <div><h2 id="context-global-title">Knowledge graph</h2><p>Drag a note to move it or the background to pan. Select a dot, then switch to Notes to read it.</p></div>
+        <div><h2 id="context-global-title">Knowledge graph</h2><p>Select a dot, then switch to Notes to read it.</p></div>
         <div class="context-global-meta">
           <span>{graph.nodes.length} notes · {graph.links.length} links</span>
-          <div class="context-graph-controls" role="group" aria-label="Graph zoom controls">
-            <button class="context-button secondary" type="button" aria-label="Zoom out" onClick={() => zoomGraph(0.82)}>−</button>
-            <button class="context-button secondary" type="button" onClick={resetGraph}>Reset</button>
-            <button class="context-button secondary" type="button" aria-label="Zoom in" onClick={() => zoomGraph(1.22)}>＋</button>
-          </div>
           <button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
         </div>
       </header>
       {graphLoading ? <p class="context-empty">Loading graph…</p> : graph.nodes.length ? <div class="context-global-scroll">
-        <svg class="context-global-svg" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph. Drag to pan; use the zoom controls to explore." onPointerDown={startGraphPan} onPointerMove={moveGraphPan} onPointerUp={stopGraphPan} onPointerCancel={stopGraphPan}>
+        <svg class="context-global-svg" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph">
           <rect class="context-global-background" x="0" y="0" width={CONTEXT_GRAPH_WIDTH} height={CONTEXT_GRAPH_HEIGHT} />
-          <g transform={`translate(${graphView.x} ${graphView.y}) scale(${graphView.scale})`}>
+          <g>
             <g class="context-global-edges" aria-hidden="true">
               {graph.links.map((link, index) => {
                 const from = graphPositionBySource.get(link.source), to = graphPositionBySource.get(link.target);
@@ -305,7 +265,7 @@ export default function Memory({ toast }) {
                 const tooltipX = node.x > CONTEXT_GRAPH_WIDTH - 220 ? -210 : 10;
                 const tooltipY = node.y > CONTEXT_GRAPH_HEIGHT - 110 ? -100 : 10;
                 const radius = 3.5 + Math.min(node.degree, 6) * 0.55;
-                return <g key={node.id} data-graph-node={sourceKey} class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => selectGraphNode(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
+                return <g key={node.id} data-graph-node={sourceKey} class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
                   <circle class="context-graph-hit" r="16" />
                   <circle class="context-graph-point" r={radius} />
                   <foreignObject class="context-graph-tooltip" x={tooltipX} y={tooltipY} width="200" height="100" aria-hidden="true">

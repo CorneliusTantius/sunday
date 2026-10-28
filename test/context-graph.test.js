@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, layoutContextGraph } from '../src/web/context-graph.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph } from '../src/web/context-graph.js';
+
+test('graph spring expands, overshoots, and settles exactly at the layout', () => {
+  const layout = [{ id: 'a', x: 700, y: 310, degree: 1 }, { id: 'b', x: 400, y: 350, degree: 1 }];
+  assert.equal(animateContextGraph(layout, 0)[0].x, 590);
+  assert.ok(animateContextGraph(layout, 0.26)[0].x > layout[0].x);
+  assert.deepEqual(animateContextGraph(layout, 1), layout);
+  assert.deepEqual(animateContextGraph([], 0.5), []);
+  assert.equal(layout[0].x, 700);
+});
 
 test('context graph layout is deterministic and keeps note dots inside its canvas', () => {
   const nodes = [
