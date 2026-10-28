@@ -340,7 +340,7 @@ export default function Memory({ toast }) {
           <label class="label-text font-medium" for="context-source-title">Title</label>
           <input class="input input-bordered" id="context-source-title" required maxLength={120} value={title} onInput={event => setTitle(event.currentTarget.value)} placeholder="Release guide" />
           <label class="label-text font-medium" for="context-content">Content</label>
-          <textarea class="textarea textarea-bordered w-full" id="context-content" required maxLength={200000} value={content} onInput={event => setContent(event.currentTarget.value)} placeholder="Paste selected text or durable facts to make them searchable." />
+          <textarea class="textarea textarea-bordered rounded-box w-full" id="context-content" required maxLength={200000} value={content} onInput={event => setContent(event.currentTarget.value)} placeholder="Paste selected text or durable facts to make them searchable." />
           <div class="mt-2 flex justify-end gap-2">
             <button class="btn btn-ghost" type="button" disabled={busy} onClick={closeIndexer}>Cancel</button>
             <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Indexing…' : 'Index source'}</button>

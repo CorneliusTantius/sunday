@@ -153,7 +153,7 @@ export default function Skills({ exiting = false } = {}) {
         {error && <p class="alert alert-error" role="alert">{error}</p>}
         <label>Name<input value={draft.name} onInput={event => updateDraft('name', event.currentTarget.value)} required maxLength={80} autoFocus /></label>
         <label>Description<input value={draft.description} onInput={event => updateDraft('description', event.currentTarget.value)} required maxLength={500} /></label>
-        <label>Instructions<textarea class="textarea textarea-bordered w-full" value={draft.content} onInput={event => updateDraft('content', event.currentTarget.value)} required maxLength={50000} rows={12} placeholder="Write clear, reusable guidance for the agent…" /></label>
+        <label>Instructions<textarea class="textarea textarea-bordered rounded-box w-full" value={draft.content} onInput={event => updateDraft('content', event.currentTarget.value)} required maxLength={50000} rows={12} placeholder="Write clear, reusable guidance for the agent…" /></label>
         <p class="text-sm leading-relaxed text-base-content/70">Instructions are shared with all Sunday agents when enabled. They cannot grant tools or permissions. New skills start disabled.</p>
         <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : form === 'edit' ? 'Save changes' : 'Create skill'}</button>
       </form>}

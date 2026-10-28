@@ -60,13 +60,13 @@ export default function McpServers({ config, auth = {}, busy, onSave, onLogin, l
           <label class="label font-semibold" for="mcp-transport">Transport</label><select id="mcp-transport" class="select select-bordered w-full" value={draft.transport} onChange={event => field('transport', event.currentTarget.value)}><option value="stdio">stdio (local command)</option><option value="http">HTTP</option></select>
           {draft.transport === 'stdio' ? <>
             <label class="label font-semibold" for="mcp-command">Command</label><input id="mcp-command" class="input input-bordered w-full" required value={draft.command} onInput={event => field('command', event.currentTarget.value)} />
-            <label class="label font-semibold" for="mcp-args">Arguments (JSON array)</label><textarea id="mcp-args" class="textarea textarea-bordered w-full" rows="3" value={draft.args} onInput={event => field('args', event.currentTarget.value)} />
-            <label class="label font-semibold" for="mcp-env">Environment variables (JSON object)</label><textarea id="mcp-env" class="textarea textarea-bordered w-full" rows="3" spellcheck={false} value={draft.env} onInput={event => field('env', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-args">Arguments (JSON array)</label><textarea id="mcp-args" class="textarea textarea-bordered rounded-box w-full" rows="3" value={draft.args} onInput={event => field('args', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-env">Environment variables (JSON object)</label><textarea id="mcp-env" class="textarea textarea-bordered rounded-box w-full" rows="3" spellcheck={false} value={draft.env} onInput={event => field('env', event.currentTarget.value)} />
           </> : <>
             <label class="label font-semibold" for="mcp-url">Server URL</label><input id="mcp-url" class="input input-bordered w-full" type="url" required value={draft.url} onInput={event => field('url', event.currentTarget.value)} />
-            <label class="label font-semibold" for="mcp-headers">Headers (JSON object)</label><textarea id="mcp-headers" class="textarea textarea-bordered w-full" rows="3" spellcheck={false} value={draft.headers} onInput={event => field('headers', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-headers">Headers (JSON object)</label><textarea id="mcp-headers" class="textarea textarea-bordered rounded-box w-full" rows="3" spellcheck={false} value={draft.headers} onInput={event => field('headers', event.currentTarget.value)} />
           </>}
-          <label class="label cursor-pointer justify-start gap-3"><input class="checkbox" type="checkbox" checked={draft.enabled} onChange={event => field('enabled', event.currentTarget.checked)} /> Enabled</label>
+          <label class="label cursor-pointer justify-start gap-3"><input class="checkbox rounded-md" type="checkbox" checked={draft.enabled} onChange={event => field('enabled', event.currentTarget.checked)} /> Enabled</label>
         </fieldset>
         <p class="alert alert-error empty:hidden py-2" role="alert">{error}</p>
         <div class="modal-action"><button type="button" class="btn btn-outline" disabled={busy} onClick={() => dialog.current.close()}>Cancel</button><button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save server'}</button></div>

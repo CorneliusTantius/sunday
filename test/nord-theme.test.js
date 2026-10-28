@@ -11,6 +11,11 @@ test('the default DaisyUI theme uses Nord dark colors and app chrome matches', (
   assert.match(css, /themes: nord-dark --default;/);
   assert.match(theme, /name: "nord-dark";/);
   assert.match(theme, /color-scheme: dark;/);
+  for (const radius of [
+    '--radius-selector: 9999px',
+    '--radius-field: 9999px',
+    '--radius-box: 1.25rem',
+  ]) assert.ok(theme.includes(radius), `missing rounded shape token ${radius}`);
   for (const color of [
     '--color-base-100: #2E3440',
     '--color-base-200: #3B4252',
@@ -33,6 +38,25 @@ test('the default DaisyUI theme uses Nord dark colors and app chrome matches', (
   const manifest = JSON.parse(read('public/manifest.webmanifest'));
   assert.equal(manifest.background_color, '#2E3440');
   assert.equal(manifest.theme_color, '#2E3440');
+});
+
+test('pill controls, rounded surfaces, and editable textareas keep appropriate shapes', () => {
+  const bubble = read('components/MessageBubble.js');
+  assert.ok(bubble.includes('[.user_&]:rounded-3xl'));
+  for (const path of [
+    'components/McpServers.jsx',
+    'components/Memory.jsx',
+    'components/Personas.jsx',
+    'components/ScheduledJobs.jsx',
+    'components/Skills.jsx',
+  ]) assert.ok(read(path).includes('textarea textarea-bordered rounded-box'), `${path} needs a rounded text area`);
+  for (const path of [
+    'components/McpServers.jsx',
+    'components/Repositories.jsx',
+    'components/SessionConfig.jsx',
+    'components/Personas.jsx',
+    'components/ScheduledJobs.jsx',
+  ]) assert.ok(read(path).includes('checkbox rounded-md') || read(path).includes('checkbox checkbox-primary rounded-md'), `${path} needs square checkbox corners`);
 });
 
 test('brand and persona characters use Nord colors', () => {

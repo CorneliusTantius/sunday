@@ -7,6 +7,9 @@
   default: true;
   prefersdark: true;
   color-scheme: dark;
+  --radius-selector: 9999px;
+  --radius-field: 9999px;
+  --radius-box: 1.25rem;
 
   --color-base-100: #2E3440;
   --color-base-200: #3B4252;

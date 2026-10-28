@@ -251,13 +251,13 @@ export default function ScheduledJobs() {
           </div>
           <div class="min-w-0 space-y-2 sm:col-span-2">
             <label class="label-text font-medium" for="scheduled-job-task">Task prompt</label>
-            <textarea class="textarea textarea-bordered w-full" id="scheduled-job-task" rows="5" required maxLength="20000" placeholder="Describe the task to run on every occurrence…" value={draft.task} disabled={loading || saving} onInput={event => change('task', event.currentTarget.value)} />
+            <textarea class="textarea textarea-bordered rounded-box w-full" id="scheduled-job-task" rows="5" required maxLength="20000" placeholder="Describe the task to run on every occurrence…" value={draft.task} disabled={loading || saving} onInput={event => change('task', event.currentTarget.value)} />
             <p class="mt-2 text-sm leading-relaxed text-base-content/70">A new agent session is created for each run.</p>
           </div>
           <fieldset class="min-w-0 space-y-2 sm:col-span-2 border-0 p-0" disabled={loading || saving}>
             <legend class="label-text font-medium">Allowed repositories</legend>
             {repositories.length ? <div class="grid max-h-36 gap-1 overflow-auto rounded-box border border-base-300 p-2">{repositories.map(repo => <label class="flex items-center gap-3 rounded-box p-2 hover:bg-base-300" key={repo.name}>
-              <input class="checkbox checkbox-primary" type="checkbox" value={repo.name} checked={draft.allowedRepositories.includes(repo.name)} onChange={event => toggleRepository(repo.name, event.currentTarget.checked)} />
+              <input class="checkbox checkbox-primary rounded-md" type="checkbox" value={repo.name} checked={draft.allowedRepositories.includes(repo.name)} onChange={event => toggleRepository(repo.name, event.currentTarget.checked)} />
               <span>{repo.name}</span>
             </label>)}</div> : <p class="mt-2 text-sm leading-relaxed text-base-content/70">No repositories available. This job will not have repository access.</p>}
             <p class="mt-2 text-sm leading-relaxed text-base-content/70">Repository tools are restricted to this selection.</p>
