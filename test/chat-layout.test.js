@@ -15,7 +15,7 @@ test('viewport layout confines scrolling to chat history and repository content'
   assert.match(app, /class=\{`flex flex-col gap-6 \$\{messages\.length \? 'py-6' : ''\}`\} id="messages"/);
   const styles = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
   assert.match(styles, /@keyframes page-enter/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-enter \{ animation: none; \}/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-enter, \.settings-view-enter \{ animation: none; \}/);
   const html = readFileSync(new URL('../src/web/index.html', import.meta.url), 'utf8');
   assert.match(html, /<html[^>]*class="h-full w-full overflow-hidden/);
   assert.match(html, /<body[^>]*class="h-full w-full overflow-hidden/);

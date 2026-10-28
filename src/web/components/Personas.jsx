@@ -91,7 +91,7 @@ export default function Personas({ hidden, toast, onReload }) {
     finally { if (alive.current) setBusy(false); }
   }
 
-  return <section inert={hidden} id="settings-personas-page" class={`grid gap-5${hidden ? ' hidden' : ''}`}>
+  return <section inert={hidden} id="settings-personas-page" class={`grid gap-5${hidden ? ' hidden' : ' settings-view-enter'}`}>
     <header class="grid gap-1">
       <p class="text-xs font-bold tracking-[0.18em] text-primary">PERSONA STUDIO</p>
       <h3>Profiles &amp; personas</h3>

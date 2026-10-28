@@ -71,7 +71,7 @@ test('Settings has an enlarged top X and no redundant bottom Close button', () =
   assert.match(settings, /class="btn btn-ghost h-9 min-h-9 w-12 rounded-full border-0 bg-black\/10 hover:bg-black\/20 text-2xl focus-visible:outline[^\"]*" id="close-settings"/);
   assert.doesNotMatch(settings, /id="cancel-settings"/);
   assert.ok(settings.includes("page === 'connect' ? '' : ' hidden'"), 'only show the footer when it has a save action');
-  assert.match(settings, /id="settings-update-page" class=\{page === 'update' \? 'grid gap-3' : 'hidden'\}/);
+  assert.match(settings, /id="settings-update-page" class=\{page === 'update' \? 'grid gap-3 settings-view-enter' : 'hidden'\}/);
 });
 
 test('settings section navigation is compact, left-aligned, and has no hover border highlight', () => {

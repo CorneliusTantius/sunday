@@ -20,7 +20,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     if (closeTimer.current !== null) return;
     setClosing(true);
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    closeTimer.current = setTimeout(onClose, reduced ? 0 : 240);
+    closeTimer.current = setTimeout(onClose, reduced ? 0 : 340);
   }
   useEffect(() => () => clearTimeout(closeTimer.current), []);
   const initial = settings || {};
@@ -419,8 +419,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { updatePending.current = false; if (alive.current) setUpdating(false); }
   }
 
-  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 transition-opacity duration-200 motion-reduce:transition-none ${entered && !closing ? 'opacity-100' : 'pointer-events-none opacity-0'}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
-    <section class={`card flex h-[min(80dvh,calc(100dvh-2.5rem))] w-full max-w-6xl flex-col overflow-hidden rounded-box border border-base-300 bg-base-100 text-base-content shadow-xl transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none ${entered && !closing ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-95 opacity-0'}`} role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 transition-opacity duration-300 motion-reduce:transition-none ${closing ? 'ease-in' : 'ease-out'} ${entered && !closing ? 'opacity-100' : 'pointer-events-none opacity-0'}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
+    <section class={`card flex h-[min(80dvh,calc(100dvh-2.5rem))] w-full max-w-6xl flex-col overflow-hidden rounded-box border border-base-300 bg-base-100 text-base-content shadow-xl transition-[transform,opacity] duration-300 motion-reduce:transition-none ${closing ? 'ease-in' : 'ease-out'} ${entered && !closing ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-95 opacity-0'}`} role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header data-settings-header class="flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4 sm:px-7"><div><p class="mb-1 text-xs font-bold tracking-widest text-primary">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="btn btn-ghost h-9 min-h-9 w-12 rounded-full border-0 bg-black/10 hover:bg-black/20 text-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" id="close-settings" aria-label="Close settings" onClick={requestClose}>×</button></header>
       <div ref={contentViewport} class="min-h-0 flex-1 overflow-hidden transition-[height] duration-200">
       <div ref={contentLayout} class="grid h-full min-h-0 grid-cols-1 gap-5 p-5 sm:grid-cols-[15rem_minmax(0,1fr)] sm:gap-7 sm:p-7">
@@ -432,7 +432,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <button class={`btn btn-ghost w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent${page === 'update' ? ' btn-active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
         <div class="min-h-0 min-w-0 overflow-y-auto">
-          <section inert={page !== 'providers'} id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
+          <section inert={page !== 'providers'} id="settings-provider-page" class={page === 'providers' ? 'settings-view-enter' : 'hidden'}>
             <div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>Connected providers</h3><div class="flex flex-wrap items-center justify-end gap-2"><button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="refresh-models" type="button" disabled={saving || loading} onClick={refreshModels} aria-label="Refresh available models" title="Fetch models from Sunday’s current provider catalog. Update Sunday if a newly released model is missing.">{loading ? 'Refreshing…' : '↻ Refresh models'}</button><button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div></div>
             <p class="text-sm text-base-content/70">Manage the providers you have connected.</p>
             <div id="provider-list" class="my-5 grid gap-3">
@@ -442,7 +442,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
               {!available.length && <p class="text-sm text-base-content/70">No providers connected yet. Add a provider to start chatting.</p>}
             </div>
           </section>
-          <section inert={page !== 'connect'} id="settings-connect-page" class={page === 'connect' ? '' : 'hidden'}>
+          <section inert={page !== 'connect'} id="settings-connect-page" class={page === 'connect' ? 'settings-view-enter' : 'hidden'}>
             <button class="btn btn-ghost" id="provider-back" onClick={() => navigate('providers')}>← Providers</button><h3>Connect provider</h3>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="provider">Provider</label>
             <select id="provider" class="select select-bordered w-full" value={provider} disabled={saving || authBusy} onChange={event => chooseProvider(event.currentTarget.value)}>
@@ -464,18 +464,18 @@ export default function Settings({ settings, onReload, onClose, toast }) {
               <button class={`btn btn-ghost${auth?.status === 'pending' ? '' : ' hidden'}`} id="oauth-cancel" disabled={authBusy} onClick={() => authAction('/api/auth/cancel')}>Cancel sign-in</button>
             </div>
           </section>
-          <section inert={page !== 'config'} id="settings-config-page" class={page === 'config' ? '' : 'hidden'}><h3>Chat defaults</h3>
+          <section inert={page !== 'config'} id="settings-config-page" class={page === 'config' ? 'settings-view-enter' : 'hidden'}><h3>Chat defaults</h3>
             <p class="text-sm text-base-content/70">These defaults apply only to new sessions. Existing sessions keep their own model, thinking level, and persona.</p>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="model">Default model</label><select id="model" class="select select-bordered w-full bg-black/10 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" value={`${provider}:${mode}:${model}`} disabled={loading || saving || !connectedModels.length} onChange={event => chooseDefaultModel(event.currentTarget.value)}>{connectedModels.length ? connectedModels.map(item => <option key={`${item.provider}:${item.mode}:${item.id}`} value={`${item.provider}:${item.mode}:${item.id}`}>{item.name || item.id} · {item.providerName}{item.mode === 'oauth' ? ' (ChatGPT)' : ''}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select select-bordered w-full bg-black/10 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="default-persona">Default persona</label><select id="default-persona" class="select select-bordered w-full bg-black/10 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" value={defaultPersonaId} disabled={saving} onChange={event => setDefaultPersonaId(event.currentTarget.value)}>{personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}</select></div>
             <button class="btn btn-primary mt-2" id="save-chat-defaults" disabled={saving || loading} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
           </section>
-          <section inert={page !== 'mcp'} id="settings-mcp-page" class={page === 'mcp' ? '' : 'hidden'}>
+          <section inert={page !== 'mcp'} id="settings-mcp-page" class={page === 'mcp' ? 'settings-view-enter' : 'hidden'}>
             {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} auth={mcpAuth} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
             {mcpLogin && <div class="alert alert-info mt-4 flex-col items-start" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="label font-semibold" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="input input-bordered w-full" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="btn btn-outline" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="btn btn-ghost" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
           </section>
-          <section inert={page !== 'update'} id="settings-update-page" class={page === 'update' ? 'grid gap-3' : 'hidden'}>
+          <section inert={page !== 'update'} id="settings-update-page" class={page === 'update' ? 'grid gap-3 settings-view-enter' : 'hidden'}>
             <h3>Update Sunday</h3>
             <p class="text-sm text-base-content/70">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
             <div class="flex flex-wrap gap-2"><button class="btn btn-ghost border-0" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
