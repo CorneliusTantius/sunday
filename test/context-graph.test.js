@@ -34,6 +34,21 @@ test('context graph layout is deterministic and keeps note dots inside its canva
   assert.ok(distance(linked) < distance(isolated), 'linked notes pull closer together than unrelated notes');
 });
 
+test('larger graphs form a filled radial layout instead of accumulating on canvas edges', () => {
+  for (const count of [20, 50, 100, 200]) {
+    const nodes = Array.from({ length: count }, (_, index) => ({ id: String(index), source: `note-${index}` }));
+    const links = nodes.slice(1, 20).map(node => ({ source: nodes[0].source, target: node.source }));
+    for (const graphLinks of [[], links]) {
+      const layout = layoutContextGraph(nodes, graphLinks);
+      const radii = layout.map(node => Math.hypot(node.x - CONTEXT_GRAPH_WIDTH / 2, node.y - CONTEXT_GRAPH_HEIGHT / 2));
+      const maxRadius = CONTEXT_GRAPH_HEIGHT / 2 - 56;
+      assert.ok(radii.every(radius => radius <= maxRadius + 1e-8));
+      assert.ok(radii.filter(radius => radius > maxRadius - 1).length < count / 4, `${count} nodes should not pile up on the boundary`);
+      assert.ok(radii.filter(radius => radius < maxRadius * 0.7).length > count / 3, `${count} nodes should fill the interior`);
+    }
+  }
+});
+
 test('context graph layout handles no notes and a lone unlinked note', () => {
   assert.deepEqual(layoutContextGraph(), []);
   const [node] = layoutContextGraph([{ id: 'alone', source: 'alone.md', title: 'Alone' }]);
