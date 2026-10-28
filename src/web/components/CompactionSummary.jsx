@@ -25,12 +25,14 @@ export default function CompactionSummary({ compaction }) {
   if (!compaction?.summary) return null;
   const close = () => setClosing(true);
   return <>
-    <button class="compaction-summary-pill" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
+    <button class="compaction-summary-pill btn btn-ghost btn-sm text-base-content/70 hover:text-base-content" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
       <span aria-hidden="true">↻</span> Earlier conversation summarized <span class="compaction-summary-open">View summary</span>
     </button>
-    <dialog class={`compaction-summary-dialog${closing ? ' closing' : ''}`} ref={dialog} aria-labelledby="compaction-summary-title" onClose={() => { setOpen(false); setClosing(false); }} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
-      <header class="compaction-summary-header"><div><div class="eyebrow">CONVERSATION HISTORY</div><h2 id="compaction-summary-title">Earlier conversation summary</h2></div><button class="icon-button" type="button" aria-label="Close summary" onClick={close}>×</button></header>
-      <div class="compaction-summary-content">{compaction.summary}</div>
+    <dialog class={`compaction-summary-dialog modal${closing ? ' closing' : ''}`} ref={dialog} aria-labelledby="compaction-summary-title" onClose={() => { setOpen(false); setClosing(false); }} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
+      <div class="modal-box flex max-h-[75dvh] max-w-3xl flex-col overflow-hidden bg-base-100 p-0 text-base-content">
+        <header class="compaction-summary-header flex items-center justify-between gap-4 border-b border-base-300 p-5"><div><div class="eyebrow">CONVERSATION HISTORY</div><h2 id="compaction-summary-title">Earlier conversation summary</h2></div><button class="icon-button btn btn-ghost btn-circle btn-sm" type="button" aria-label="Close summary" onClick={close}>×</button></header>
+        <div class="compaction-summary-content min-h-0 flex-1 overflow-auto whitespace-pre-wrap">{compaction.summary}</div>
+      </div>
     </dialog>
   </>;
 }

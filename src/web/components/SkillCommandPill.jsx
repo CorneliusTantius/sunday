@@ -37,20 +37,22 @@ export default function SkillCommandPill({ skillId }) {
   }, [open, skillId]);
 
   return <>
-    <button class="skill-command-pill" type="button" onClick={() => setOpen(true)} aria-label={`Show details for skill ${skillId}`}>
+    <button class="skill-command-pill badge badge-soft badge-primary cursor-pointer" type="button" onClick={() => setOpen(true)} aria-label={`Show details for skill ${skillId}`}>
       <span aria-hidden="true">✦</span> {skillId}
     </button>
-    <dialog class="toolcalls-dialog skill-details-dialog" ref={dialog} aria-labelledby={titleId} onClose={() => setOpen(false)} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }}>
-      <header class="toolcalls-header"><div><div class="eyebrow">ENABLED SKILL</div><h2 id={titleId}>{skill?.name || skillId}</h2></div><button class="icon-button" type="button" aria-label="Close skill details" onClick={() => dialog.current?.close()}>×</button></header>
-      <div class="skill-details-body">
+    <dialog class="toolcalls-dialog skill-details-dialog modal" ref={dialog} aria-labelledby={titleId} onClose={() => setOpen(false)} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }}>
+      <div class="modal-box flex max-h-[75dvh] max-w-3xl flex-col overflow-hidden bg-base-100 p-0 text-base-content">
+        <header class="toolcalls-header flex items-center justify-between gap-4 border-b border-base-300 p-5"><div><div class="eyebrow">ENABLED SKILL</div><h2 id={titleId}>{skill?.name || skillId}</h2></div><button class="icon-button btn btn-ghost btn-circle btn-sm" type="button" aria-label="Close skill details" onClick={() => dialog.current?.close()}>×</button></header>
+        <div class="skill-details-body">
         {loading && <p role="status">Loading skill details…</p>}
         {error && <p role="status" class="error-text">{error}</p>}
         {skill && <>
           {skill.description && <p class="skill-detail-description">{skill.description}</p>}
           <p class="skill-detail-source">{skill.source?.type === 'device' ? `Installed on device${skill.source.location ? ` · ${skill.source.location}` : ''}` : skill.source?.type === 'npm' ? 'Imported skill' : 'Sunday skill'}</p>
           <h3>Instructions</h3>
-          <pre class="skill-detail-content">{skill.content}</pre>
+          <pre class="skill-detail-content mockup-code max-h-[48dvh] overflow-auto whitespace-pre-wrap bg-base-200 p-3 text-base-content">{skill.content}</pre>
         </>}
+        </div>
       </div>
     </dialog>
   </>;
