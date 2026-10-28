@@ -189,12 +189,12 @@ for (const action of ['create', 'open']) {
     test(`${action} ${outcome} re-enables session controls and releases the loading guard`, async t => {
       const h = await mount(t);
       const pending = h.hold();
-      const selector = action === 'create' ? '#new-chat' : '#sessions-list > div:nth-child(2) button[title]';
+      const selector = action === 'create' ? '#new-chat' : '#sessions-list button[title="Chat 2"]';
       const before = h.actionCalls().length;
       h.click(selector);
       // Attempt competing actions in the same turn, before disabled props can render.
       h.click('#new-chat');
-      h.click('#sessions-list > div:nth-child(2) button[title]');
+      h.click('#sessions-list button[title="Chat 2"]');
       h.click('button[aria-label^="Configure agent:"]');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.actionCalls().at(-1).method, action === 'create' ? 'POST' : 'GET');
@@ -203,7 +203,7 @@ for (const action of ['create', 'open']) {
         for (const control of h.controls()) assert.equal(control.disabled, true);
       });
       h.click('#new-chat');
-      h.click('#sessions-list > div:nth-child(2) button[title]');
+      h.click('#sessions-list button[title="Chat 2"]');
       assert.equal(h.actionCalls().length, before + 1);
       assert.equal(h.$('#session-config-dialog'), null);
       assert.equal(h.selected(), 'session-1');
@@ -284,15 +284,15 @@ test('reopening a running session reconnects and restores the streamed snapshot'
   const h = await mount(t);
   h.sessions[1].running = true;
   h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
-  h.click('#sessions-list > div:nth-child(2) button[title]');
+  h.click('#sessions-list button[title="Chat 2"]');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.resumeCalls(), 1);
-    const pill = h.$('#sessions-list > div:nth-child(2) [aria-label="Running"]');
+    const pill = h.$('#sessions-list button[title="Chat 2"]').parentElement.querySelector('[aria-label="Running"]');
     assert.ok(pill, 'running session has an activity pill');
     assert.equal(pill.getAttribute('aria-label'), 'Running');
     assert.equal(pill.textContent, '');
-    assert.equal(h.$('#sessions-list > div:first-child [aria-label="Running"]'), null);
+    assert.equal(h.$('#sessions-list button[title="Chat 1"]').parentElement.querySelector('[aria-label="Running"]'), null);
     assert.match(h.$('#messages').textContent, /replayed answer/);
   });
   h.finishResume();
@@ -308,7 +308,7 @@ test('switching sessions detaches the client stream without cancelling the serve
   h.emit('progress', { status: 'thinking' });
   await waitFor(() => assert.equal(h.$('#response-activity')?.textContent, 'Thinking…'));
   const oldTimer = h.timers.find(timer => timer.ms === 150000 && !timer.cleared);
-  h.click('#sessions-list > div:nth-child(2) button[title]');
+  h.click('#sessions-list button[title="Chat 2"]');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(h.$('#response-activity'), null);
@@ -334,9 +334,9 @@ async function startChat(h) {
 test('opens another session settings while the active session is streaming', async t => {
   const h = await mount(t);
   await startChat(h);
-  const otherSessionSettings = h.$('#sessions-list > div:nth-child(2) button[aria-label^="Configure agent:"]');
+  const otherSessionSettings = h.$('#sessions-list button[title="Chat 2"] ~ button[aria-label^="Configure agent:"]');
   assert.equal(otherSessionSettings.disabled, false);
-  h.click('#sessions-list > div:nth-child(2) button[aria-label^="Configure agent:"]');
+  h.click('#sessions-list button[title="Chat 2"] ~ button[aria-label^="Configure agent:"]');
   await waitFor(() => {
     assert.ok(h.$('#session-config-dialog'));
     assert.ok(h.calls.some(call => call.url === '/api/sessions/session-2' && call.method === 'GET'));
@@ -381,7 +381,7 @@ test('resumed snapshot restores progress and tool updates reuse its existing cal
   const h = await mount(t, { emptyResume: true });
   h.sessions[1].running = true;
   h.sessions[1].messages.push({ role: 'user', content: 'Continue this job' });
-  h.click('#sessions-list > div:nth-child(2) button[title]');
+  h.click('#sessions-list button[title="Chat 2"]');
   await waitFor(() => assert.equal(h.resumeCalls(), 1));
   h.emit('snapshot', { answer: 'Restored answer', progress: 'preparing_tool', toolCalls: [
     { id: 'tool-1', name: 'bash', arguments: {}, status: 'running' },
@@ -498,7 +498,7 @@ test('model and thinking controls save only the active session and restore each 
   assert.equal(h.defaults.model, 'model-a');
   assert.equal(h.defaults.thinkingLevel, 'off');
   assert.equal(h.calls.filter(call => call.url === '/api/settings' && call.method !== 'GET').length, 0);
-  h.click('#sessions-list > div:nth-child(2) button[title]');
+  h.click('#sessions-list button[title="Chat 2"]');
   await waitFor(() => assert.equal(h.selected(), 'session-2'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
@@ -507,7 +507,7 @@ test('model and thinking controls save only the active session and restore each 
   await waitFor(() => assert.equal(h.selected(), 'session-3'));
   assert.equal(h.$('#chat-model').value, 'model-a');
   assert.equal(h.$('#thinking-level').value, 'off');
-  h.click('#sessions-list > div:nth-child(1) button[title]');
+  h.click('#sessions-list button[title="Chat 1"]');
   await waitFor(() => assert.equal(h.selected(), 'session-1'));
   assert.equal(h.$('#chat-model').value, 'model-b');
   assert.equal(h.$('#thinking-level').value, 'high');
@@ -670,7 +670,7 @@ test('content resizing follows the bottom and resets when switching sessions', a
   scroll.grow(1700);
   resizeObservers.at(-1).callback();
   assert.equal(scroll.element.scrollTop, 100);
-  h.click('#sessions-list > div:nth-child(2) button[title]');
+  h.click('#sessions-list button[title="Chat 2"]');
   await waitFor(() => {
     assert.equal(h.selected(), 'session-2');
     assert.equal(scroll.element.scrollTop, 1500);

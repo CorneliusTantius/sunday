@@ -16,4 +16,8 @@ test('Agents list is always visible below Socials with a divider', () => {
   assert.equal((sidebar.match(/<hr/g) || []).length, 1, 'only one intended sidebar separator');
   assert.match(sidebar, /id="sessions-list"[^>]*>[\s\S]*id="new-chat"[\s\S]*pinnedSessions\.map/);
   assert.match(sidebar, /class="btn btn-ghost btn-sm justify-start border border-base-300[^\"]*" id="new-chat"/);
+  const gearStart = app.indexOf('title="Configure agent"');
+  const gearEnd = app.indexOf('</button>', gearStart);
+  assert.ok(gearStart >= 0 && gearEnd > gearStart);
+  assert.match(app.slice(gearStart, gearEnd), /<svg[^>]*width="16" height="16"/);
 });
