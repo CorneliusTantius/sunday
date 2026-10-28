@@ -212,26 +212,26 @@ export default function ScheduledJobs() {
       <span class="badge badge-primary badge-outline">{jobs.filter(job => job.enabled).length} active</span>
     </header>
 
-    <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(16rem,.9fr)]">
-      <form class="min-w-0 card card-bordered bg-base-200 p-5" onSubmit={save}>
-        <div class="border-b border-base-300 pb-4">
-          <div><p class="text-xs font-bold tracking-widest text-primary">{editingId ? 'EDIT AUTOMATION' : 'NEW AUTOMATION'}</p><h2>{editingId ? 'Edit automation' : 'Create an automation'}</h2></div>
+    <div class="grid min-w-0 grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,1fr)] xl:gap-6">
+      <form class="card card-bordered w-full min-w-0 gap-0 bg-base-200 p-4 sm:p-6" onSubmit={save}>
+        <div class="mb-1 border-b border-base-300 pb-4">
+          <div><p class="text-xs font-bold tracking-widest text-primary">{editingId ? 'EDIT AUTOMATION' : 'NEW AUTOMATION'}</p><h2 class="mt-1 text-xl font-semibold">{editingId ? 'Edit automation' : 'Create an automation'}</h2></div>
         </div>
-        <div class="grid gap-x-4 gap-y-4 pt-4 sm:grid-cols-2">
+        <div class="grid min-w-0 gap-x-4 gap-y-5 pt-5 sm:grid-cols-2">
           <div class="min-w-0 space-y-2 sm:col-span-2">
             <label class="label-text font-medium" for="scheduled-job-name">Job name</label>
-            <input class="input input-bordered" id="scheduled-job-name" type="text" required minLength="1" maxLength="120" value={draft.name} disabled={loading || saving} onInput={event => change('name', event.currentTarget.value)} />
+            <input class="input input-bordered w-full min-w-0" id="scheduled-job-name" type="text" required minLength="1" maxLength="120" value={draft.name} disabled={loading || saving} onInput={event => change('name', event.currentTarget.value)} />
           </div>
           <div class="min-w-0 space-y-2 sm:col-span-2">
             <label class="label-text font-medium" for="scheduled-job-agent">Run with persona</label>
-            <select class="select select-bordered" id="scheduled-job-agent" required value={draft.personaId} disabled={loading || saving || !personas.length} onChange={event => change('personaId', event.currentTarget.value)}>
+            <select class="select select-bordered w-full min-w-0" id="scheduled-job-agent" required value={draft.personaId} disabled={loading || saving || !personas.length} onChange={event => change('personaId', event.currentTarget.value)}>
               <option value="" disabled>{personas.length ? 'Choose a persona' : 'Create a persona first'}</option>
               {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
             </select>
           </div>
           <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-model">Model</label>
-            <select class="select select-bordered" id="scheduled-job-model" value={selectedModelKey} disabled={loading || saving || !connectedModels.length} onChange={event => {
+            <select class="select select-bordered w-full min-w-0" id="scheduled-job-model" value={selectedModelKey} disabled={loading || saving || !connectedModels.length} onChange={event => {
               const selected = connectedModels.find(item => modelKey(item) === event.currentTarget.value);
               change('model', selected?.id || '');
               change('provider', selected?.provider || '');
@@ -244,14 +244,14 @@ export default function ScheduledJobs() {
           </div>
           <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-thinking">Thinking level</label>
-            <select class="select select-bordered" id="scheduled-job-thinking" value={draft.thinkingLevel} disabled={loading || saving || !thinkingLevels.length} onChange={event => change('thinkingLevel', event.currentTarget.value)}>
+            <select class="select select-bordered w-full min-w-0" id="scheduled-job-thinking" value={draft.thinkingLevel} disabled={loading || saving || !thinkingLevels.length} onChange={event => change('thinkingLevel', event.currentTarget.value)}>
               <option value="">Use default</option>
               {thinkingLevels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}
             </select>
           </div>
           <div class="min-w-0 space-y-2 sm:col-span-2">
             <label class="label-text font-medium" for="scheduled-job-task">Task prompt</label>
-            <textarea class="textarea textarea-bordered rounded-box w-full" id="scheduled-job-task" rows="5" required maxLength="20000" placeholder="Describe the task to run on every occurrence…" value={draft.task} disabled={loading || saving} onInput={event => change('task', event.currentTarget.value)} />
+            <textarea class="textarea textarea-bordered rounded-box w-full min-w-0" id="scheduled-job-task" rows="5" required maxLength="20000" placeholder="Describe the task to run on every occurrence…" value={draft.task} disabled={loading || saving} onInput={event => change('task', event.currentTarget.value)} />
             <p class="mt-2 text-sm leading-relaxed text-base-content/70">A new agent session is created for each run.</p>
           </div>
           <fieldset class="min-w-0 space-y-2 sm:col-span-2 border-0 p-0" disabled={loading || saving}>
@@ -264,49 +264,49 @@ export default function ScheduledJobs() {
           </fieldset>
           <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-frequency">Repeat</label>
-            <select class="select select-bordered" id="scheduled-job-frequency" value={draft.schedule.type} disabled={loading || saving} onChange={event => chooseSchedule(event.currentTarget.value)}>
+            <select class="select select-bordered w-full min-w-0" id="scheduled-job-frequency" value={draft.schedule.type} disabled={loading || saving} onChange={event => chooseSchedule(event.currentTarget.value)}>
               {scheduleTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
           {['daily', 'weekly', 'monthly'].includes(draft.schedule.type) && <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-time">At</label>
-            <input class="input input-bordered" id="scheduled-job-time" type="time" required value={draft.schedule.time} disabled={loading || saving} onInput={event => changeSchedule('time', event.currentTarget.value)} />
+            <input class="input input-bordered w-full min-w-0" id="scheduled-job-time" type="time" required value={draft.schedule.time} disabled={loading || saving} onInput={event => changeSchedule('time', event.currentTarget.value)} />
           </div>}
           {draft.schedule.type === 'weekly' && <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-day">Weekday</label>
-            <select class="select select-bordered" id="scheduled-job-day" value={draft.schedule.weekday} disabled={loading || saving} onChange={event => changeSchedule('weekday', Number(event.currentTarget.value))}>
+            <select class="select select-bordered w-full min-w-0" id="scheduled-job-day" value={draft.schedule.weekday} disabled={loading || saving} onChange={event => changeSchedule('weekday', Number(event.currentTarget.value))}>
               {weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}
             </select>
           </div>}
           {draft.schedule.type === 'monthly' && <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-day-of-month">Day of month</label>
-            <select class="select select-bordered" id="scheduled-job-day-of-month" value={draft.schedule.dayOfMonth} disabled={loading || saving} onChange={event => changeSchedule('dayOfMonth', Number(event.currentTarget.value))}>
+            <select class="select select-bordered w-full min-w-0" id="scheduled-job-day-of-month" value={draft.schedule.dayOfMonth} disabled={loading || saving} onChange={event => changeSchedule('dayOfMonth', Number(event.currentTarget.value))}>
               {Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
             </select>
             <p class="mt-2 text-sm leading-relaxed text-base-content/70">Days 29–31 do not run in shorter months.</p>
           </div>}
           {['every_n_minutes', 'every_n_hours'].includes(draft.schedule.type) && <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-interval">Every</label>
-            <div class="flex items-center gap-2"><input class="input input-bordered" id="scheduled-job-interval" type="number" min="1" max={draft.schedule.type === 'every_n_minutes' ? 59 : 24} required value={draft.schedule.interval} disabled={loading || saving} onInput={event => changeSchedule('interval', Number(event.currentTarget.value))} /><span>{draft.schedule.type === 'every_n_minutes' ? 'minutes' : 'hours'}</span></div>
+            <div class="flex items-center gap-2"><input class="input input-bordered min-w-0 flex-1" id="scheduled-job-interval" type="number" min="1" max={draft.schedule.type === 'every_n_minutes' ? 59 : 24} required value={draft.schedule.interval} disabled={loading || saving} onInput={event => changeSchedule('interval', Number(event.currentTarget.value))} /><span>{draft.schedule.type === 'every_n_minutes' ? 'minutes' : 'hours'}</span></div>
             <p class="mt-2 text-sm leading-relaxed text-base-content/70">Aligned to local clock {draft.schedule.type === 'every_n_minutes' ? 'minute' : 'hour'} boundaries.</p>
           </div>}
           <div class="min-w-0 space-y-2">
             <label class="label-text font-medium" for="scheduled-job-timezone">Timezone</label>
-            <input class="input input-bordered" id="scheduled-job-timezone" type="text" required maxLength="100" placeholder="America/Los_Angeles" value={draft.schedule.timezone} disabled={loading || saving} onInput={event => changeSchedule('timezone', event.currentTarget.value)} />
+            <input class="input input-bordered w-full min-w-0" id="scheduled-job-timezone" type="text" required maxLength="100" placeholder="America/Los_Angeles" value={draft.schedule.timezone} disabled={loading || saving} onInput={event => changeSchedule('timezone', event.currentTarget.value)} />
             <p class="mt-2 text-sm leading-relaxed text-base-content/70">Use an IANA timezone, such as Europe/London or UTC.</p>
           </div>
         </div>
         {error && <p class="alert alert-error mt-3" role="alert">{error}</p>}
         {status && <p class="alert alert-success mt-3" role="status">{status}</p>}
         {!personas.length && !loading && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Create a persona before adding an automation.</p>}
-        <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-base-300 pt-4">
+        <div class="mt-6 flex flex-wrap justify-end gap-2 border-t border-base-300 pt-4">
           {editingId && <button class="btn btn-ghost" type="button" disabled={saving} onClick={resetForm}>Cancel edit</button>}
           <button class="btn btn-primary" type="submit" disabled={!canSave}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create automation'}</button>
         </div>
       </form>
 
-      <aside class="grid gap-3" aria-label="Automations">
-        <section class="card card-bordered bg-base-200 p-5">
+      <aside class="grid w-full min-w-0 gap-3" aria-label="Automations">
+        <section class="card card-bordered bg-base-200 p-4 sm:p-5">
           <div class="mb-3 flex items-center justify-between gap-3"><div><p class="text-xs font-bold tracking-widest text-primary">AUTOMATIONS</p><h2>Your jobs</h2></div><span>{jobs.length}</span></div>
           {loading && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Loading automations…</p>}
           {!loading && !jobs.length && <div class="flex items-start gap-3 rounded-box border border-dashed border-base-300 p-4"><span class="text-2xl text-primary" aria-hidden="true">◷</span><div><strong>No automations yet</strong><p>Create a job to run a recurring persona task.</p></div></div>}

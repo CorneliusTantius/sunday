@@ -234,6 +234,8 @@ test('running indicator remains present while agent pinning stays interactive', 
   const pill = app.window.document.querySelector('#sessions-list [aria-label="Running"]');
   const pin = app.window.document.querySelector('#sessions-list [data-agent-id="working-test"]');
   assert.ok(pill);
+  assert.ok(pill.classList.contains('size-2.5'), 'running indicator has an explicit visible dot size');
+  assert.ok(pill.classList.contains('bg-success'), 'running indicator uses the success color');
   assert.equal(pin.disabled, false);
   act(() => pin.click());
   assert.deepEqual(JSON.parse(app.window.localStorage.getItem('sunday-pinned-agent-ids')), ['working-test']);

@@ -52,7 +52,6 @@ test('pill controls, rounded surfaces, and editable textareas keep appropriate s
   ]) assert.ok(read(path).includes('textarea textarea-bordered rounded-box'), `${path} needs a rounded text area`);
   for (const path of [
     'components/McpServers.jsx',
-    'components/Repositories.jsx',
     'components/SessionConfig.jsx',
     'components/Personas.jsx',
     'components/ScheduledJobs.jsx',

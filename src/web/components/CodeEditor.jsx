@@ -272,7 +272,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
   saveAction.current = save;
 
   function fileButton(path, label) {
-    return <button type="button" class="btn btn-ghost min-h-9 w-full justify-start gap-2 rounded-field px-2.5 py-2 text-left text-[13px] leading-snug text-base-content [overflow-wrap:anywhere] aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary disabled:opacity-60 sm:min-h-11" disabled={saving}
+    return <button type="button" class="btn btn-ghost border-0 min-h-9 w-full justify-start gap-2 rounded-field px-2.5 py-2 text-left text-[13px] leading-snug text-base-content [overflow-wrap:anywhere] aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary disabled:opacity-60 sm:min-h-11" disabled={saving}
       aria-current={file === path ? 'page' : undefined} onClick={() => openFile(path)}><span class="w-4 flex-none text-center text-base-content/60" aria-hidden="true">◇</span><span>{label}</span></button>;
   }
 
@@ -282,7 +282,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
       {directory?.loading && <p class="py-2 text-sm text-base-content/70" role="status">Loading files…</p>}
       {directory?.error && <div class="space-y-2">
         <p class="alert alert-error py-2" role="alert">{directory.error}</p>
-        <button type="button" class="btn btn-outline btn-sm" onClick={() => loadDirectory(path)}>Retry {path || root}</button>
+        <button type="button" class="btn btn-ghost btn-sm border-0" onClick={() => loadDirectory(path)}>Retry {path || root}</button>
       </div>}
       {directory && !directory.loading && !directory.error && !directory.entries.length && <p class="py-2 text-sm text-base-content/70">This directory is empty.</p>}
       <ul class="m-1 list-none space-y-1 p-0 [&_ul]:ml-3 [&_ul]:border-l [&_ul]:border-base-300 [&_ul]:pl-1">
@@ -291,7 +291,7 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
           const isDirectory = entry.type === 'directory';
           return <li class="my-1" key={childPath}>
             {isDirectory ? <>
-              <button type="button" class="btn btn-ghost min-h-9 w-full justify-start gap-2 rounded-field px-2.5 py-2 text-left text-[13px] font-semibold leading-snug text-base-content [overflow-wrap:anywhere] sm:min-h-11" aria-expanded={expanded.has(childPath)}
+              <button type="button" class="btn btn-ghost border-0 min-h-9 w-full justify-start gap-2 rounded-field px-2.5 py-2 text-left text-[13px] font-semibold leading-snug text-base-content [overflow-wrap:anywhere] sm:min-h-11" aria-expanded={expanded.has(childPath)}
                 aria-controls={`code-editor-directory-${encodeURIComponent(childPath)}`} onClick={() => toggleDirectory(childPath)}>
                 <span class="w-4 flex-none text-center text-base-content/60" aria-hidden="true">{expanded.has(childPath) ? '▾' : '▸'}</span><span>{entry.name}</span>
               </button>
@@ -305,19 +305,18 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
 
   return <section class="flex min-h-0 min-w-0 flex-1 flex-col p-3 sm:p-6" aria-labelledby="code-editor-title">
     <header class="mb-3 flex flex-none items-center justify-between gap-3 sm:mb-5"><div><p class="mb-1 text-xs font-bold tracking-widest text-primary">WORKSPACE</p><h1 class="m-0 text-2xl font-bold sm:text-[28px]" id="code-editor-title" tabIndex="-1">Files</h1></div>
-      <button type="button" class="btn btn-primary" onClick={save} disabled={!file || !dirty || saving || loadingFile} aria-keyshortcuts="Control+s Meta+s">{saving ? 'Saving…' : 'Save'}</button>
+      <button type="button" class="btn btn-primary border-0" onClick={save} disabled={!file || !dirty || saving || loadingFile} aria-keyshortcuts="Control+s Meta+s">{saving ? 'Saving…' : 'Save'}</button>
     </header>
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-box border border-base-300 lg:flex-row">
       <aside class="max-h-[35dvh] min-h-0 w-full flex-[0_1_220px] overflow-auto border-b border-base-300 bg-base-200 p-2.5 lg:max-h-none lg:w-[260px] lg:flex-none lg:border-b-0 lg:border-r lg:p-3.5" aria-label="File browser">
         <div class="mb-2.5 flex items-center justify-between gap-2 lg:mb-4"><h2 class="m-0 text-[11px] font-bold tracking-widest text-base-content/70">FILE TREE</h2>
-          <button type="button" class="btn btn-outline btn-sm" onClick={refreshFiles}>Refresh files</button>
+          <button type="button" class="btn btn-ghost btn-sm border-0" onClick={refreshFiles}>Refresh files</button>
         </div>
         <form class="mb-2.5 lg:mb-4" onSubmit={changeDirectory}>
           <label class="mb-2 block text-sm font-semibold" for="code-editor-root-input">Directory</label>
           <div class="flex flex-wrap gap-1.5">
             <input class="input input-bordered h-[38px] min-w-0 flex-[1_1_130px]" id="code-editor-root-input" value={directoryInput} onInput={event => setDirectoryInput(event.currentTarget.value)} placeholder="~/sunday or /absolute/path" spellcheck={false} />
-            <button type="submit" class="btn btn-outline btn-sm" disabled={!directoryInput.trim() || saving || loadingFile}>Open</button>
-            <button type="button" class="btn btn-outline btn-sm" disabled={root === '/' || saving || loadingFile}
+            <button type="button" class="btn btn-ghost btn-sm border-0" disabled={root === '/' || saving || loadingFile}
               onClick={() => changeDirectory(null, root.split('/').slice(0, -1).join('/') || '/')}>Up</button>
           </div>
           {directoryError && <p class="alert alert-error py-2" role="alert">{directoryError}</p>}
