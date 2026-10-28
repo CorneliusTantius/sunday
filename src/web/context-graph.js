@@ -10,6 +10,7 @@ export function layoutContextGraph(nodes = [], links = []) {
   const count = nodes.length;
   const centerX = CONTEXT_GRAPH_WIDTH / 2;
   const centerY = CONTEXT_GRAPH_HEIGHT / 2;
+  const maxRadius = Math.min(centerX, centerY) - 56;
   const positions = nodes.map((_, index) => {
     const angle = index * GOLDEN_ANGLE;
     const radius = Math.min(180, 32 + Math.sqrt((index + 1) / count) * 130);
@@ -30,6 +31,9 @@ export function layoutContextGraph(nodes = [], links = []) {
     degree[to]++;
   }
 
+  // Scale repulsion with graph size so large graphs fill the canvas rather than
+  // accumulating at its boundary. Links still draw related notes together.
+  const repulsion = 18 * Math.min(1, 20 / count);
   const iterations = count < 50 ? 150 : count < 120 ? 100 : count < 300 ? 65 : count < 700 ? 30 : 16;
   for (let iteration = 0; iteration < iterations; iteration++) {
     const forces = positions.map(() => ({ x: 0, y: 0 }));
@@ -38,7 +42,7 @@ export function layoutContextGraph(nodes = [], links = []) {
         const dx = positions[right].x - positions[left].x;
         const dy = positions[right].y - positions[left].y;
         const distanceSquared = Math.max(25, dx * dx + dy * dy);
-        const repel = 90 / distanceSquared;
+        const repel = repulsion / distanceSquared;
         const fx = dx * repel, fy = dy * repel;
         forces[left].x -= fx; forces[left].y -= fy;
         forces[right].x += fx; forces[right].y += fy;
@@ -48,7 +52,7 @@ export function layoutContextGraph(nodes = [], links = []) {
       const dx = positions[to].x - positions[from].x;
       const dy = positions[to].y - positions[from].y;
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const spring = (distance - 150) * 0.009;
+      const spring = (distance - 35) * 0.025;
       const fx = dx / distance * spring, fy = dy / distance * spring;
       forces[from].x += fx; forces[from].y += fy;
       forces[to].x -= fx; forces[to].y -= fy;
@@ -56,16 +60,24 @@ export function layoutContextGraph(nodes = [], links = []) {
     const damping = 0.82;
     for (let index = 0; index < count; index++) {
       const point = positions[index], force = forces[index];
-      force.x += (centerX - point.x) * 0.0025;
-      force.y += (centerY - point.y) * 0.0025;
-      if (point.x < 56) force.x += (56 - point.x) * 0.12;
-      if (point.x > CONTEXT_GRAPH_WIDTH - 56) force.x -= (point.x - (CONTEXT_GRAPH_WIDTH - 56)) * 0.12;
-      if (point.y < 56) force.y += (56 - point.y) * 0.12;
-      if (point.y > CONTEXT_GRAPH_HEIGHT - 56) force.y -= (point.y - (CONTEXT_GRAPH_HEIGHT - 56)) * 0.12;
-      point.vx = Math.max(-10, Math.min(10, (point.vx + force.x) * damping));
-      point.vy = Math.max(-10, Math.min(10, (point.vy + force.y) * damping));
-      point.x = Math.max(56, Math.min(CONTEXT_GRAPH_WIDTH - 56, point.x + point.vx));
-      point.y = Math.max(56, Math.min(CONTEXT_GRAPH_HEIGHT - 56, point.y + point.vy));
+      force.x += (centerX - point.x) * 0.01;
+      force.y += (centerY - point.y) * 0.01;
+      point.vx = (point.vx + force.x) * damping;
+      point.vy = (point.vy + force.y) * damping;
+      const speed = Math.hypot(point.vx, point.vy);
+      if (speed > 10) { point.vx *= 10 / speed; point.vy *= 10 / speed; }
+      point.x += point.vx;
+      point.y += point.vy;
+      // A radial boundary avoids piling nodes along the four sides of the canvas.
+      const dx = point.x - centerX, dy = point.y - centerY;
+      const radius = Math.hypot(dx, dy);
+      if (radius > maxRadius) {
+        point.x = centerX + dx * maxRadius / radius;
+        point.y = centerY + dy * maxRadius / radius;
+        // Remove outward velocity while allowing motion around the boundary.
+        const outward = (point.vx * dx + point.vy * dy) / radius;
+        if (outward > 0) { point.vx -= outward * dx / radius; point.vy -= outward * dy / radius; }
+      }
     }
   }
 
