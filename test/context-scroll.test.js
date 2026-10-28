@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
 
-const css = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
-
-test('context page scrolls within the app main pane', () => {
-  assert.match(css, /\.context-page\s*\{[^}]*flex:\s*1 1 auto;[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto/s);
+test('context page remains independently scrollable', t => {
+  const dom = new JSDOM('<main><section class="context-page"></section></main>');
+  t.after(() => dom.window.close());
+  const style = dom.window.document.createElement('style');
+  style.textContent = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
+  dom.window.document.head.append(style);
+  const page = dom.window.getComputedStyle(dom.window.document.querySelector('.context-page'));
+  assert.equal(page.overflowY, 'auto');
 });

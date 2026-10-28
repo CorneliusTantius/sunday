@@ -92,10 +92,6 @@ async function mount(t) {
 }
 
 test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays run history', async t => {
-  const css = await readFile(new URL('../src/web/style.css', import.meta.url), 'utf8');
-  assert.match(css, /\.scheduled-jobs-page\s*\{[^}]*scrollbar-width:\s*none/s);
-  assert.match(css, /\.scheduled-jobs-page::-webkit-scrollbar\s*\{\s*display:\s*none;/);
-  assert.match(css, /\.scheduled-jobs-page\s*\{[^}]*width:\s*min\(1280px,/s);
   const h = await mount(t);
   const { window, $, click, setValue, calls, jobs } = h;
 

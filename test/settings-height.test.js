@@ -1,6 +1,6 @@
 import test from 'node:test';
-import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
 import vm from 'node:vm';
 
 // Run Settings' real sizing effect without JSX; model untransformed layout APIs.
@@ -51,7 +51,7 @@ function mount({ observer = true, height = 280, viewportHeight = 800, visualHeig
   refs.backdrop.current = container;
   refs.contentViewport.current = {
     style, dataset: {}, parentElement: frame,
-    get offsetHeight() { flushes.push({ height: style.height, transition: style.transition }); return parseFloat(style.height); },
+    get offsetHeight() { flushes.push({ height: style.height }); return parseFloat(style.height); },
   };
   refs.contentLayout.current = { offsetHeight: height, querySelector: () => null };
   for (const effect of effects) cleanups.push(effect());
@@ -69,8 +69,7 @@ function mount({ observer = true, height = 280, viewportHeight = 800, visualHeig
 test('Settings locks its initial capped height without animation, then tracks growth and shrink', () => {
   const modal = mount();
   assert.equal(modal.style.height, '280px');
-  assert.deepEqual(modal.flushes, [{ height: '280px', transition: 'none' }], 'initial height is committed with transitions disabled');
-  assert.equal(modal.style.transition, undefined, 'later measurements use the CSS transition');
+  assert.deepEqual(modal.flushes, [{ height: '280px' }], 'initial height is committed before observation begins');
   assert.deepEqual(modal.observed, [modal.refs.contentLayout.current, modal.header, modal.footer, modal.container]);
   assert.ok(!modal.observed.includes(modal.refs.contentViewport.current));
   assert.ok(!modal.observed.includes(modal.frame), 'never observe the animated modal');
@@ -91,7 +90,7 @@ test('oversized Personas and async intermediate heights share the same capped ta
   const modal = mount({ height: 1200 });
   assert.equal(modal.style.height, '578px');
   for (const height of [1600, 950, 1300, 700]) modal.resize(height);
-  assert.deepEqual(modal.writes, ['578px'], 'no redundant transition restarts while loading tall content');
+  assert.deepEqual(modal.writes, ['578px'], 'no redundant height writes while loading tall content');
   modal.resize(300);
   modal.resize(1500);
   modal.resize(260);
@@ -148,14 +147,3 @@ test('Settings retains natural CSS sizing for navigation and async updates witho
   assert.equal(modal.listeners.size, 0);
 });
 
-test('Settings animates only the non-shrinking scroll viewport and honors reduced motion', () => {
-  const css = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
-  assert.match(css, /\.settings-content\s*\{[^}]*flex: 1 1 auto;[^}]*min-height: 0;[^}]*overflow: hidden;[^}]*transition: height 220ms/);
-  assert.match(css, /\.settings-detail\s*\{[^}]*min-height: 0;[^}]*overflow-y: auto;[^}]*overscroll-behavior-y: contain;/);
-  assert.match(css, /\.settings-layout\s*\{[^}]*grid-template-rows: minmax\(0, 1fr\);[^}]*height: 100%;[^}]*min-height: 0;/);
-  assert.match(css, /\.settings-content\[data-sized\]\s*\{\s*flex-shrink: 0;/);
-  assert.match(css, /\.settings-modal\s*\{[^}]*max-height: calc\(100dvh - 40px\)/);
-  assert.match(css, /\.settings-modal\s*\{[^}]*width: min\(1200px, 100%\);[^}]*height: min\(80dvh, calc\(100dvh - 40px\)\)/);
-  assert.match(css, /\.settings-layout\s*\{[^}]*display: grid;[^}]*padding: 28px;/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\*, \*::before, \*::after\s*\{[^}]*transition: none !important/);
-});

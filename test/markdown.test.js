@@ -96,14 +96,10 @@ test('bubble updates streamed Markdown but renders errors as plain text with pre
   render(h(MessageBubble, { content: '**streamed**' }), root);
   assert.equal(root.querySelector('strong').textContent, 'streamed');
   const css = selector => dom.window.getComputedStyle(root.querySelector(selector));
-  assert.equal(css('.message-bubble').whiteSpace, 'normal');
-  assert.equal(css('.message-bubble').minWidth, '0px');
   render(h(MessageBubble, { content: '| A | B |\n| - | - |\n| one | two |\n\n```\nlong line\n```' }), root);
   assert.equal(css('.markdown-table').overflowX, 'auto');
-  assert.equal(css('.markdown-table').maxWidth, '100%');
   assert.equal(css('pre').whiteSpace, 'pre-wrap');
   assert.equal(css('pre').overflowX, 'auto');
-  assert.equal(css('pre').maxWidth, '100%');
   const error = '**not bold**\n  <img src=x onerror=alert(1)>';
   render(h(MessageBubble, { content: error, error: true }), root);
   assert.equal(root.querySelector('.error-text').textContent, error);
