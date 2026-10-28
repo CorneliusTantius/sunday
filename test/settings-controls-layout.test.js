@@ -22,6 +22,11 @@ test('model refresh also updates the active chat model selector', () => {
 test('settings model selector is populated from connected models', () => {
   assert.match(read('components/Settings.jsx'), /connectedModels\.map\(item => <option/);
 });
+test('persona character color selector has a subtle visible boundary', () => {
+  const personas = read('components/Personas.jsx');
+  assert.match(personas, /<select class="select select-bordered border-base-300" id="persona-color"/);
+});
+
 test('persona tools are in an initially open native disclosure', () => {
   const personas = read('components/Personas.jsx');
   assert.match(personas, /<details class="collapse collapse-arrow[^\"]*" open><summary>Tool permissions<\/summary>/);
