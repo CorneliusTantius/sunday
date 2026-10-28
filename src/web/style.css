@@ -53,6 +53,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visib
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+#prompt:focus-visible {
+  outline: none;
+  caret-color: var(--color-primary);
+}
 
 @keyframes page-enter {
   from { opacity: 0; transform: translateY(0.35rem); }
