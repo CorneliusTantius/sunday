@@ -96,18 +96,19 @@ for (const mobile of [true, false]) {
   });
 }
 
-test('new agent label and pinning keep at most three agents first without a heading', async t => {
+test('agents stay visible under their heading and pinning keeps at most three first', async t => {
   const sessions = Array.from({ length: 4 }, (_, index) => ({ id: `agent-${index + 1}`, title: `Agent ${index + 1}`, messages: [] }));
   const app = await mount(t, false, sessions);
   await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
   assert.match(app.get('new-chat').textContent, /New agent/);
-  app.click('agents-toggle');
   const pinButton = id => app.window.document.querySelector(`#sessions-list [data-agent-id="${id}"]`);
   assert.equal(app.window.document.querySelectorAll('#sessions-list [data-agent-id]').length, 4);
   for (const session of sessions.slice(0, 3)) act(() => pinButton(session.id).click());
   const rows = () => [...app.window.document.querySelectorAll('#sessions-list [data-agent-id]')].map(button => button.parentElement.querySelector('button[title]').textContent);
   assert.deepEqual(rows(), ['Agent 1', 'Agent 2', 'Agent 3', 'Agent 4']);
-  assert.deepEqual([...app.window.document.querySelectorAll('.agent-list-heading')], []);
+  assert.equal(app.get('agents-heading').textContent, 'Agents');
+  assert.equal(app.get('sessions-list').getAttribute('aria-label'), 'Agents');
+  assert.equal(app.window.document.querySelector('#agents-sessions'), null);
   assert.deepEqual(JSON.parse(app.window.localStorage.getItem('sunday-pinned-agent-ids')), ['agent-1', 'agent-2', 'agent-3']);
   act(() => pinButton('agent-4').click());
   assert.equal(app.get('toast').textContent, 'You can pin up to 3 agents. Unpin one first.');
@@ -124,7 +125,6 @@ test('scheduled-job sessions stay out of both pinned and regular sidebar session
     { id: 'regular', title: 'Regular chat', messages: [] },
   ], ['scheduled', 'pinned']);
   await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
-  app.click('agents-toggle');
   const rows = [...app.window.document.querySelectorAll('#sessions-list [data-agent-id]')];
   assert.deepEqual(rows.map(button => button.parentElement.querySelector('button[title]').textContent), ['Pinned chat', 'Regular chat']);
   assert.equal(app.window.document.querySelector('#sessions-list [data-agent-id="scheduled"]'), null);
@@ -221,7 +221,6 @@ test('running indicator remains present while agent pinning stays interactive', 
     { id: 'working-test', title: 'A very long running agent name that must not hide the indicator', messages: [], running: true },
   ]);
   await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
-  app.click('agents-toggle');
   const pill = app.window.document.querySelector('#sessions-list [aria-label="Running"]');
   const pin = app.window.document.querySelector('#sessions-list [data-agent-id="working-test"]');
   assert.ok(pill);
@@ -236,7 +235,6 @@ test('ordinary sessions remain pinnable in the sidebar', async t => {
     { id: 'session-b', title: 'Session B', messages: [] },
   ]);
   await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
-  app.click('agents-toggle');
   assert.ok(app.window.document.querySelector('#sessions-list [data-agent-id="session-b"]'));
   assert.equal(app.window.document.querySelector('#sessions-list [data-agent-id="session-b"]')?.getAttribute('aria-pressed'), 'false');
   assert.equal(app.window.document.getElementById('dashboard-link'), null);

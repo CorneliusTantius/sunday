@@ -21,7 +21,7 @@ test('Context graph nodes remain keyboard-operable buttons', () => {
 
 test('reduced-motion preferences disable page scrolling, transitions, and animation', () => {
   const html = read('index.html');
-  assert.match(html, /<html[^>]*class="motion-reduce:scroll-auto"/);
+  assert.match(html, /<html[^>]*class="[^"]*motion-reduce:scroll-auto"/);
   assert.match(html, /<body[^>]*motion-reduce:transition-none motion-reduce:animate-none/);
   for (const utility of [
     'motion-reduce:[&_*]:transition-none',
