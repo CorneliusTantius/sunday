@@ -9,18 +9,12 @@ const modesFor = provider => [provider?.hasApiKey && ['api_key', 'API key'], pro
 
 export default function Settings({ settings, onReload, onClose, toast }) {
   const closeTimer = useRef(null);
-  const [entered, setEntered] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const [closing, setClosing] = useState(false);
-  useEffect(() => {
-    if (entered) return;
-    const frame = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(frame);
-  }, [entered]);
   function requestClose() {
     if (closeTimer.current !== null) return;
     setClosing(true);
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    closeTimer.current = setTimeout(onClose, reduced ? 0 : 340);
+    closeTimer.current = setTimeout(onClose, reduced ? 0 : 240);
   }
   useEffect(() => () => clearTimeout(closeTimer.current), []);
   const initial = settings || {};
@@ -419,8 +413,9 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { updatePending.current = false; if (alive.current) setUpdating(false); }
   }
 
-  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 transition-opacity duration-300 motion-reduce:transition-none ${closing ? 'ease-in' : 'ease-out'} ${entered && !closing ? 'opacity-100' : 'pointer-events-none opacity-0'}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
-    <section class={`card flex h-[min(80dvh,calc(100dvh-2.5rem))] w-full max-w-6xl flex-col overflow-hidden rounded-box border border-base-300 bg-base-100 text-base-content shadow-xl transition-[transform,opacity] duration-300 motion-reduce:transition-none ${closing ? 'ease-in' : 'ease-out'} ${entered && !closing ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-95 opacity-0'}`} role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center p-4 ${closing ? 'pointer-events-none' : ''}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
+    <div aria-hidden="true" class={`pointer-events-none absolute inset-0 bg-black/50 ${closing ? 'settings-backdrop-exit' : 'settings-backdrop-enter'}`} />
+    <section class={`card relative z-10 flex h-[min(80dvh,calc(100dvh-2.5rem))] w-full max-w-6xl flex-col overflow-hidden rounded-box border border-base-300 bg-base-100 text-base-content shadow-xl ${closing ? 'settings-modal-exit' : 'settings-modal-enter'}`} role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header data-settings-header class="flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4 sm:px-7"><div><p class="mb-1 text-xs font-bold tracking-widest text-primary">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="btn btn-ghost h-9 min-h-9 w-12 rounded-full border-0 bg-black/10 hover:bg-black/20 text-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" id="close-settings" aria-label="Close settings" onClick={requestClose}>×</button></header>
       <div ref={contentViewport} class="min-h-0 flex-1 overflow-hidden transition-[height] duration-200">
       <div ref={contentLayout} class="grid h-full min-h-0 grid-cols-1 gap-5 p-5 sm:grid-cols-[15rem_minmax(0,1fr)] sm:gap-7 sm:p-7">

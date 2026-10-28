@@ -68,6 +68,21 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visib
   to { opacity: 1; transform: translateY(0); }
 }
 .settings-view-enter { animation: settings-view-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes settings-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes settings-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes settings-modal-in {
+  from { opacity: 0; transform: translate3d(0, 0.5rem, 0) scale(0.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes settings-modal-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  to { opacity: 0; transform: translate3d(0, 0.5rem, 0) scale(0.985); }
+}
+.settings-backdrop-enter { animation: settings-backdrop-in 240ms ease-out both; will-change: opacity; }
+.settings-backdrop-exit { animation: settings-backdrop-out 220ms ease-in both; will-change: opacity; }
+.settings-modal-enter { animation: settings-modal-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both; will-change: transform, opacity; }
+.settings-modal-exit { animation: settings-modal-out 220ms cubic-bezier(0.4, 0, 1, 1) both; will-change: transform, opacity; }
 @media (prefers-reduced-motion: reduce) {
   .page-enter, .settings-view-enter { animation: none; }
+  .settings-backdrop-enter, .settings-backdrop-exit, .settings-modal-enter, .settings-modal-exit { animation: none; will-change: auto; }
 }

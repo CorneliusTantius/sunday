@@ -7,17 +7,20 @@ const personas = readFileSync(new URL('../src/web/components/Personas.jsx', impo
 const styles = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
 
 test('settings modal uses a translucent dark backdrop', () => {
-  assert.match(settings, /fixed inset-0 z-50 grid place-items-center bg-black\/50 p-4 transition-opacity duration-300/);
+  assert.match(settings, /pointer-events-none absolute inset-0 bg-black\/50/);
 });
 
-test('settings modal animates open and close and respects reduced motion', () => {
-  assert.ok(settings.includes("window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false"));
-  assert.ok(settings.includes('requestAnimationFrame(() => setEntered(true))'));
-  assert.match(settings, /transition-opacity duration-300 motion-reduce:transition-none \$\{closing \? 'ease-in' : 'ease-out'\}/);
-  assert.match(settings, /transition-\[transform,opacity\] duration-300 motion-reduce:transition-none \$\{closing \? 'ease-in' : 'ease-out'\}/);
-  assert.match(settings, /setTimeout\(onClose, reduced \? 0 : 340\)/);
+test('settings modal animates efficiently and respects reduced motion', () => {
+  assert.doesNotMatch(settings, /setEntered|requestAnimationFrame/);
+  assert.match(settings, /aria-hidden="true" class=\{`pointer-events-none absolute inset-0 bg-black\/50 \$\{closing \? 'settings-backdrop-exit' : 'settings-backdrop-enter'\}`\}/);
+  assert.match(settings, /relative z-10[^\"]*\$\{closing \? 'settings-modal-exit' : 'settings-modal-enter'\}/);
+  assert.match(styles, /\.settings-backdrop-enter \{ animation: settings-backdrop-in 240ms ease-out both; will-change: opacity; \}/);
+  assert.match(styles, /\.settings-modal-enter \{ animation: settings-modal-in 280ms cubic-bezier\(0\.22, 1, 0\.36, 1\) both; will-change: transform, opacity; \}/);
+  assert.match(styles, /\.settings-modal-exit \{ animation: settings-modal-out 220ms cubic-bezier\(0\.4, 0, 1, 1\) both; will-change: transform, opacity; \}/);
+  assert.match(settings, /setTimeout\(onClose, reduced \? 0 : 240\)/);
   assert.match(settings, /event\.target === event\.currentTarget\) requestClose\(\)/);
   assert.match(settings, /id="close-settings"[^>]*onClick=\{requestClose\}/);
+  assert.match(styles, /\.settings-backdrop-enter, \.settings-backdrop-exit, \.settings-modal-enter, \.settings-modal-exit \{ animation: none; will-change: auto; \}/);
 });
 
 test('settings tab content animates in and respects reduced motion', () => {
