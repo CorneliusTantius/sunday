@@ -23,7 +23,9 @@ test('settings model selector is populated from connected models', () => {
   assert.match(read('components/Settings.jsx'), /connectedModels\.map\(item => <option/);
 });
 test('persona tools are in an initially open native disclosure', () => {
-  assert.match(read('components/Personas.jsx'), /<details class="persona-tools-card" open><summary>Tool permissions<\/summary>/);
-  assert.match(read('components/Personas.jsx'), /<\/div><\/fieldset><\/details>/);
+  const personas = read('components/Personas.jsx');
+  assert.match(personas, /<details class="collapse collapse-arrow[^\"]*" open><summary>Tool permissions<\/summary>/);
+  assert.match(personas, /<fieldset class="grid gap-2"><legend class="sr-only">Tool permissions<\/legend>/);
+  assert.match(personas, /<\/div><\/fieldset><\/details>/);
 });
 

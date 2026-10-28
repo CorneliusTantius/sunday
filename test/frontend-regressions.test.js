@@ -433,10 +433,11 @@ test('persona tool whitelist gives each related tool group a single checkbox', (
     "tools: ['context_search', 'context_index', 'context_links', 'context_link', 'context_unlink']",
   ]) assert.ok(source.includes(names), `missing grouped tool entry ${names}`);
   assert.doesNotMatch(source, /subagent|agent_whisper|agent_list/);
-  assert.match(source, /class="repository-checkbox persona-tool-group"/);
+  assert.match(source, /<fieldset class="grid gap-2"><legend class="sr-only">Tool permissions<\/legend>/);
+  assert.match(source, /<input class="checkbox checkbox-primary" type="checkbox" value=\{group\.name\}/);
   assert.match(source, /groupedTools\.map\(tool => tool\.name\)/);
-  assert.match(source, /<ul class="persona-tool-list">\{groupedTools\.map\(tool => <li key=\{tool\.name\}><code>\{tool\.name\}<\/code>:/);
-  assert.match(source, /<ul class="persona-tool-list"><li><code>\{tool\.name\}<\/code>:/);
+  assert.match(source, /groupedTools\.map\(tool => <li key=\{tool\.name\}><code>\{tool\.name\}<\/code>:/);
+  assert.match(source, /<li><code>\{tool\.name\}<\/code>:/);
   assert.match(source, /<strong>\{tool\.name === 'bash' \? 'Bash' : tool\.name\}<\/strong>/);
   assert.match(source, /shortToolDescription\(tool\.description\)/);
   assert.doesNotMatch(source, /groupedTools\.map\(tool => <label/);
@@ -530,19 +531,20 @@ test('context graph skips animation when reduced motion is already enabled', asy
 test('context page opens on graph and hides notes until the Notes view is selected', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
-  assert.match(source, /\{!graphOpen && <div class="context-layout context-tab-view">/);
+  assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);
+  assert.match(source, /aria-pressed=\{!graphOpen\} onClick=\{\(\) => setGraphOpen\(false\)\}>Notes list/);
+  assert.match(source, /\{graphOpen && <section class="card card-bordered bg-base-200 p-5 mb-4"/);
+  assert.match(source, /\{!graphOpen && <div class="grid gap-4 lg:grid-cols-/);
   assert.match(source, /Select a dot, then switch to Notes to read it/);
 });
 
 test('context notes show an Obsidian-style dot graph and selected-note link controls', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /layoutContextGraph\(graph\.nodes, graph\.links\)/);
-  assert.match(source, /class="context-global-svg"/);
-  assert.match(source, /class="context-global-edges"/);
-  assert.match(source, /class={`context-graph-node-dot/);
-  assert.match(source, /class="context-graph-tooltip"[^>]*aria-hidden="true"/);
-  assert.match(source, /<strong>\{node\.title\}<\/strong><span>\{node\.source\}<\/span>/);
-  assert.doesNotMatch(source, /<title>\$\{node\.title\}/);
+  assert.match(source, /<svg class="block h-\[min\(620px,65vh\)\] min-h-90 w-full select-none"[^>]*role="group" aria-label="Connected notes graph"/);
+  assert.match(source, /aria-hidden="true"/);
+  assert.match(source, /<circle r=\{radius\} fill=\{isActive \? 'var\(--color-primary\)'/);
+  assert.match(source, /<title>\{`\$\{node\.title\} — \$\{node\.source\}`\}<\/title>/);
   assert.doesNotMatch(source, /Graph zoom controls|startGraphPan|graphView|graphPositions/);
   assert.match(source, /aria-label={`Open note: \$\{node\.title\}`}/);
   assert.match(source, /Linked notes/);

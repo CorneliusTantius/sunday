@@ -15,7 +15,7 @@ function mount({ observer = true, height = 280, viewportHeight = 800, visualHeig
   const frame = {
     clientHeight: parseFloat(maxHeight),
     computed: { maxHeight, paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '1px', borderBottomWidth: '1px' },
-    querySelector: selector => selector === '.modal-header' ? header : footer,
+    querySelector: selector => selector === '[data-settings-header]' ? header : selector === '[data-settings-footer]' ? footer : null,
   };
   const visualViewport = {
     height: visualHeight,

@@ -105,10 +105,10 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
   await setValue($('#scheduled-job-day'), '5', 'change');
   await setValue($('#scheduled-job-time'), '08:15');
   await setValue($('#scheduled-job-timezone'), 'America/New_York');
-  const repo = [...window.document.querySelectorAll('.scheduled-job-repo-list input')].find(input => input.value === 'repo-a');
+  const repo = [...window.document.querySelectorAll('input[type="checkbox"]')].find(input => input.value === 'repo-a');
   repo.click();
   await deferredDelay();
-  $('.scheduled-job-builder').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  $('#scheduled-job-name').closest('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   await waitFor(() => assert.equal(jobs.length, 1));
   assert.deepEqual(calls.find(call => call.method === 'POST').body, {
     name: 'Weekly repository review', personaId: 'persona-a', task: 'Review changes in the selected repository.',
@@ -116,18 +116,20 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
     model: 'model-b', provider: 'anthropic', mode: 'api_key', thinkingLevel: 'high',
   });
 
-  await waitFor(() => assert.ok($('.scheduled-job-card')));
-  let card = $('.scheduled-job-card');
+  const jobCard = () => $('aside[aria-label="Saved scheduled jobs"] article');
+  await waitFor(() => assert.ok(jobCard()));
+  let card = jobCard();
   click([...card.querySelectorAll('button')].find(button => button.textContent === 'Show run history'));
   await waitFor(() => assert.match(card.textContent, /Review completed successfully\./));
   assert.match(card.textContent, /completed/);
   assert.match(card.textContent, /Provider is not connected\./);
   assert.match(card.textContent, /failed/);
-  click([...card.querySelectorAll('.scheduled-job-run-open')].find(button => !button.disabled));
-  await waitFor(() => assert.equal($('.scheduled-job-transcript-dialog').open, true));
-  await waitFor(() => assert.match($('.scheduled-job-transcript-content').textContent, /Reviewed\./));
-  click($('.scheduled-job-transcript-dialog [aria-label="Close transcript"]'));
-  await waitFor(() => assert.equal($('.scheduled-job-transcript-dialog').open, false));
+  const transcriptDialog = () => $('dialog[aria-labelledby="scheduled-job-transcript-title"]');
+  click([...card.querySelectorAll('button[aria-haspopup="dialog"]')].find(button => !button.disabled));
+  await waitFor(() => assert.equal(transcriptDialog().open, true));
+  await waitFor(() => assert.match(transcriptDialog().textContent, /Reviewed\./));
+  click(transcriptDialog().querySelector('[aria-label="Close transcript"]'));
+  await waitFor(() => assert.equal(transcriptDialog().open, false));
 
   click([...card.querySelectorAll('button')].find(button => button.textContent === 'Edit'));
   await waitFor(() => assert.equal($('#scheduled-job-name').value, 'Weekly repository review'));
@@ -145,7 +147,7 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
   await setValue($('#scheduled-job-interval'), '4');
   await setValue($('#scheduled-job-frequency'), 'monthly', 'change');
   await setValue($('#scheduled-job-day-of-month'), '31', 'change');
-  $('.scheduled-job-builder').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  $('#scheduled-job-name').closest('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   await waitFor(() => assert.equal(jobs[0].name, 'Monthly repository review'));
   const update = calls.filter(call => call.method === 'PATCH').at(-1);
   assert.equal(update.body.schedule.type, 'monthly');
@@ -153,11 +155,11 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
   assert.equal(update.body.model, 'model-b');
   assert.equal(update.body.thinkingLevel, 'high');
 
-  card = $('.scheduled-job-card');
+  card = jobCard();
   click([...card.querySelectorAll('button')].find(button => button.textContent === 'Disable'));
-  await waitFor(() => assert.match($('.scheduled-job-card').textContent, /Disabled/));
-  click([...$('.scheduled-job-card').querySelectorAll('button')].find(button => button.textContent === 'Enable'));
-  await waitFor(() => assert.match($('.scheduled-job-card').textContent, /Enabled/));
-  click([...$('.scheduled-job-card').querySelectorAll('button')].find(button => button.textContent === 'Delete'));
-  await waitFor(() => assert.equal($('.scheduled-job-card'), null));
+  await waitFor(() => assert.match(jobCard().textContent, /Disabled/));
+  click([...jobCard().querySelectorAll('button')].find(button => button.textContent === 'Enable'));
+  await waitFor(() => assert.match(jobCard().textContent, /Enabled/));
+  click([...jobCard().querySelectorAll('button')].find(button => button.textContent === 'Delete'));
+  await waitFor(() => assert.equal(jobCard(), null));
 });

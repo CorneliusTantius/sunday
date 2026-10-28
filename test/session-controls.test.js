@@ -349,24 +349,27 @@ test('early tool status is updated by id without duplicate calls or lost argumen
   await startChat(h);
   h.emit('tool_status', { id: 'tool-1', name: 'bash', status: 'running' });
   await waitFor(() => {
-    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+    assert.match(h.$('[aria-label^="Show 1 tool call"]')?.getAttribute('aria-label') || '', /bash/);
     assert.equal(h.$('#response-activity')?.textContent, 'Using tools…');
   });
+  const activity = () => h.$('dialog[aria-labelledby="toolcalls-title"]');
+  h.$('[aria-label^="Show 1 tool call"]').click();
+  await waitFor(() => assert.equal(activity()?.open, true));
   h.emit('tool_status', { id: 'tool-1', name: 'read', arguments: { path: '/tmp/example' }, status: 'running' });
   await waitFor(() => {
-    assert.equal(h.$('.toolcall-heading strong')?.textContent, 'read');
-    assert.match(h.$('.toolcall-detail pre')?.textContent, /\/tmp\/example/);
-    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+    assert.equal(activity().querySelector('section strong')?.textContent, 'read');
+    assert.match(activity().querySelector('pre')?.textContent, /\/tmp\/example/);
+    assert.match(h.$('[aria-label^="Show 1 tool call"]')?.getAttribute('aria-label') || '', /read/);
   });
   h.emit('tool_status', { id: 'tool-1', status: 'failed' });
-  await waitFor(() => assert.equal(h.$('.toolcall-status')?.textContent, 'Failed'));
+  await waitFor(() => assert.match(activity().textContent, /Failed/));
   h.emit('tool_complete', { id: 'tool-1', status: 'completed', result: 'The tool finished successfully.' });
   await waitFor(() => {
-    assert.equal(h.$('.toolcall-status')?.textContent, 'Succeeded');
-    assert.equal(h.$('.toolcall-heading strong')?.textContent, 'read');
-    assert.match(h.$('.toolcall-detail pre')?.textContent, /\/tmp\/example/);
-    assert.match(h.$('.toolcall-detail')?.textContent, /The tool finished successfully/);
-    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+    assert.match(activity().textContent, /Succeeded/);
+    assert.equal(activity().querySelector('section strong')?.textContent, 'read');
+    assert.match(activity().querySelector('pre')?.textContent, /\/tmp\/example/);
+    assert.match(activity().textContent, /The tool finished successfully/);
+    assert.match(h.$('[aria-label^="Show 1 tool call"]')?.getAttribute('aria-label') || '', /read/);
   });
   h.emit('done');
 });
@@ -383,13 +386,16 @@ test('resumed snapshot restores progress and tool updates reuse its existing cal
   await waitFor(() => {
     assert.equal(h.$('#response-activity')?.textContent, 'Preparing tool…');
     assert.match(h.$('#messages').textContent, /Restored answer/);
-    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
+    assert.match(h.$('[aria-label^="Show 1 tool call"]')?.getAttribute('aria-label') || '', /bash/);
   });
+  h.$('[aria-label^="Show 1 tool call"]').click();
+  const activity = () => h.$('dialog[aria-labelledby="toolcalls-title"]');
+  await waitFor(() => assert.equal(activity()?.open, true));
   h.emit('tool_status', { id: 'tool-1', arguments: { command: 'pwd' }, status: 'running' }, true);
   await waitFor(() => {
-    assert.equal(h.$('.toolcalls-count')?.textContent, '1');
-    assert.equal(h.$('.toolcall-heading strong')?.textContent, 'bash');
-    assert.match(h.$('.toolcall-detail pre')?.textContent, /pwd/);
+    assert.equal(activity().querySelector('section strong')?.textContent, 'bash');
+    assert.match(activity().querySelector('pre')?.textContent, /pwd/);
+    assert.match(h.$('[aria-label^="Show 1 tool call"]')?.getAttribute('aria-label') || '', /bash/);
   });
   h.emit('done', {}, true);
   await waitFor(() => {
@@ -542,14 +548,15 @@ test('enabled skills are suggested as /skill commands and submitted as chat requ
   await waitFor(() => assert.ok(h.calls.some(call => call.url === '/api/chat')));
   const chat = h.calls.find(call => call.url === '/api/chat');
   assert.equal(chat.body.messages[0].content, '/skill:code-review Review this patch');
-  const pill = h.$('.skill-command-pill');
+  const pill = h.$('[aria-label="Show details for skill code-review"]');
   assert.ok(pill);
   assert.equal(pill.textContent.includes('code-review'), true);
   pill.click();
-  await waitFor(() => assert.equal(h.$('.skill-details-dialog').open, true));
-  await waitFor(() => assert.equal(h.$('.skill-detail-content')?.textContent, 'Check correctness and edge cases.'));
-  assert.match(h.$('.skill-details-dialog').textContent, /Code Review/);
-  assert.match(h.$('.skill-details-dialog').textContent, /Review changes/);
+  const details = () => h.$('dialog[aria-labelledby^="skill-detail-title-"]');
+  await waitFor(() => assert.equal(details().open, true));
+  await waitFor(() => assert.equal(details().querySelector('pre')?.textContent, 'Check correctness and edge cases.'));
+  assert.match(details().textContent, /Code Review/);
+  assert.match(details().textContent, /Review changes/);
   h.finishStream();
 });
 
