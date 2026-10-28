@@ -165,9 +165,9 @@ export default function Skills({ exiting = false } = {}) {
       <span class="badge badge-outline">{skills.length} total</span>
     </div>
     <div class="join mb-4 max-w-full flex-wrap" role="group" aria-label="Skill source">
-      <button type="button" class={`btn join-item ${displayedSource === 'sunday' ? 'btn-primary' : 'btn-ghost'}`}  aria-pressed={displayedSource === 'sunday'} onClick={() => changeSource('sunday')}>Built in Sunday <span>{sundayCount}</span></button>
-      <button type="button" class={`btn join-item ${displayedSource === 'device' ? 'btn-primary' : 'btn-ghost'}`}  aria-pressed={displayedSource === 'device'} onClick={() => changeSource('device')}>On this device <span>{deviceSkills.length}</span></button>
-      <button type="button" class={`btn join-item ${displayedSource === 'npm' ? 'btn-primary' : 'btn-ghost'}`}  aria-pressed={displayedSource === 'npm'} onClick={() => changeSource('npm')}>Add from npm <span>{npmCount}</span></button>
+      <button type="button" class={`btn join-item ${displayedSource === 'sunday' ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  aria-pressed={displayedSource === 'sunday'} onClick={() => changeSource('sunday')}>Built in Sunday <span>{sundayCount}</span></button>
+      <button type="button" class={`btn join-item ${displayedSource === 'device' ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  aria-pressed={displayedSource === 'device'} onClick={() => changeSource('device')}>On this device <span>{deviceSkills.length}</span></button>
+      <button type="button" class={`btn join-item ${displayedSource === 'npm' ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  aria-pressed={displayedSource === 'npm'} onClick={() => changeSource('npm')}>Add from npm <span>{npmCount}</span></button>
     </div>
     <div key={displayedSource}>
       {loading ? <section class="rounded-box border border-base-300 bg-base-200 p-6" aria-live="polite">Loading skills…</section> : visibleSkills.length === 0 ? <section class="rounded-box border border-base-300 bg-base-200 p-6">

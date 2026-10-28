@@ -528,6 +528,16 @@ test('context graph skips animation when reduced motion is already enabled', asy
   h.unmount();
 });
 
+test('Context and Skills unselected source controls have a semantic border while selected controls stay primary', () => {
+  const memory = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  const skills = readFileSync(new URL('../src/web/components/Skills.jsx', import.meta.url), 'utf8');
+  assert.ok(memory.includes("!graphOpen ? 'btn-primary' : 'btn-ghost border border-base-300'"));
+  assert.ok(memory.includes("graphOpen ? 'btn-primary' : 'btn-ghost border border-base-300'"));
+  assert.ok(memory.includes("selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'"));
+  assert.equal((skills.match(/'btn-primary' : 'btn-ghost border border-base-300'/g) || []).length, 3);
+  assert.equal((skills.match(/aria-pressed=\{displayedSource ===/g) || []).length, 3);
+});
+
 test('context page opens on graph and hides notes until the Notes view is selected', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
   assert.match(source, /const \[graphOpen, setGraphOpen\] = useState\(true\)/);

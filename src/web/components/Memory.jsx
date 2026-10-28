@@ -230,8 +230,8 @@ export default function Memory({ toast }) {
     </header>
     {error && !indexOpen && <p class="alert alert-error" role="alert">{error}</p>}
     <div class="join mb-4" role="group" aria-label="Memory view">
-      <button class={`btn ${!graphOpen ? 'btn-primary' : 'btn-ghost'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
-      <button class={`btn ${graphOpen ? 'btn-primary' : 'btn-ghost'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
+      <button class={`btn ${!graphOpen ? 'btn-primary' : 'btn-ghost border border-base-300'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
+      <button class={`btn ${graphOpen ? 'btn-primary' : 'btn-ghost border border-base-300'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
     </div>
     {graphOpen && <section class="card card-bordered bg-base-200 p-5 mb-4" aria-labelledby="context-global-title">
       <header class="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -284,7 +284,7 @@ export default function Memory({ toast }) {
           <div class="flex flex-col gap-2 sm:flex-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
         {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <ul class="mt-3 grid max-h-[65vh] list-none gap-2 overflow-auto p-0">
-          {visibleSources.map(item => <li key={item.id}><button class={`btn h-auto w-full flex-col items-start gap-1 p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost'}`}  onClick={() => openSource(item.id)}>
+          {visibleSources.map(item => <li key={item.id}><button class={`btn h-auto w-full flex-col items-start gap-1 p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  onClick={() => openSource(item.id)}>
             <strong>{item.title}</strong><span>{item.source}</span><small>{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
           </button></li>)}
         </ul> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
