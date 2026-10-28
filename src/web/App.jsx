@@ -4,7 +4,6 @@ import Character from './components/Character.jsx';
 import MenuIcon from './components/MenuIcon.jsx';
 import Repositories from './components/Repositories.jsx';
 import Socials from './components/Socials.jsx';
-import Dashboard from './components/Dashboard.jsx';
 import ScheduledJobs from './components/ScheduledJobs.jsx';
 import Memory from './components/Memory.jsx';
 import Skills from './components/Skills.jsx';
@@ -60,7 +59,7 @@ function cancelChat(sessionId) {
     .catch(() => {}).finally(() => clearTimeout(timer));
 }
 function currentPage() {
-  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#dashboard' ? 'dashboard' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#context/skills' ? 'skills' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
+  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#context/skills' ? 'skills' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
 }
 
 function greeting() {
@@ -110,8 +109,6 @@ export default function App() {
   const [page, setPage] = useState(currentPage);
   const pageRef = useRef(page);
   pageRef.current = page;
-  const [dashboardExiting, setDashboardExiting] = useState(false);
-  const dashboardExitTimer = useRef(null);
   const [skillsExiting, setSkillsExiting] = useState(false);
   const skillsExitTimer = useRef(null);
   const editorDirty = useRef(false);
@@ -272,13 +269,6 @@ export default function App() {
         return;
       }
       if (next !== 'editor') editorDirty.current = false;
-      clearTimeout(dashboardExitTimer.current);
-      if (pageRef.current === 'dashboard' && next !== 'dashboard') {
-        setDashboardExiting(true);
-        dashboardExitTimer.current = setTimeout(() => setDashboardExiting(false), 380);
-      } else {
-        setDashboardExiting(false);
-      }
       clearTimeout(skillsExitTimer.current);
       if (pageRef.current === 'skills' && next !== 'skills') {
         setSkillsExiting(true);
@@ -294,15 +284,14 @@ export default function App() {
     const resize = () => { setMobile(layout.matches); setSidebarOpen(!layout.matches); };
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('hashchange', route); layout.addEventListener('change', resize);
-    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(dashboardExitTimer.current); clearTimeout(skillsExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
+    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(skillsExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'dashboard' ? 'Dashboard' : page === 'scheduled-job' ? 'Scheduled job' : page === 'context' ? 'Context' : 'Chat'}`;
+    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'scheduled-job' ? 'Scheduled job' : page === 'context' ? 'Context' : 'Chat'}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
     if (page === 'editor') shell.current?.querySelector('#code-editor-title')?.focus();
     else if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
-    else if (page === 'dashboard') shell.current?.querySelector('#dashboard-title')?.focus();
     else if (page === 'socials') shell.current?.querySelector('#socials-title')?.focus();
     else if (page === 'scheduled-job') shell.current?.querySelector('#scheduled-job-title')?.focus();
     else if (page === 'context' || page === 'skills') shell.current?.querySelector(page === 'skills' ? '#skills-title' : '#context-title')?.focus();
@@ -597,7 +586,6 @@ export default function App() {
 ▀▀▀▀   ▀▀▀  ▀▀ ▀▀  ▀▀▀▀ ▀▀ ▀▀  ▀▀██
                                ▀▀▀ `}</span></span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
         <div class="sidebar-scroll">
-        <a class="feature-heading feature-link" id="dashboard-link" href="#dashboard" aria-current={page === 'dashboard' ? 'page' : undefined}><MenuIcon name="dashboard" /><span>Dashboard</span></a>
         <section class="agents-feature" aria-labelledby="agents-title">
           <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
           <div id="agents-sessions" class={`agents-sessions${expanded ? ' expanded' : ''}`} inert={!expanded} aria-hidden={!expanded}>
@@ -622,11 +610,6 @@ export default function App() {
       <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
       <main class="main">
         {page === 'repositories' && <Repositories toast={toast} />}
-        {(page === 'dashboard' || dashboardExiting) && <Dashboard exiting={dashboardExiting} onExitAnimationEnd={event => {
-          if (event.target !== event.currentTarget) return;
-          clearTimeout(dashboardExitTimer.current);
-          setDashboardExiting(false);
-        }} />}
         {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}

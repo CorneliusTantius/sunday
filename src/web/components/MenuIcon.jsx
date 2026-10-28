@@ -1,5 +1,4 @@
 const paths = {
-  dashboard: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
   agents: 'M4 5h16v12H9l-5 4V5Z M8 9h8 M8 13h5',
   repositories: 'M6 3v12a4 4 0 0 0 4 4h7 M17 5v14 M3 3h6 M14 5h6 M14 19h6',
   files: 'M4 6h6l2 2h8v12H4V6Z',

@@ -383,5 +383,5 @@ test('sessions are pinned as ordinary sessions and sidebar brand stays outside t
   const scroller = app.window.document.querySelector('.sidebar-scroll');
   assert.equal(scroller.contains(app.window.document.querySelector('.sidebar-brand')), false);
   assert.ok(scroller.contains(app.get('sessions-list')));
-  assert.ok(scroller.contains(app.get('dashboard-link')));
+  assert.equal(app.window.document.getElementById('dashboard-link'), null);
 });
