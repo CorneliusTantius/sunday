@@ -586,13 +586,13 @@ export default function App() {
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}
         {(page === 'skills' || skillsExiting) && <Skills exiting={skillsExiting} />}
-        {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
+        {page === 'editor' && <Suspense fallback={<section class="mx-auto flex min-h-0 w-[min(960px,calc(100%-48px))] flex-1 flex-col overflow-hidden py-12 max-[700px]:w-[calc(100%-30px)] max-[700px]:pt-16" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`m-auto max-w-xl px-4 py-16 text-center ${messages.length ? 'hidden' : ''}`}  id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="alert alert-info my-3" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
           <div ref={messageList} class="flex flex-col gap-6 py-6" id="messages">{memoryActivity && <p role="status" class="badge badge-info badge-outline self-start">{memoryActivity} · Review notes in Memory</p>}<CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`} >
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
-            {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <SkillCommandMessage content={message.content} error={message.error} />}
+            {message.role === 'assistant' ? <div class="min-w-0 flex-1"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <SkillCommandMessage content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>
         </section>
         <div class={`mx-auto w-full max-w-5xl flex-none px-4 pb-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="chat-composer">
