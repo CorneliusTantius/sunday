@@ -99,7 +99,10 @@ test('bubble updates streamed Markdown but renders errors as plain text with pre
   const table = root.querySelector('[role="region"][aria-label="Table"]');
   assert.ok(table.className.includes('overflow-x-auto'));
   const markdownBubble = root.firstElementChild;
-  assert.ok(markdownBubble.className.includes('[&_pre]:whitespace-pre-wrap'));
+  assert.ok(markdownBubble.className.includes('[&_ul]:list-disc'));
+  assert.ok(markdownBubble.className.includes('[&_ol]:list-decimal'));
+  assert.ok(markdownBubble.className.includes('[&_a]:underline'));
+  assert.ok(markdownBubble.className.includes('[&_pre]:whitespace-pre'));
   assert.ok(markdownBubble.className.includes('[&_pre]:overflow-x-auto'));
   const error = '**not bold**\n  <img src=x onerror=alert(1)>';
   render(h(MessageBubble, { content: error, error: true }), root);

@@ -10,6 +10,6 @@ test('mobile content remains wrapped and contained', t => {
   assert.match(app, /max-\[700px\]:fixed[^\"]*max-\[700px\]:w-\[min\(20rem,85vw\)\]/);
   assert.match(app, /max-\[700px\]:w-\[calc\(100%-30px\)\]/);
   assert.match(bubble, /max-sm:max-w-\[90%\]/);
-  assert.match(bubble, /\[&_pre\]:max-w-full[\s\S]*?\[&_pre\]:\[overflow-wrap:anywhere\]/);
+  assert.match(bubble, /\[&_pre\]:max-w-full[\s\S]*?\[&_pre\]:overflow-x-auto[\s\S]*?\[&_pre\]:whitespace-pre/);
   assert.match(settings, /flex-wrap gap-2/);
 });
