@@ -63,7 +63,7 @@ export default function ComposerInput({ value, onChange, inputRef, sessionId, di
     }
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); }
   }
-  return <div class="relative">
+  return <div class="relative rounded-field focus-within:ring-2 focus-within:ring-primary/50">
     {expanded && <div class="absolute bottom-[calc(100%+18px)] left-[-13px] right-[-13px] z-10 max-h-[260px] overflow-auto rounded-box border border-base-300 bg-base-100 p-1 text-base-content shadow-lg sm:left-[-22px] sm:right-[-22px]">
       <div id="composer-options" role="listbox" aria-label={type === 'file' ? 'Reference a file' : 'Chat commands'}>
         {options.map((option, index) => <button class="btn btn-ghost h-auto min-h-0 w-full flex-col items-start gap-1 rounded-field px-3 py-2 text-left normal-case" key={option.name} id={`composer-option-${index}`} type="button" role="option" aria-selected={index === selected} tabIndex="-1" onMouseDown={event => event.preventDefault()} onClick={() => accept(option)}>
@@ -72,6 +72,6 @@ export default function ComposerInput({ value, onChange, inputRef, sessionId, di
       </div>
       {status && <div class="px-3 py-2 text-sm text-base-content/70" role="status">{status}</div>}
     </div>}
-    <textarea class="textarea textarea-ghost w-full resize-none text-base-content placeholder:text-base-content/60 focus:outline-none" ref={inputRef} id="prompt" rows="1" placeholder="Message Sunday…" aria-label="Message Sunday" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={expanded} aria-controls={expanded ? 'composer-options' : undefined} aria-activedescendant={expanded && options.length ? `composer-option-${Math.min(selected, options.length - 1)}` : undefined} value={value} disabled={disabled} onInput={event => { onChange(event.currentTarget.value); updateCaret(event); }} onClick={updateCaret} onSelect={updateCaret} onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) updateCaret(event); }} onKeyDown={keydown} />
+    <textarea class="w-full resize-none border-0 bg-transparent text-base-content shadow-none placeholder:text-base-content/60 focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none" ref={inputRef} id="prompt" rows="1" placeholder="Message Sunday…" aria-label="Message Sunday" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={expanded} aria-controls={expanded ? 'composer-options' : undefined} aria-activedescendant={expanded && options.length ? `composer-option-${Math.min(selected, options.length - 1)}` : undefined} value={value} disabled={disabled} onInput={event => { onChange(event.currentTarget.value); updateCaret(event); }} onClick={updateCaret} onSelect={updateCaret} onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) updateCaret(event); }} onKeyDown={keydown} />
   </div>;
 }
