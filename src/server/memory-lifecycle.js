@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-// Automatic memories are append-only snapshots, isolated from manually curated notes.
+// Automatic memories are isolated from manually curated notes.
 export function memoryPrefix(repositories = []) {
   const scope = [...new Set(repositories)].sort();
   return scope.length ? `auto/${createHash('sha256').update(JSON.stringify(scope)).digest('hex')}/` : null;
@@ -45,6 +45,21 @@ export function maintainMemory(storage, session, limit = 100) {
   return stale.length;
 }
 
+// Compare meaningful words rather than relying on titles alone. This is deliberately
+// conservative: a false match can put unrelated facts into the same note.
+const MEMORY_STOP_WORDS = new Set('the and for with from that this into are was were has have had not its your their then than but you use using used when can will would should each only also through about after before notes note memory findings context project'.split(' '));
+function memoryTokens(text) {
+  return new Set((text.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter(word => word.length >= 3 && !MEMORY_STOP_WORDS.has(word)));
+}
+function memorySimilarity(a, b) {
+  const left = memoryTokens(a), right = memoryTokens(b);
+  const shared = [...left].filter(word => right.has(word)).length;
+  return { shared, score: shared / (left.size + right.size - shared || 1) };
+}
+function normalizedTitle(title) {
+  return title.normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+}
+
 export async function reviewMemory({ storage, session, review, signal }) {
   const prefix = memoryPrefix(session.allowedRepositories);
   if (!prefix || signal?.aborted) return { status: 'skipped' };
@@ -67,8 +82,30 @@ export async function reviewMemory({ storage, session, review, signal }) {
     throw new Error('Potential sensitive data in memory proposal');
   }
   const digest = createHash('sha256').update(proposal.content).digest('hex');
-  const source = `${prefix}${digest}`;
-  const result = storage.index(source, proposal.title, proposal.content);
+  const snapshotSource = `${prefix}${digest}`;
+  const candidates = storage.listSources().filter(item => item.source.startsWith(prefix)).map(item => storage.getSource(item.id)).filter(Boolean);
+  const matches = candidates.map(note => ({ note, ...memorySimilarity(`${note.title} ${note.content}`, `${proposal.title} ${proposal.content}`) }))
+    .sort((a, b) => b.score - a.score || a.note.source.localeCompare(b.note.source));
+  // A snapshot may already be part of a note that was extended later. Retain the
+  // original source and never overwrite its content with a shorter proposal.
+  const existing = candidates.find(note => note.content.split('\n\n---\n\n').includes(proposal.content));
+  const reusable = matches.find(match => normalizedTitle(match.note.title) === normalizedTitle(proposal.title) && match.shared >= 5 && match.score >= 0.8 && match.note.content.length + proposal.content.length + 7 <= 200000);
+  let source = existing?.source || reusable?.note.source || snapshotSource;
+  // An automatic source may have been edited since its content-derived key was
+  // created. Never overwrite it merely because the original digest matches.
+  if (!existing && !reusable) {
+    const occupied = new Set(candidates.map(note => note.source));
+    for (let suffix = 1; occupied.has(source); suffix++) source = `${snapshotSource}-${suffix}`;
+  }
+  const content = existing ? existing.content : reusable ? `${reusable.note.content}\n\n---\n\n${proposal.content}` : proposal.content;
+  const result = existing ? { indexed: false } : storage.index(source, reusable?.note.title || proposal.title, content);
+  // Only link strongly related notes in the same automatic scope. Preserve any
+  // existing user-authored relationship, regardless of its direction.
+  const related = matches.filter(match => match.note.source !== source && match.shared >= 5 && match.score >= 0.55).slice(0, 3);
+  if (related.length) {
+    const linked = new Set(storage.links(source).nodes.map(node => node.source));
+    for (const match of related) if (!linked.has(match.note.source)) storage.linkSources(source, match.note.source, 'related');
+  }
   return { status: result.indexed ? 'saved' : 'unchanged', source, pruned: pruned + maintainMemory(storage, session) };
 }
 
