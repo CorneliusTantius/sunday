@@ -4,6 +4,11 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/web/components/SessionConfig.jsx', import.meta.url), 'utf8');
 
+test('agent settings has an enlarged top X and no redundant bottom Cancel button', () => {
+  assert.match(source, /class="btn btn-ghost btn-square text-2xl" id="close-session-config"/);
+  assert.doesNotMatch(source, /id="cancel-session-config"/);
+});
+
 test('agent settings fields use a darker surface and a Nord-primary keyboard focus indicator', () => {
   for (const id of ['session-config-title', 'session-config-persona', 'session-config-model', 'session-config-thinking']) {
     const control = source.match(new RegExp(`<(?:input|select)[^>]*id="${id}"[^>]*>`))?.[0];

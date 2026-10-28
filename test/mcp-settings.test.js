@@ -19,7 +19,7 @@ test('MCP settings lists servers and edits configuration in a modal', () => {
   assert.match(editor, /stored locally/);
   assert.match(editor, /\.\.\.draft\.server/);
   assert.match(editor, /delete next\[name\]/);
-  assert.match(source, /page === 'update' \|\| page === 'mcp'/);
+  assert.ok(source.includes("page === 'connect' ? '' : ' hidden'"));
   assert.match(source, /jsonRequest\(url, method, body\)/);
   assert.match(source, /\/api\/mcp\/login/);
   assert.match(source, /redirectUrl: mcpRedirect/);

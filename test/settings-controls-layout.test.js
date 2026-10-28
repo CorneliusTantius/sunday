@@ -66,10 +66,11 @@ test('Persona color preview has a clipped squircle shape', () => {
   assert.match(css, /#persona-preview \{\s*width: 2\.25rem;\s*height: 2\.25rem;\s*overflow: hidden;\s*border-radius: 31%;/);
 });
 
-test('Settings spacing and close button use a borderless pill with a subtle surface', () => {
+test('Settings has an enlarged top X and no redundant bottom Close button', () => {
   const settings = read('components/Settings.jsx');
-  assert.match(settings, /class="btn btn-ghost h-9 min-h-9 w-12 rounded-full border-0 bg-black\/10 hover:bg-black\/20 focus-visible:outline[^\"]*" id="close-settings"/);
-  assert.doesNotMatch(settings, /btn-square[^\"]*id="close-settings"/);
+  assert.match(settings, /class="btn btn-ghost h-9 min-h-9 w-12 rounded-full border-0 bg-black\/10 hover:bg-black\/20 text-2xl focus-visible:outline[^\"]*" id="close-settings"/);
+  assert.doesNotMatch(settings, /id="cancel-settings"/);
+  assert.ok(settings.includes("page === 'connect' ? '' : ' hidden'"), 'only show the footer when it has a save action');
   assert.match(settings, /id="settings-update-page" class=\{page === 'update' \? 'grid gap-3' : 'hidden'\}/);
 });
 
