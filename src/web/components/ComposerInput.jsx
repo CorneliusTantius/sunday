@@ -35,7 +35,10 @@ export default function ComposerInput({ value, onChange, inputRef, sessionId, di
     }).catch(() => { if (!abort.signal.aborted) setSkills([]); });
     return () => abort.abort();
   }, [type, sessionId]);
-  useEffect(() => { setDismissed(false); setCaret(0); }, [sessionId]);
+  useEffect(() => {
+    setDismissed(false);
+    setCaret(inputRef.current?.selectionStart ?? 0);
+  }, [sessionId]);
   const options = type === 'command'
     ? [...chatCommands, ...skills].filter(command => command.name.startsWith(query.toLowerCase()))
     : type === 'file' ? files.slice(0, 8).map(path => ({ name: path })) : [];
@@ -63,7 +66,7 @@ export default function ComposerInput({ value, onChange, inputRef, sessionId, di
     }
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); }
   }
-  return <div class="relative rounded-field focus-within:ring-2 focus-within:ring-primary/50">
+  return <div class="relative rounded-box focus-within:ring-2 focus-within:ring-primary/50">
     {expanded && <div class="absolute bottom-[calc(100%+18px)] left-[-13px] right-[-13px] z-10 max-h-[260px] overflow-auto rounded-box border border-base-300 bg-base-100 p-1 text-base-content shadow-lg sm:left-[-22px] sm:right-[-22px]">
       <div id="composer-options" role="listbox" aria-label={type === 'file' ? 'Reference a file' : 'Chat commands'}>
         {options.map((option, index) => <button class="btn btn-ghost h-auto min-h-0 w-full flex-col items-start gap-1 rounded-field px-3 py-2 text-left normal-case" key={option.name} id={`composer-option-${index}`} type="button" role="option" aria-selected={index === selected} tabIndex="-1" onMouseDown={event => event.preventDefault()} onClick={() => accept(option)}>

@@ -153,11 +153,14 @@ async function mount(t, options = {}) {
   const actionCalls = () => calls.filter(({ url, method }) => url.startsWith('/api/sessions/') || (url === '/api/sessions' && method !== 'GET'));
   const selected = () => window.localStorage.getItem('sunday-session-id');
   await waitFor(() => {
-    assert.equal($('#sessions-list button[title="Chat 1"]')?.textContent, 'Chat 1');
+    const active = $('#sessions-list button[title="Chat 1"]');
+    assert.equal(active?.textContent, 'Chat 1');
+    assert.equal(active?.classList.contains('btn-active'), true);
     assertEnabled();
+    assert.equal($('#chat-model')?.disabled, false);
   });
-  click('#agents-toggle');
-  await waitFor(() => assert.equal($('#agents-toggle').getAttribute('aria-expanded'), 'true'));
+  assert.ok($('#sessions-list'), 'the Agents list remains visible without a disclosure toggle');
+  await delay(0); // Let ComposerInput process the initial session ID before simulating typing.
   return {
     $, click, controls, assertEnabled, actionCalls, selected, response, calls, defaults, streamAborted: () => streamAborted, resumeCalls: () => resumeCount, sessions,
     cancelCalls() { return calls.filter(({ url, method }) => url === '/api/chat/cancel' && method === 'POST'); },
