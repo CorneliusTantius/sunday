@@ -9,7 +9,7 @@ test('Context and Skills remain separate top-level destinations', () => {
   assert.match(app, /id="skills-link" href="#context\/skills" aria-current=\{page === 'skills' \? 'page' : undefined\}/);
   assert.match(app, /id="context-link" href="#context"/);
   assert.match(app, /id="scheduled-job-link"[^>]*>.*?<MenuIcon name="schedule" \/>Automations/s);
-  assert.match(app, /Socials<\/a><\/li>[\s\S]*?<hr class="divider[^"]*"[\s\S]*?id="sessions-list"/);
+  assert.match(app, /Socials<\/a><\/li>[\s\S]*?<hr class="my-1 border-base-300"[\s\S]*?id="sessions-list"/);
   assert.doesNotMatch(app, /<Character profile=\{session\.profile/);
 });
 

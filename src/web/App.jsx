@@ -546,7 +546,7 @@ export default function App() {
       <button class={`btn btn-ghost btn-sm min-w-0 flex-1 justify-start truncate ${session.id === sessionId ? 'btn-active' : ''}`}  title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="truncate">{session.title || 'New agent'}</span></button>
       {(session.id === sessionId ? activeRunning : session.running) && <span class="badge badge-success badge-xs" role="img" aria-label="Running" title="Running" />}
       <button class={`btn btn-ghost btn-square btn-xs ${pinned ? 'text-primary' : ''}`}  data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
-      <button class="btn btn-ghost btn-square btn-xs" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={sessionIsRunning(session) || loadingSession} onClick={event => { if (sessionIsRunning(session) || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
+      <button class="btn btn-ghost btn-square btn-xs" title="Configure agent" aria-label={`Configure agent: ${session.title || 'New agent'}`} disabled={sessionIsRunning(session) || loadingSession} onClick={event => { if (sessionIsRunning(session) || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v2m0 14v2m9-9h-2M5 12H3m15.36-6.36-1.42 1.42M7.06 16.94l-1.42 1.42m12.72 0-1.42-1.42M7.06 7.06 5.64 5.64" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
     </div>;
   };
 
@@ -563,22 +563,21 @@ export default function App() {
           <li><a class={page === 'editor' ? 'active' : ''} id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" />Files</a></li>
           <li><a class={page === 'socials' ? 'active' : ''} id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" />Socials</a></li>
         </ul>
-        <hr class="divider my-1" />
+        <hr class="my-1 border-base-300" />
         <section aria-labelledby="agents-heading" class="flex min-h-0 flex-col gap-2">
           <h2 id="agents-heading" class="px-2 text-sm font-semibold">Agents</h2>
-            <div class="flex min-h-0 flex-col gap-2"><button class="btn btn-outline btn-sm justify-start" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span aria-hidden="true">＋</span> New agent</button>
-            <nav class="flex max-h-[40dvh] min-h-0 w-full flex-col gap-1 overflow-y-auto overscroll-y-contain" id="sessions-list" aria-label="Agents">
-              {pinnedSessions.map(renderSession)}
-              {unpinnedSessions.map(renderSession)}
-            </nav>
-            </div>
+          <nav class="flex max-h-[40dvh] min-h-0 w-full flex-col gap-1 overflow-y-auto overscroll-y-contain" id="sessions-list" aria-label="Agents">
+            <button class="btn btn-ghost btn-sm justify-start border border-base-300 text-base-content/80" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span aria-hidden="true">＋</span> New agent</button>
+            {pinnedSessions.map(renderSession)}
+            {unpinnedSessions.map(renderSession)}
+          </nav>
         </section>
         <div class="mt-auto flex justify-end border-t border-base-300 pt-3"><button ref={settingsButton} class="btn btn-ghost btn-square text-xl" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
         </div>
       </aside>
       <button ref={menu} class={`btn btn-ghost btn-square fixed left-3 top-3 z-10 ${!mobile && sidebarOpen ? 'hidden' : ''}`}  id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
       <button class={`fixed inset-0 z-10 bg-neutral/60 ${mobile && sidebarOpen ? '' : 'hidden'}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
-      <main class="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main key={page} class="page-enter relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden motion-reduce:animate-none">
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
