@@ -85,7 +85,9 @@ async function mount(t) {
     await deferredDelay();
   };
   await waitFor(() => {
-    assert.equal($('#scheduled-job-title')?.textContent, 'Scheduled jobs');
+    assert.equal($('#scheduled-job-title')?.textContent, 'Automations');
+    assert.equal($('form').classList.contains('overflow-y-auto'), true);
+    assert.ok($('form').className.includes('max-h-'));
     assert.equal($('#scheduled-job-agent')?.disabled, false);
   });
   return { window, $, click, setValue, calls, jobs };
@@ -116,7 +118,7 @@ test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays
     model: 'model-b', provider: 'anthropic', mode: 'api_key', thinkingLevel: 'high',
   });
 
-  const jobCard = () => $('aside[aria-label="Saved scheduled jobs"] article');
+  const jobCard = () => $('aside[aria-label="Automations"] article');
   await waitFor(() => assert.ok(jobCard()));
   let card = jobCard();
   click([...card.querySelectorAll('button')].find(button => button.textContent === 'Show run history'));

@@ -130,7 +130,7 @@ export default function ScheduledJobs() {
       setJobs(previous => editingId
         ? previous.map(job => job.id === editingId ? data.job : job)
         : [data.job, ...previous]);
-      setStatus(editingId ? 'Scheduled job updated.' : 'Scheduled job created.');
+      setStatus(editingId ? 'Automation updated.' : 'Automation created.');
       setHistory(previous => { const next = { ...previous }; delete next[data.job.id]; return next; });
       setExpandedHistory(previous => ({ ...previous, [data.job.id]: false }));
       setDraft(emptyDraft());
@@ -144,7 +144,7 @@ export default function ScheduledJobs() {
     try {
       const data = await jsonRequest(`/api/scheduled-jobs/${job.id}`, 'PATCH', { enabled: !job.enabled });
       setJobs(previous => previous.map(item => item.id === job.id ? data.job : item));
-      setStatus(data.job.enabled ? 'Scheduled job enabled.' : 'Scheduled job disabled.');
+      setStatus(data.job.enabled ? 'Automation enabled.' : 'Automation disabled.');
     } catch (reason) { setError(reason.message); }
     finally { setPendingId(''); }
   }
@@ -158,7 +158,7 @@ export default function ScheduledJobs() {
       setHistory(previous => { const next = { ...previous }; delete next[job.id]; return next; });
       setExpandedHistory(previous => { const next = { ...previous }; delete next[job.id]; return next; });
       if (editingId === job.id) resetForm();
-      setStatus('Scheduled job deleted.');
+      setStatus('Automation deleted.');
     } catch (reason) { setError(reason.message); }
     finally { setPendingId(''); }
   }
@@ -206,16 +206,16 @@ export default function ScheduledJobs() {
     <header class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
       <div>
         <p class="text-xs font-bold tracking-widest text-primary">AUTOMATION</p>
-        <h1 id="scheduled-job-title" tabIndex="-1">Scheduled jobs</h1>
+        <h1 id="scheduled-job-title" tabIndex="-1">Automations</h1>
         <p class="mt-2 text-sm leading-relaxed text-base-content/70">Run recurring persona tasks against repositories you choose.</p>
       </div>
       <span class="badge badge-primary badge-outline">{jobs.filter(job => job.enabled).length} active</span>
     </header>
 
     <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(16rem,.9fr)]">
-      <form class="min-w-0 card card-bordered bg-base-200 p-5" onSubmit={save}>
+      <form class="min-w-0 card card-bordered bg-base-200 p-5 max-h-[calc(100dvh-2rem)] overflow-y-auto" onSubmit={save}>
         <div class="border-b border-base-300 pb-4">
-          <div><p class="text-xs font-bold tracking-widest text-primary">{editingId ? 'EDIT AUTOMATION' : 'NEW AUTOMATION'}</p><h2>{editingId ? 'Edit scheduled job' : 'Build a scheduled job'}</h2></div>
+          <div><p class="text-xs font-bold tracking-widest text-primary">{editingId ? 'EDIT AUTOMATION' : 'NEW AUTOMATION'}</p><h2>{editingId ? 'Edit automation' : 'Create an automation'}</h2></div>
         </div>
         <div class="grid gap-x-4 gap-y-4 pt-4 sm:grid-cols-2">
           <div class="min-w-0 space-y-2 sm:col-span-2">
@@ -298,18 +298,18 @@ export default function ScheduledJobs() {
         </div>
         {error && <p class="alert alert-error mt-3" role="alert">{error}</p>}
         {status && <p class="alert alert-success mt-3" role="status">{status}</p>}
-        {!personas.length && !loading && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Create a persona before adding a scheduled job.</p>}
+        {!personas.length && !loading && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Create a persona before adding an automation.</p>}
         <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-base-300 pt-4">
           {editingId && <button class="btn btn-ghost" type="button" disabled={saving} onClick={resetForm}>Cancel edit</button>}
-          <button class="btn btn-primary" type="submit" disabled={!canSave}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create scheduled job'}</button>
+          <button class="btn btn-primary" type="submit" disabled={!canSave}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create automation'}</button>
         </div>
       </form>
 
-      <aside class="grid gap-3" aria-label="Saved scheduled jobs">
+      <aside class="grid gap-3" aria-label="Automations">
         <section class="card card-bordered bg-base-200 p-5">
           <div class="mb-3 flex items-center justify-between gap-3"><div><p class="text-xs font-bold tracking-widest text-primary">AUTOMATIONS</p><h2>Your jobs</h2></div><span>{jobs.length}</span></div>
-          {loading && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Loading scheduled jobs…</p>}
-          {!loading && !jobs.length && <div class="flex items-start gap-3 rounded-box border border-dashed border-base-300 p-4"><span class="text-2xl text-primary" aria-hidden="true">◷</span><div><strong>No scheduled jobs yet</strong><p>Create a job to run a recurring persona task.</p></div></div>}
+          {loading && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Loading automations…</p>}
+          {!loading && !jobs.length && <div class="flex items-start gap-3 rounded-box border border-dashed border-base-300 p-4"><span class="text-2xl text-primary" aria-hidden="true">◷</span><div><strong>No automations yet</strong><p>Create a job to run a recurring persona task.</p></div></div>}
           <div class="grid gap-3">{jobs.map(job => {
             const persona = personas.find(item => item.id === job.personaId);
             const busy = pendingId === job.id;
