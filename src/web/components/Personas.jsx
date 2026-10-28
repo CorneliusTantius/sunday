@@ -91,28 +91,40 @@ export default function Personas({ hidden, toast, onReload }) {
     finally { if (alive.current) setBusy(false); }
   }
 
-  return <section inert={hidden} id="settings-personas-page" class={`space-y-4${hidden ? ' hidden' : ''}`}>
-    <h3>Profiles &amp; personas</h3><p class="mt-2 text-sm leading-relaxed text-base-content/70">Reusable starting profiles. Changes here do not change existing sessions.</p>
-    <select id="persona-select" class="select select-bordered mt-4 w-full max-w-md" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
-      if (event.currentTarget.value === '__new__') { select(personas, ''); nameInput.current?.focus(); }
-      else select(personas, event.currentTarget.value);
-    }}>
-      {!id && <option value="">New persona</option>}
-      {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
-      {id && <option value="__new__">＋ New persona</option>}
-    </select>
-    <form id="persona-form" aria-labelledby="persona-config-heading" onSubmit={save}>
-      <h4 id="persona-config-heading">Persona configuration</h4><p class="mt-2 text-sm leading-relaxed text-base-content/70 mb-4">Edit this persona’s identity, instructions, and tool permissions below.</p>
-      <div class="grid gap-2"><label class="label-text font-medium" for="persona-name">Name</label><input ref={nameInput} id="persona-name" class="input input-bordered" required maxLength="80" value={profile.name} disabled={busy} onInput={event => change('name', event.currentTarget.value)} /></div>
-      <div class="grid gap-3">
-        <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div class="flex items-center justify-between gap-2"><label class="label-text font-medium" for="persona-color">Character color</label><div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div></div><select class="select select-bordered border-base-300" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
-          {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
-        </select></div>
+  return <section inert={hidden} id="settings-personas-page" class={`grid gap-5${hidden ? ' hidden' : ''}`}>
+    <header class="grid gap-1">
+      <p class="text-xs font-bold tracking-[0.18em] text-primary">PERSONA STUDIO</p>
+      <h3>Profiles &amp; personas</h3>
+      <p class="text-sm leading-relaxed text-base-content/70">Create reusable starting profiles. Changes here apply to new sessions and do not alter existing ones.</p>
+    </header>
+    <div class="grid gap-2 rounded-box border border-base-300 bg-base-200/50 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div class="grid gap-1"><label class="font-semibold" for="persona-select">Choose a profile</label><p class="text-sm text-base-content/70">Select a persona to edit or start a new one.</p></div>
+      <select id="persona-select" class="select select-bordered w-full sm:min-w-64" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
+        if (event.currentTarget.value === '__new__') { select(personas, ''); nameInput.current?.focus(); }
+        else select(personas, event.currentTarget.value);
+      }}>
+        {!id && <option value="">New persona</option>}
+        {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
+        {id && <option value="__new__">＋ New persona</option>}
+      </select>
+    </div>
+    <form id="persona-form" class="grid gap-5 rounded-box border border-base-300 bg-base-200/30 p-4 sm:p-6" aria-labelledby="persona-config-heading" onSubmit={save}>
+      <header class="grid gap-1 border-b border-base-300 pb-4">
+        <h4 id="persona-config-heading" class="text-lg font-semibold">Persona configuration</h4>
+        <p class="text-sm leading-relaxed text-base-content/70">Shape this profile’s identity, instructions, and tool permissions.</p>
+      </header>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-2"><label class="label-text font-medium" for="persona-name">Name</label><input ref={nameInput} id="persona-name" class="input input-bordered w-full" required maxLength="80" value={profile.name} disabled={busy} onInput={event => change('name', event.currentTarget.value)} /></div>
+        <div class="grid gap-2"><label class="label-text font-medium" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="input input-bordered w-full" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
       </div>
-      <div class="grid gap-2"><label class="label-text font-medium" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="input input-bordered" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
-      <label class="label-text font-medium" for="persona-instructions">Custom instructions</label><textarea class="textarea textarea-bordered rounded-box w-full" id="persona-instructions" rows="6" maxLength="8000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
-      <p id="persona-instructions-note" class="mt-2 text-sm leading-relaxed text-base-content/70">Edit the persona’s responsibilities and workflow here. Sunday and Coding Agent start with editable defaults; shared system rules and tool guidance are added separately.</p>
-      <details class="collapse collapse-arrow rounded-box border border-base-300 bg-base-200" open><summary>Tool permissions</summary><fieldset class="grid gap-2"><legend class="sr-only">Tool permissions</legend><div id="persona-tools">
+      <div class="grid gap-3 rounded-box border border-base-300 bg-base-100/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div class="flex items-center gap-3"><div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div><div class="grid gap-1"><label class="font-medium" for="persona-color">Character color</label><span class="text-sm text-base-content/70">Choose the accent for this persona’s character.</span></div></div>
+        <select class="select select-bordered border-base-300 w-full sm:min-w-48" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
+          {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
+        </select>
+      </div>
+      <div class="grid gap-2"><label class="label-text font-medium" for="persona-instructions">Custom instructions</label><textarea class="textarea textarea-bordered rounded-box w-full" id="persona-instructions" rows="6" maxLength="8000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} /><p id="persona-instructions-note" class="text-sm leading-relaxed text-base-content/70">Edit the persona’s responsibilities and workflow here. Sunday and Coding Agent start with editable defaults; shared system rules and tool guidance are added separately.</p></div>
+      <details class="collapse collapse-arrow rounded-box border border-base-300 bg-base-200" open><summary>Tool permissions</summary><fieldset class="grid gap-2"><legend class="sr-only">Tool permissions</legend><div id="persona-tools" class="grid gap-2">
         {toolPermissionItems.map(item => {
           if (!item.group) {
             const { tool } = item;
@@ -129,8 +141,8 @@ export default function Personas({ hidden, toast, onReload }) {
           }} /><span class="grid min-w-0 flex-1 gap-1 break-words"><strong>{group.name}</strong><ul class="m-0 w-full list-disc pl-5 [&_li]:my-1 [&_li]:break-words">{groupedTools.map(tool => <li key={tool.name}><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li>)}</ul></span></label>;
         })}
       </div></fieldset></details>
-      <div class="flex flex-wrap gap-2"><button class="btn btn-primary" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="btn btn-ghost" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
-      <p id="persona-error" class="alert alert-error" role="alert">{error}</p>
+      <div class="flex flex-wrap gap-2 border-t border-base-300 pt-4"><button class="btn btn-primary" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="btn btn-ghost" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
+      <p id="persona-error" class="alert alert-error empty:hidden" role="alert">{error}</p>
     </form>
   </section>;
 }

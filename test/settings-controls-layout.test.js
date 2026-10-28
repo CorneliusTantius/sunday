@@ -24,7 +24,20 @@ test('settings model selector is populated from connected models', () => {
 });
 test('persona character color selector has a subtle visible boundary', () => {
   const personas = read('components/Personas.jsx');
-  assert.match(personas, /<select class="select select-bordered border-base-300" id="persona-color"/);
+  assert.match(personas, /<select class="select select-bordered border-base-300[^"]*" id="persona-color"/);
+});
+test('requested icons, controls, and composer use borderless and transparent styling', () => {
+  const settings = read('components/Settings.jsx');
+  const mcp = read('components/McpServers.jsx');
+  const composer = read('components/ComposerInput.jsx');
+  const character = read('components/Character.jsx');
+  for (const id of ['refresh-models', 'add-provider', 'update-app', 'restart-app']) {
+    assert.match(settings, new RegExp(`class="btn btn-ghost border-0[^\\"]*" id="${id}"`));
+  }
+  assert.match(mcp, /<button class="btn btn-ghost border-0" disabled=\{busy\} onClick=\{\(\) => open\(\)\}>＋ Add server/);
+  assert.match(settings, /card card-border[^\"]*bg-black\/10[^\"]*hover:bg-black\/20/);
+  assert.match(composer, /bg-transparent[^\"]*focus:bg-transparent/);
+  assert.doesNotMatch(character, /border-\[3px\]/);
 });
 
 test('persona tools are in an initially open native disclosure', () => {

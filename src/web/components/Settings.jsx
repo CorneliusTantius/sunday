@@ -427,10 +427,10 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         </nav>
         <div class="min-h-0 min-w-0 overflow-y-auto">
           <section inert={page !== 'providers'} id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>Connected providers</h3><div class="flex flex-wrap items-center justify-end gap-2"><button class="btn btn-outline" id="refresh-models" type="button" disabled={saving || loading} onClick={refreshModels} aria-label="Refresh available models" title="Fetch models from Sunday’s current provider catalog. Update Sunday if a newly released model is missing.">{loading ? 'Refreshing…' : '↻ Refresh models'}</button><button class="btn btn-outline" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div></div>
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>Connected providers</h3><div class="flex flex-wrap items-center justify-end gap-2"><button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="refresh-models" type="button" disabled={saving || loading} onClick={refreshModels} aria-label="Refresh available models" title="Fetch models from Sunday’s current provider catalog. Update Sunday if a newly released model is missing.">{loading ? 'Refreshing…' : '↻ Refresh models'}</button><button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div></div>
             <p class="text-sm text-base-content/70">Manage the providers you have connected.</p>
             <div id="provider-list" class="my-5 grid gap-3">
-              {available.map(item => <button key={item.id} type="button" class="card card-border w-full gap-2 bg-base-100 p-4 text-left transition-colors hover:bg-base-200 aria-pressed:border-primary" data-provider={item.id} aria-pressed={provider === item.id} disabled={saving} onClick={() => { chooseProvider(item.id); navigate('connect'); }}>
+              {available.map(item => <button key={item.id} type="button" class="card card-border w-full gap-2 border-base-300 bg-black/10 p-4 text-left transition-colors hover:bg-black/20 aria-pressed:border-primary" data-provider={item.id} aria-pressed={provider === item.id} disabled={saving} onClick={() => { chooseProvider(item.id); navigate('connect'); }}>
                 <strong>{item.name || item.id}</strong><span class="badge badge-success badge-soft">Connected</span><small>{[item.hasApiKey ? 'API key saved' : '', item.oauthConnected ? 'ChatGPT signed in' : ''].filter(Boolean).join(' · ')}</small>
               </button>)}
               {!available.length && <p class="text-sm text-base-content/70">No providers connected yet. Add a provider to start chatting.</p>}
@@ -472,8 +472,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <section inert={page !== 'update'} id="settings-update-page" class={page === 'update' ? '' : 'hidden'}>
             <h3>Update Sunday</h3>
             <p class="text-sm text-base-content/70">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
-            <div class="flex flex-wrap gap-2"><button class="btn btn-outline" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
-            <button class="btn btn-outline" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
+            <div class="flex flex-wrap gap-2"><button class="btn btn-ghost border-0" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
+            <button class="btn btn-ghost border-0" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
             <p class="text-sm text-base-content/70">Runs npm install, builds, and restarts the server, interrupting running tasks. The page reloads when ready.</p>
             <pre id="update-output" class="whitespace-pre-wrap break-words" role="status">{updateOutput}</pre>
           </section>
