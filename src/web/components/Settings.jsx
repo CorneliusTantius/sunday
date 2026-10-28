@@ -90,6 +90,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
       // A smaller viewport/chrome budget must clamp immediately, including
       // during a height transition, so the footer never slides out of view.
       viewport.style.maxHeight = `${cap}px`;
+      viewport.style.flexShrink = '0';
       const height = `${Math.min(layout.offsetHeight, cap)}px`;
       if (viewport.style.height !== height) viewport.style.height = height;
     };
@@ -97,7 +98,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     // without animating from auto, then animate only subsequent changes.
     viewport.style.transition = 'none';
     measure();
-    viewport.dataset.sized = '';
     void viewport.offsetHeight;
     viewport.style.removeProperty('transition');
     const observer = new ResizeObserver(measure);
@@ -110,7 +110,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
       window.visualViewport?.removeEventListener('resize', measure);
       viewport.style.removeProperty('height');
       viewport.style.removeProperty('max-height');
-      delete viewport.dataset.sized;
+      viewport.style.removeProperty('flex-shrink');
     };
   }, []);
 
@@ -413,76 +413,76 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { updatePending.current = false; if (alive.current) setUpdating(false); }
   }
 
-  return <div ref={backdrop} class={`modal-backdrop${closing ? ' settings-closing' : ''}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
-    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <header class="modal-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="icon-button close-modal" id="close-settings" aria-label="Close settings" onClick={requestClose}>×</button></header>
-      <div ref={contentViewport} class="settings-content">
-      <div ref={contentLayout} class="modal-content settings-layout">
-        <nav class="settings-providers" aria-label="Settings sections">
-          <button class={`settings-nav${page === 'providers' || page === 'connect' ? ' active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
-          <button class={`settings-nav${page === 'config' ? ' active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
-          <button class={`settings-nav${page === 'mcp' ? ' active' : ''}`} id="settings-mcp-nav" onClick={() => navigate('mcp')}>MCP</button>
-          <button class={`settings-nav${page === 'personas' ? ' active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
-          <button class={`settings-nav${page === 'update' ? ' active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
+  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center bg-base-content/80 p-4 transition-opacity duration-200 ${closing ? 'pointer-events-none opacity-0' : ''}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
+    <section class="card flex h-[min(80dvh,calc(100dvh-2.5rem))] w-full max-w-6xl flex-col overflow-hidden rounded-box border border-base-300 bg-base-100 text-base-content shadow-xl" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <header class="modal-header flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4 sm:px-7"><div><p class="mb-1 text-xs font-bold tracking-widest text-primary">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="btn btn-ghost btn-square" id="close-settings" aria-label="Close settings" onClick={requestClose}>×</button></header>
+      <div ref={contentViewport} class="min-h-0 flex-1 overflow-hidden transition-[height] duration-200">
+      <div ref={contentLayout} class="grid h-full min-h-0 grid-cols-1 gap-5 p-5 sm:grid-cols-[15rem_minmax(0,1fr)] sm:gap-7 sm:p-7">
+        <nav class="flex min-h-0 gap-2 overflow-x-auto border-b border-base-300 pb-3 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6" aria-label="Settings sections">
+          <button class={`btn btn-ghost shrink-0${page === 'providers' || page === 'connect' ? ' btn-active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
+          <button class={`btn btn-ghost shrink-0${page === 'config' ? ' btn-active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
+          <button class={`btn btn-ghost shrink-0${page === 'mcp' ? ' btn-active' : ''}`} id="settings-mcp-nav" onClick={() => navigate('mcp')}>MCP</button>
+          <button class={`btn btn-ghost shrink-0${page === 'personas' ? ' btn-active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
+          <button class={`btn btn-ghost shrink-0${page === 'update' ? ' btn-active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
-        <div class={`settings-detail${page === 'personas' ? ' settings-detail-personas' : ''}`}>
+        <div class="min-h-0 min-w-0 overflow-y-auto">
           <section inert={page !== 'providers'} id="settings-provider-page" class={page === 'providers' ? '' : 'hidden'}>
-            <div class="settings-page-heading"><h3>Connected providers</h3><div class="settings-heading-actions"><button class="secondary-button" id="refresh-models" type="button" disabled={saving || loading} onClick={refreshModels} aria-label="Refresh available models" title="Fetch models from Sunday’s current provider catalog. Update Sunday if a newly released model is missing.">{loading ? 'Refreshing…' : '↻ Refresh models'}</button><button class="secondary-button" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div></div>
-            <p class="field-note">Manage the providers you have connected.</p>
-            <div id="provider-list" class="provider-list">
-              {available.map(item => <button key={item.id} type="button" class="provider-card" data-provider={item.id} aria-pressed={provider === item.id} disabled={saving} onClick={() => { chooseProvider(item.id); navigate('connect'); }}>
-                <strong>{item.name || item.id}</strong><span class="provider-status connected">Connected</span><small>{[item.hasApiKey ? 'API key saved' : '', item.oauthConnected ? 'ChatGPT signed in' : ''].filter(Boolean).join(' · ')}</small>
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>Connected providers</h3><div class="flex flex-wrap items-center justify-end gap-2"><button class="btn btn-outline" id="refresh-models" type="button" disabled={saving || loading} onClick={refreshModels} aria-label="Refresh available models" title="Fetch models from Sunday’s current provider catalog. Update Sunday if a newly released model is missing.">{loading ? 'Refreshing…' : '↻ Refresh models'}</button><button class="btn btn-outline" id="add-provider" disabled={saving} onClick={() => { setApiKey(''); navigate('connect'); refresh(provider, mode); }}>＋ Add provider</button></div></div>
+            <p class="text-sm text-base-content/70">Manage the providers you have connected.</p>
+            <div id="provider-list" class="my-5 grid gap-3">
+              {available.map(item => <button key={item.id} type="button" class="card card-border w-full gap-2 bg-base-100 p-4 text-left transition-colors hover:bg-base-200 aria-pressed:border-primary" data-provider={item.id} aria-pressed={provider === item.id} disabled={saving} onClick={() => { chooseProvider(item.id); navigate('connect'); }}>
+                <strong>{item.name || item.id}</strong><span class="badge badge-success badge-soft">Connected</span><small>{[item.hasApiKey ? 'API key saved' : '', item.oauthConnected ? 'ChatGPT signed in' : ''].filter(Boolean).join(' · ')}</small>
               </button>)}
-              {!available.length && <p class="field-note">No providers connected yet. Add a provider to start chatting.</p>}
+              {!available.length && <p class="text-sm text-base-content/70">No providers connected yet. Add a provider to start chatting.</p>}
             </div>
           </section>
-          <section inert={page !== 'connect'} id="settings-connect-page" class={`settings-section${page === 'connect' ? '' : ' hidden'}`}>
-            <button class="text-button" id="provider-back" onClick={() => navigate('providers')}>← Providers</button><h3>Connect provider</h3>
-            <div class="settings-select-row"><label class="field-label" for="provider">Provider</label>
-            <select id="provider" class="select" value={provider} disabled={saving || authBusy} onChange={event => chooseProvider(event.currentTarget.value)}>
+          <section inert={page !== 'connect'} id="settings-connect-page" class={page === 'connect' ? '' : 'hidden'}>
+            <button class="btn btn-ghost" id="provider-back" onClick={() => navigate('providers')}>← Providers</button><h3>Connect provider</h3>
+            <div class="my-4 grid gap-2"><label class="label font-semibold" for="provider">Provider</label>
+            <select id="provider" class="select select-bordered w-full" value={provider} disabled={saving || authBusy} onChange={event => chooseProvider(event.currentTarget.value)}>
               {Object.entries(providerNames).map(([id, name]) => <option key={id} value={id}>{providers.find(item => item.id === id)?.name || name}</option>)}
             </select></div>
-            <div class="settings-select-row"><label class="field-label" for="mode">Connect with</label>
-            <select id="mode" class="select" value={mode} disabled={saving || authBusy} onChange={event => chooseProvider(provider, event.currentTarget.value)}><option value="api_key">API key</option><option value="oauth" disabled={provider !== 'openai'}>Sign in with ChatGPT</option></select></div>
-            <div id="api-panel" class={`mode-panel${mode === 'oauth' ? ' hidden' : ''}`}>
-              <label class="field-label" for="api-key">API key</label><input id="api-key" class="text-input" type="password" autoComplete="off" value={apiKey} disabled={saving} placeholder={details.hasApiKey ? 'Key saved — leave blank to keep it' : 'Provider API key'} onInput={event => setApiKey(event.currentTarget.value)} />
-              <p class="field-note">Leave blank to keep your saved key. Your key is stored by Sunday and never in your browser.</p>
+            <div class="my-4 grid gap-2"><label class="label font-semibold" for="mode">Connect with</label>
+            <select id="mode" class="select select-bordered w-full" value={mode} disabled={saving || authBusy} onChange={event => chooseProvider(provider, event.currentTarget.value)}><option value="api_key">API key</option><option value="oauth" disabled={provider !== 'openai'}>Sign in with ChatGPT</option></select></div>
+            <div id="api-panel" class={`mt-4 space-y-3${mode === 'oauth' ? ' hidden' : ''}`}>
+              <label class="label font-semibold" for="api-key">API key</label><input id="api-key" class="input input-bordered w-full" type="password" autoComplete="off" value={apiKey} disabled={saving} placeholder={details.hasApiKey ? 'Key saved — leave blank to keep it' : 'Provider API key'} onInput={event => setApiKey(event.currentTarget.value)} />
+              <p class="text-sm text-base-content/70">Leave blank to keep your saved key. Your key is stored by Sunday and never in your browser.</p>
             </div>
-            <div id="oauth-panel" class={`mode-panel${mode === 'oauth' ? '' : ' hidden'}`}>
-              <p class="field-note">Start sign-in, then open the sign-in link below in your browser. If needed, paste the final redirect URL to finish.</p>
-              <div class="oauth-state" id="oauth-state">{auth?.error || (auth?.status === 'pending' ? 'Waiting for sign-in…' : auth?.status === 'error' ? 'Sign-in failed' : oauthConnected ? 'Connected to OpenAI' : 'Not connected')}</div>
-              <button class={`secondary-button${oauthConnected ? ' hidden' : ''}`} id="oauth-connect" disabled={authBusy} onClick={() => authAction('/api/auth/start')}>Sign in with ChatGPT</button>
-              <div id="oauth-events" class="oauth-events" aria-live="polite">{(auth?.events || []).map((event, index) => <p key={index}>{event.message || event.instructions || ''}{event.url && <> <a href={event.url} target="_blank" rel="noopener">Open OpenAI sign-in ↗</a></>}</p>)}</div>
-              <div id="code-entry" class={`code-entry${auth?.prompt ? '' : ' hidden'}`}><label class="field-label" for="auth-code">Final redirect URL</label><div class="code-row"><input id="auth-code" class="text-input" autoComplete="one-time-code" placeholder={auth?.prompt?.placeholder || 'Paste the final browser redirect URL'} value={code} disabled={authBusy} onInput={event => setCode(event.currentTarget.value)} /><button class="secondary-button" id="submit-code" disabled={authBusy} onClick={() => authAction('/api/auth/code', 'POST', { code })}>Submit</button></div></div>
-              <button class={`text-button${oauthConnected ? '' : ' hidden'}`} id="oauth-disconnect" disabled={authBusy} onClick={() => authAction('/api/auth', 'DELETE')}>Disconnect account</button>
-              <button class={`text-button${auth?.status === 'pending' ? '' : ' hidden'}`} id="oauth-cancel" disabled={authBusy} onClick={() => authAction('/api/auth/cancel')}>Cancel sign-in</button>
+            <div id="oauth-panel" class={`mt-4 space-y-3${mode === 'oauth' ? '' : ' hidden'}`}>
+              <p class="text-sm text-base-content/70">Start sign-in, then open the sign-in link below in your browser. If needed, paste the final redirect URL to finish.</p>
+              <div class="text-sm text-base-content/70" id="oauth-state">{auth?.error || (auth?.status === 'pending' ? 'Waiting for sign-in…' : auth?.status === 'error' ? 'Sign-in failed' : oauthConnected ? 'Connected to OpenAI' : 'Not connected')}</div>
+              <button class={`btn btn-outline${oauthConnected ? ' hidden' : ''}`} id="oauth-connect" disabled={authBusy} onClick={() => authAction('/api/auth/start')}>Sign in with ChatGPT</button>
+              <div id="oauth-events" class="mt-3 space-y-2 break-words text-sm" aria-live="polite">{(auth?.events || []).map((event, index) => <p key={index}>{event.message || event.instructions || ''}{event.url && <> <a href={event.url} target="_blank" rel="noopener">Open OpenAI sign-in ↗</a></>}</p>)}</div>
+              <div id="code-entry" class={`mt-4${auth?.prompt ? '' : ' hidden'}`}><label class="label font-semibold" for="auth-code">Final redirect URL</label><div class="flex flex-wrap gap-2 [&>input]:min-w-0 [&>input]:flex-1"><input id="auth-code" class="input input-bordered w-full" autoComplete="one-time-code" placeholder={auth?.prompt?.placeholder || 'Paste the final browser redirect URL'} value={code} disabled={authBusy} onInput={event => setCode(event.currentTarget.value)} /><button class="btn btn-outline" id="submit-code" disabled={authBusy} onClick={() => authAction('/api/auth/code', 'POST', { code })}>Submit</button></div></div>
+              <button class={`btn btn-ghost${oauthConnected ? '' : ' hidden'}`} id="oauth-disconnect" disabled={authBusy} onClick={() => authAction('/api/auth', 'DELETE')}>Disconnect account</button>
+              <button class={`btn btn-ghost${auth?.status === 'pending' ? '' : ' hidden'}`} id="oauth-cancel" disabled={authBusy} onClick={() => authAction('/api/auth/cancel')}>Cancel sign-in</button>
             </div>
           </section>
-          <section inert={page !== 'config'} id="settings-config-page" class={`settings-section${page === 'config' ? '' : ' hidden'}`}><h3>Chat defaults</h3>
-            <p class="field-note">These defaults apply only to new sessions. Existing sessions keep their own model, thinking level, and persona.</p>
-            <div class="settings-select-row"><label class="field-label model-field" for="model">Default model</label><select id="model" class="select" value={`${provider}:${mode}:${model}`} disabled={loading || saving || !connectedModels.length} onChange={event => chooseDefaultModel(event.currentTarget.value)}>{connectedModels.length ? connectedModels.map(item => <option key={`${item.provider}:${item.mode}:${item.id}`} value={`${item.provider}:${item.mode}:${item.id}`}>{item.name || item.id} · {item.providerName}{item.mode === 'oauth' ? ' (ChatGPT)' : ''}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
-            <div class="settings-select-row"><label class="field-label model-field" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
-            <div class="settings-select-row"><label class="field-label model-field" for="default-persona">Default persona</label><select id="default-persona" class="select" value={defaultPersonaId} disabled={saving} onChange={event => setDefaultPersonaId(event.currentTarget.value)}>{personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}</select></div>
-            <button class="primary-button settings-section-save" id="save-chat-defaults" disabled={saving || loading} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
+          <section inert={page !== 'config'} id="settings-config-page" class={page === 'config' ? '' : 'hidden'}><h3>Chat defaults</h3>
+            <p class="text-sm text-base-content/70">These defaults apply only to new sessions. Existing sessions keep their own model, thinking level, and persona.</p>
+            <div class="my-4 grid gap-2"><label class="label font-semibold" for="model">Default model</label><select id="model" class="select select-bordered w-full" value={`${provider}:${mode}:${model}`} disabled={loading || saving || !connectedModels.length} onChange={event => chooseDefaultModel(event.currentTarget.value)}>{connectedModels.length ? connectedModels.map(item => <option key={`${item.provider}:${item.mode}:${item.id}`} value={`${item.provider}:${item.mode}:${item.id}`}>{item.name || item.id} · {item.providerName}{item.mode === 'oauth' ? ' (ChatGPT)' : ''}</option>) : <option value="">Connect a provider to see models</option>}</select></div>
+            <div class="my-4 grid gap-2"><label class="label font-semibold" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select select-bordered w-full" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
+            <div class="my-4 grid gap-2"><label class="label font-semibold" for="default-persona">Default persona</label><select id="default-persona" class="select select-bordered w-full" value={defaultPersonaId} disabled={saving} onChange={event => setDefaultPersonaId(event.currentTarget.value)}>{personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}</select></div>
+            <button class="btn btn-primary mt-2" id="save-chat-defaults" disabled={saving || loading} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
           </section>
-          <section inert={page !== 'mcp'} id="settings-mcp-page" class={`settings-section${page === 'mcp' ? '' : ' hidden'}`}>
+          <section inert={page !== 'mcp'} id="settings-mcp-page" class={page === 'mcp' ? '' : 'hidden'}>
             {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} auth={mcpAuth} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
-            {mcpLogin && <div class="mcp-login" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="field-label" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="text-input" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="secondary-button" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="text-button" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
+            {mcpLogin && <div class="alert alert-info mt-4 flex-col items-start" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="label font-semibold" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="input input-bordered w-full" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="btn btn-outline" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="btn btn-ghost" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
           </section>
-          <section inert={page !== 'update'} id="settings-update-page" class={`settings-section${page === 'update' ? '' : ' hidden'}`}>
+          <section inert={page !== 'update'} id="settings-update-page" class={page === 'update' ? '' : 'hidden'}>
             <h3>Update Sunday</h3>
-            <p class="field-note">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
-            <div class="settings-update-actions"><button class="secondary-button" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
-            <button class="secondary-button" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
-            <p class="field-note">Runs npm install, builds, and restarts the server, interrupting running tasks. The page reloads when ready.</p>
-            <pre id="update-output" role="status" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{updateOutput}</pre>
+            <p class="text-sm text-base-content/70">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
+            <div class="flex flex-wrap gap-2"><button class="btn btn-outline" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
+            <button class="btn btn-outline" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
+            <p class="text-sm text-base-content/70">Runs npm install, builds, and restarts the server, interrupting running tasks. The page reloads when ready.</p>
+            <pre id="update-output" class="whitespace-pre-wrap break-words" role="status">{updateOutput}</pre>
           </section>
           <Personas hidden={page !== 'personas'} toast={toast} onReload={onReload} />
-          <p class="form-error" id="settings-error" role="alert">{error}</p>
+          <p class="alert alert-error empty:hidden py-2" id="settings-error" role="alert">{error}</p>
         </div>
       </div>
       </div>
-      <footer class="modal-footer"><button class="secondary-button" id="cancel-settings" onClick={requestClose}>Close</button><button class={`primary-button${page === 'providers' || page === 'config' || page === 'personas' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !connectedModels.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
+      <footer class="modal-footer flex shrink-0 justify-end gap-2 border-t border-base-300 px-5 py-4 sm:px-7"><button class="btn btn-outline" id="cancel-settings" onClick={requestClose}>Close</button><button class={`btn btn-primary${page === 'providers' || page === 'config' || page === 'personas' || page === 'update' || page === 'mcp' ? ' hidden' : ''}`} id="save-settings" disabled={saving || loading || authBusy || (page === 'config' && !connectedModels.length)} onClick={save}>{page === 'connect' ? 'Save connection' : 'Save defaults'}</button></footer>
     </section>
   </div>;
 }

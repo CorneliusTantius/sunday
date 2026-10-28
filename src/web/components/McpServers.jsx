@@ -41,36 +41,36 @@ export default function McpServers({ config, auth = {}, busy, onSave, onLogin, l
     } catch (error) { setError(error.message); }
   }
   return <>
-    <div class="settings-page-heading"><h3>MCP servers</h3><button class="secondary-button" disabled={busy} onClick={() => open()}>＋ Add server</button></div>
-    <p class="field-note">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
-    <div class="provider-list">
-      {Object.entries(servers).map(([name, server]) => <div class="provider-card mcp-server-entry" key={name}>
-        <div class="mcp-server-title"><strong>{name}</strong><span class={`mcp-status-pill${server.enabled === false ? ' disabled' : ' enabled'}`}>{server.enabled === false ? 'Disabled' : 'Enabled'}</span><span class="provider-status">{server.url ? 'HTTP' : 'stdio'}</span>
-          {server.url && <span class={`mcp-status-pill${auth[name] ? ' signed-in' : ' signed-out'}`} role="status" title="Stored OAuth credentials; access is checked when connecting.">{auth[name] ? 'Signed in' : 'Not signed in'}</span>}
+    <div class="flex flex-wrap items-center justify-between gap-4"><h3>MCP servers</h3><button class="btn btn-outline" disabled={busy} onClick={() => open()}>＋ Add server</button></div>
+    <p class="text-sm text-base-content/70">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
+    <div class="grid gap-3">
+      {Object.entries(servers).map(([name, server]) => <div class="card card-border bg-base-100 p-4" key={name}>
+        <div class="flex flex-wrap items-center gap-2"><strong>{name}</strong><span class={`badge ${server.enabled === false ? 'badge-ghost' : 'badge-success badge-soft'}`}>{server.enabled === false ? 'Disabled' : 'Enabled'}</span><span class="badge badge-outline">{server.url ? 'HTTP' : 'stdio'}</span>
+          {server.url && <span class={`badge ${auth[name] ? 'badge-info badge-soft' : 'badge-ghost'}`} role="status" title="Stored OAuth credentials; access is checked when connecting.">{auth[name] ? 'Signed in' : 'Not signed in'}</span>}
         </div>
-        <div class="mcp-server-actions"><button class="secondary-button" disabled={busy} onClick={() => open(name)}>Edit</button>{server.url && <button class="secondary-button" disabled={busy || loginBusy || server.enabled === false} onClick={() => onLogin(name)}>{auth[name] ? 'Sign in again' : 'Sign in'}</button>}<button class="text-button" disabled={busy} onClick={() => { if (window.confirm(`Remove MCP server ${name}?`)) { const next = { ...servers }; delete next[name]; onSave({ ...config, mcpServers: next }); } }}>Remove</button></div>
+        <div class="mt-3 flex flex-wrap items-center gap-2"><button class="btn btn-outline" disabled={busy} onClick={() => open(name)}>Edit</button>{server.url && <button class="btn btn-outline" disabled={busy || loginBusy || server.enabled === false} onClick={() => onLogin(name)}>{auth[name] ? 'Sign in again' : 'Sign in'}</button>}<button class="btn btn-ghost" disabled={busy} onClick={() => { if (window.confirm(`Remove MCP server ${name}?`)) { const next = { ...servers }; delete next[name]; onSave({ ...config, mcpServers: next }); } }}>Remove</button></div>
       </div>)}
-      {!Object.keys(servers).length && <p class="field-note">No MCP servers configured. Add a server to get started.</p>}
+      {!Object.keys(servers).length && <p class="text-sm text-base-content/70">No MCP servers configured. Add a server to get started.</p>}
     </div>
-    <dialog ref={dialog} class="mcp-server-dialog" aria-label="MCP server configuration" onCancel={event => { if (busy) event.preventDefault(); }} onKeyDown={event => { if (event.key === 'Escape' || event.key === 'Tab') event.stopPropagation(); }}>
-      {draft && <form onSubmit={submit}>
-        <h3>{draft.original ? 'Edit MCP server' : 'Add MCP server'}</h3>
-        <fieldset disabled={busy}>
-          <label class="field-label" for="mcp-server-name">Name</label><input autoFocus id="mcp-server-name" class="text-input" required value={draft.name} onInput={event => field('name', event.currentTarget.value)} />
-          <label class="field-label" for="mcp-transport">Transport</label><select id="mcp-transport" class="select" value={draft.transport} onChange={event => field('transport', event.currentTarget.value)}><option value="stdio">stdio (local command)</option><option value="http">HTTP</option></select>
+    <dialog ref={dialog} class="modal" aria-label="MCP server configuration" onCancel={event => { if (busy) event.preventDefault(); }} onKeyDown={event => { if (event.key === 'Escape' || event.key === 'Tab') event.stopPropagation(); }}>
+      {draft && <div class="modal-box max-h-[85vh] w-[min(520px,calc(100vw-32px))] overflow-y-auto bg-base-100 text-base-content"><form onSubmit={submit}>
+        <h3 class="mb-4 text-lg font-bold">{draft.original ? 'Edit MCP server' : 'Add MCP server'}</h3>
+        <fieldset class="fieldset" disabled={busy}>
+          <label class="label font-semibold" for="mcp-server-name">Name</label><input autoFocus id="mcp-server-name" class="input input-bordered w-full" required value={draft.name} onInput={event => field('name', event.currentTarget.value)} />
+          <label class="label font-semibold" for="mcp-transport">Transport</label><select id="mcp-transport" class="select select-bordered w-full" value={draft.transport} onChange={event => field('transport', event.currentTarget.value)}><option value="stdio">stdio (local command)</option><option value="http">HTTP</option></select>
           {draft.transport === 'stdio' ? <>
-            <label class="field-label" for="mcp-command">Command</label><input id="mcp-command" class="text-input" required value={draft.command} onInput={event => field('command', event.currentTarget.value)} />
-            <label class="field-label" for="mcp-args">Arguments (JSON array)</label><textarea id="mcp-args" class="text-input" rows="3" value={draft.args} onInput={event => field('args', event.currentTarget.value)} />
-            <label class="field-label" for="mcp-env">Environment variables (JSON object)</label><textarea id="mcp-env" class="text-input" rows="3" spellcheck={false} value={draft.env} onInput={event => field('env', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-command">Command</label><input id="mcp-command" class="input input-bordered w-full" required value={draft.command} onInput={event => field('command', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-args">Arguments (JSON array)</label><textarea id="mcp-args" class="textarea textarea-bordered w-full" rows="3" value={draft.args} onInput={event => field('args', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-env">Environment variables (JSON object)</label><textarea id="mcp-env" class="textarea textarea-bordered w-full" rows="3" spellcheck={false} value={draft.env} onInput={event => field('env', event.currentTarget.value)} />
           </> : <>
-            <label class="field-label" for="mcp-url">Server URL</label><input id="mcp-url" class="text-input" type="url" required value={draft.url} onInput={event => field('url', event.currentTarget.value)} />
-            <label class="field-label" for="mcp-headers">Headers (JSON object)</label><textarea id="mcp-headers" class="text-input" rows="3" spellcheck={false} value={draft.headers} onInput={event => field('headers', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-url">Server URL</label><input id="mcp-url" class="input input-bordered w-full" type="url" required value={draft.url} onInput={event => field('url', event.currentTarget.value)} />
+            <label class="label font-semibold" for="mcp-headers">Headers (JSON object)</label><textarea id="mcp-headers" class="textarea textarea-bordered w-full" rows="3" spellcheck={false} value={draft.headers} onInput={event => field('headers', event.currentTarget.value)} />
           </>}
-          <label><input type="checkbox" checked={draft.enabled} onChange={event => field('enabled', event.currentTarget.checked)} /> Enabled</label>
+          <label class="label cursor-pointer justify-start gap-3"><input class="checkbox" type="checkbox" checked={draft.enabled} onChange={event => field('enabled', event.currentTarget.checked)} /> Enabled</label>
         </fieldset>
-        <p class="form-error" role="alert">{error}</p>
-        <div class="modal-footer"><button type="button" class="secondary-button" disabled={busy} onClick={() => dialog.current.close()}>Cancel</button><button class="primary-button" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save server'}</button></div>
-      </form>}
+        <p class="alert alert-error empty:hidden py-2" role="alert">{error}</p>
+        <div class="modal-action"><button type="button" class="btn btn-outline" disabled={busy} onClick={() => dialog.current.close()}>Cancel</button><button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save server'}</button></div>
+      </form></div>}
     </dialog>
   </>;
 }
