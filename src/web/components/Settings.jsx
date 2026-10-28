@@ -413,7 +413,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
     finally { updatePending.current = false; if (alive.current) setUpdating(false); }
   }
 
-  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center bg-base-content/80 p-4 transition-opacity duration-200 ${closing ? 'pointer-events-none opacity-0' : ''}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
+  return <div ref={backdrop} class={`fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 transition-opacity duration-200 ${closing ? 'pointer-events-none opacity-0' : ''}`} id="settings-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) requestClose(); }}>
     <section class="card flex h-[min(80dvh,calc(100dvh-2.5rem))] w-full max-w-6xl flex-col overflow-hidden rounded-box border border-base-300 bg-base-100 text-base-content shadow-xl" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header data-settings-header class="flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4 sm:px-7"><div><p class="mb-1 text-xs font-bold tracking-widest text-primary">PREFERENCES</p><h2 id="settings-title">Settings</h2></div><button ref={closeButton} class="btn btn-ghost btn-square" id="close-settings" aria-label="Close settings" onClick={requestClose}>×</button></header>
       <div ref={contentViewport} class="min-h-0 flex-1 overflow-hidden transition-[height] duration-200">
