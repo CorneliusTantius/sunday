@@ -1,4 +1,35 @@
 @import "tailwindcss" source("./");
 @plugin "daisyui" {
-  themes: night --default;
+  themes: nord-dark --default;
+}
+@plugin "daisyui/theme" {
+  name: "nord-dark";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: #2E3440;
+  --color-base-200: #3B4252;
+  --color-base-300: #434C5E;
+  --color-base-content: #ECEFF4;
+
+  --color-primary: #88C0D0;
+  --color-primary-content: #2E3440;
+  --color-secondary: #81A1C1;
+  --color-secondary-content: #2E3440;
+  --color-accent: #B48EAD;
+  /* Slightly darkened Polar Night keeps text readable on the accent. */
+  --color-accent-content: #292F3A;
+  --color-neutral: #4C566A;
+  --color-neutral-content: #ECEFF4;
+
+  --color-info: #88C0D0;
+  --color-info-content: #2E3440;
+  --color-success: #A3BE8C;
+  --color-success-content: #2E3440;
+  --color-warning: #EBCB8B;
+  --color-warning-content: #2E3440;
+  /* Darkened Nord Aurora red retains the hue and supports light-text contrast. */
+  --color-error: #A64F59;
+  --color-error-content: #ECEFF4;
 }

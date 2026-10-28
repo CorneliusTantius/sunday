@@ -1,7 +1,7 @@
-const colors = { cyan: '#00E5FF', violet: '#9D5CFF', blue: '#3874FF', amber: '#FFB020', lime: '#B7F52A', pink: '#FF3D9A' };
+const colors = { cyan: '#88C0D0', violet: '#B48EAD', blue: '#5E81AC', amber: '#EBCB8B', lime: '#A3BE8C', pink: '#BF616A' };
 const facePath = 'M23 23h-8v14h8M49 23h-8v14h8M28 41h8';
 function faceImage(color) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="20" fill="#090B10" stroke="${color}" stroke-width="3"/><path d="${facePath}" fill="none" stroke="${color}" stroke-width="3"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="20" fill="#2E3440" stroke="${color}" stroke-width="3"/><path d="${facePath}" fill="none" stroke="${color}" stroke-width="3"/></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 export default function Character({ profile, brand = false, welcome = false }) {
