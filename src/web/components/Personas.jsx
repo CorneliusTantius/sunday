@@ -93,7 +93,7 @@ export default function Personas({ hidden, toast, onReload }) {
 
   return <section inert={hidden} id="settings-personas-page" class={`settings-section${hidden ? ' hidden' : ''}`}>
     <h3>Profiles &amp; personas</h3><p class="field-note">Reusable starting profiles. Changes here do not change existing sessions.</p>
-    <select id="persona-select" class="select persona-select" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
+    <select id="persona-select" class="select select-bordered persona-select" aria-label="Choose saved persona" value={id} disabled={busy} onChange={event => {
       if (event.currentTarget.value === '__new__') { select(personas, ''); nameInput.current?.focus(); }
       else select(personas, event.currentTarget.value);
     }}>
@@ -103,25 +103,25 @@ export default function Personas({ hidden, toast, onReload }) {
     </select>
     <form id="persona-form" aria-labelledby="persona-config-heading" onSubmit={save}>
       <h4 id="persona-config-heading">Persona configuration</h4><p class="field-note persona-config-note">Edit this persona’s identity, instructions, and tool permissions below.</p>
-      <div class="settings-select-row"><label class="field-label" for="persona-name">Name</label><input ref={nameInput} id="persona-name" class="text-input" required maxLength="80" value={profile.name} disabled={busy} onInput={event => change('name', event.currentTarget.value)} /></div>
+      <div class="settings-select-row"><label class="field-label" for="persona-name">Name</label><input ref={nameInput} id="persona-name" class="input input-bordered" required maxLength="80" value={profile.name} disabled={busy} onInput={event => change('name', event.currentTarget.value)} /></div>
       <div class="persona-appearance">
         <div class="persona-color-field settings-select-row"><div class="persona-color-label"><label class="field-label" for="persona-color">Character color</label><div id="persona-preview" aria-label="Persona character preview"><Character profile={profile} /></div></div><select class="select" id="persona-color" value={profile.color} disabled={busy} onChange={event => change('color', event.currentTarget.value)}>
           {['cyan', 'violet', 'blue', 'amber', 'lime', 'pink'].map(color => <option key={color} value={color}>{color[0].toUpperCase() + color.slice(1)}</option>)}
         </select></div>
       </div>
-      <div class="settings-select-row"><label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="text-input" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
-      <label class="field-label" for="persona-instructions">Custom instructions</label><textarea id="persona-instructions" class="text-input" rows="6" maxLength="8000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
+      <div class="settings-select-row"><label class="field-label" for="persona-specialty">Specialty or task</label><input id="persona-specialty" class="input input-bordered" maxLength="200" value={profile.specialty} disabled={busy} onInput={event => change('specialty', event.currentTarget.value)} /></div>
+      <label class="field-label" for="persona-instructions">Custom instructions</label><textarea class="textarea textarea-bordered w-full" id="persona-instructions" rows="6" maxLength="8000" aria-describedby="persona-instructions-note" value={profile.instructions} disabled={busy} onInput={event => change('instructions', event.currentTarget.value)} />
       <p id="persona-instructions-note" class="field-note">Edit the persona’s responsibilities and workflow here. Sunday and Coding Agent start with editable defaults; shared system rules and tool guidance are added separately.</p>
       <details class="persona-tools-card" open><summary>Tool permissions</summary><fieldset class="repository-options"><legend class="sr-only">Tool permissions</legend><div id="persona-tools">
         {toolPermissionItems.map(item => {
           if (!item.group) {
             const { tool } = item;
-            return <label key={tool.name} class="repository-checkbox"><input type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="persona-tool-detail"><strong>{tool.name === 'bash' ? 'Bash' : tool.name}</strong><ul class="persona-tool-list"><li><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li></ul></span></label>;
+            return <label key={tool.name} class="repository-checkbox flex items-center gap-3 rounded-box p-2 hover:bg-base-300"><input class="checkbox checkbox-primary" type="checkbox" value={tool.name} disabled={busy} checked={profile.allowedTools.includes(tool.name)} onChange={event => setToolAllowed(tool.name, event.currentTarget.checked)} /><span class="persona-tool-detail"><strong>{tool.name === 'bash' ? 'Bash' : tool.name}</strong><ul class="persona-tool-list"><li><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li></ul></span></label>;
           }
           const { group, tools: groupedTools } = item;
           const enabled = groupedTools.filter(tool => profile.allowedTools.includes(tool.name)).length;
           const checked = enabled === groupedTools.length;
-          return <label class="repository-checkbox persona-tool-group" key={group.name}><input type="checkbox" value={group.name} disabled={busy} checked={checked} onChange={event => {
+          return <label class="repository-checkbox persona-tool-group" key={group.name}><input class="checkbox checkbox-primary" type="checkbox" value={group.name} disabled={busy} checked={checked} onChange={event => {
             const names = groupedTools.map(tool => tool.name);
             change('allowedTools', event.currentTarget.checked
               ? [...new Set([...profile.allowedTools, ...names])]
@@ -129,8 +129,8 @@ export default function Personas({ hidden, toast, onReload }) {
           }} /><span class="persona-tool-detail"><strong>{group.name}</strong><ul class="persona-tool-list">{groupedTools.map(tool => <li key={tool.name}><code>{tool.name}</code>: {shortToolDescription(tool.description)}</li>)}</ul></span></label>;
         })}
       </div></fieldset></details>
-      <div class="code-row"><button class="primary-button" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="secondary-button" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
-      <p id="persona-error" class="form-error" role="alert">{error}</p>
+      <div class="code-row"><button class="btn btn-primary" id="save-persona" type="submit" disabled={busy}>Save persona</button><button class="btn btn-ghost" id="delete-persona" type="button" disabled={busy || !id} onClick={remove}>Delete persona</button></div>
+      <p id="persona-error" class="alert alert-error" role="alert">{error}</p>
     </form>
   </section>;
 }

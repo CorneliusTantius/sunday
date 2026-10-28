@@ -145,8 +145,8 @@ export default function Skills({ exiting = false } = {}) {
         <p>Reusable instructions that help Sunday agents handle a kind of task consistently.</p>
       </div>
       <div class="context-header-actions skills-actions">
-        <button class="context-button" type="button" onClick={startCreate}>＋ Create skill</button>
-        <button class="context-button secondary" type="button" onClick={startImport}>Install from npm</button>
+        <button class="btn btn-primary" type="button" onClick={startCreate}>＋ Create skill</button>
+        <button class="btn btn-ghost" type="button" onClick={startImport}>Install from npm</button>
       </div>
     </header>
 
@@ -163,26 +163,26 @@ export default function Skills({ exiting = false } = {}) {
       </div>
     </section>
 
-    {error && !form && <p class="skills-message skills-error" role="alert">{error}</p>}
-    {notice && <p class="skills-message" role="status">{notice}</p>}
+    {error && !form && <p class="alert alert-error" role="alert">{error}</p>}
+    {notice && <p class="alert alert-info" role="status">{notice}</p>}
 
     <dialog ref={dialog} class={`context-modal skills-dialog${dialogClosing ? ' closing' : ''}`} aria-labelledby="skills-form-title" onClose={() => { clearTimeout(closeTimer.current); closeTimer.current = null; setForm(''); setError(''); setDialogClosing(false); }} onCancel={event => { event.preventDefault(); closeForm(); }} onClick={event => { if (event.target === dialog.current) closeForm(); }}>
       {form === 'npm' && <form class="skills-form" onSubmit={installNpmSkill} aria-labelledby="skills-form-title">
-        <div class="skills-form-heading context-modal-header"><div><p class="eyebrow">NPM PACKAGE</p><h2 id="skills-form-title">Install skill instructions</h2></div><button class="context-button secondary" type="button" onClick={closeForm} disabled={busy || dialogClosing}>Cancel</button></div>
-        {error && <p class="skills-message skills-error" role="alert">{error}</p>}
+        <div class="skills-form-heading context-modal-header"><div><p class="eyebrow">NPM PACKAGE</p><h2 id="skills-form-title">Install skill instructions</h2></div><button class="btn btn-ghost" type="button" onClick={closeForm} disabled={busy || dialogClosing}>Cancel</button></div>
+        {error && <p class="alert alert-error" role="alert">{error}</p>}
         <label>Package name or version<input value={packageName} onInput={event => setPackageName(event.currentTarget.value)} placeholder="@team/code-review-skill" required maxLength={214} autoFocus /></label>
         <p class="skills-safety-note">Sunday downloads the package archive to find <code>SKILL.md</code>. It does not run npm install or package scripts. Imported skills are stored separately from skills you build here and start disabled.</p>
-        <button class="context-button" type="submit" disabled={busy || dialogClosing}>{busy ? 'Installing…' : 'Download and review'}</button>
+        <button class="btn btn-primary" type="submit" disabled={busy || dialogClosing}>{busy ? 'Installing…' : 'Download and review'}</button>
       </form>}
 
       {(form === 'create' || form === 'edit') && <form class="skills-form" onSubmit={saveSkill} aria-labelledby="skills-form-title">
-        <div class="skills-form-heading context-modal-header"><div><p class="eyebrow">{form === 'edit' ? 'EDIT SKILL' : 'SUNDAY SKILL BUILDER'}</p><h2 id="skills-form-title">{form === 'edit' ? 'Update skill' : 'Create a skill'}</h2></div><button class="context-button secondary" type="button" onClick={closeForm} disabled={busy || dialogClosing}>Cancel</button></div>
-        {error && <p class="skills-message skills-error" role="alert">{error}</p>}
+        <div class="skills-form-heading context-modal-header"><div><p class="eyebrow">{form === 'edit' ? 'EDIT SKILL' : 'SUNDAY SKILL BUILDER'}</p><h2 id="skills-form-title">{form === 'edit' ? 'Update skill' : 'Create a skill'}</h2></div><button class="btn btn-ghost" type="button" onClick={closeForm} disabled={busy || dialogClosing}>Cancel</button></div>
+        {error && <p class="alert alert-error" role="alert">{error}</p>}
         <label>Name<input value={draft.name} onInput={event => updateDraft('name', event.currentTarget.value)} required maxLength={80} autoFocus /></label>
         <label>Description<input value={draft.description} onInput={event => updateDraft('description', event.currentTarget.value)} required maxLength={500} /></label>
-        <label>Instructions<textarea value={draft.content} onInput={event => updateDraft('content', event.currentTarget.value)} required maxLength={50000} rows={12} placeholder="Write clear, reusable guidance for the agent…" /></label>
+        <label>Instructions<textarea class="textarea textarea-bordered w-full" value={draft.content} onInput={event => updateDraft('content', event.currentTarget.value)} required maxLength={50000} rows={12} placeholder="Write clear, reusable guidance for the agent…" /></label>
         <p class="skills-safety-note">Instructions are shared with all Sunday agents when enabled. They cannot grant tools or permissions. New skills start disabled.</p>
-        <button class="context-button" type="submit" disabled={busy || dialogClosing}>{busy ? 'Saving…' : form === 'edit' ? 'Save changes' : 'Create skill'}</button>
+        <button class="btn btn-primary" type="submit" disabled={busy || dialogClosing}>{busy ? 'Saving…' : form === 'edit' ? 'Save changes' : 'Create skill'}</button>
       </form>}
     </dialog>
 
@@ -200,7 +200,7 @@ export default function Skills({ exiting = false } = {}) {
         <div class="skills-empty-icon" aria-hidden="true">✦</div>
         <h2>{displayedSource === 'sunday' ? 'Create your first skill' : displayedSource === 'device' ? 'No device skills found' : 'No npm packages added'}</h2>
         <p>{displayedSource === 'sunday' ? 'Capture a repeatable workflow as clear instructions, then enable it for Sunday agents.' : displayedSource === 'device' ? 'Sunday checks ~/.agents/skills, ~/.claude/skills, and the matching workspace skill folders. Device skills stay in place and are read-only here.' : 'Install an npm package containing a SKILL.md file. Imported skills stay separate and disabled until you review them.'}</p>
-        {displayedSource !== 'device' && <button class="context-button" type="button" onClick={displayedSource === 'sunday' ? startCreate : startImport}>{displayedSource === 'sunday' ? '＋ Create skill' : 'Install from npm'}</button>}
+        {displayedSource !== 'device' && <button class="btn btn-primary" type="button" onClick={displayedSource === 'sunday' ? startCreate : startImport}>{displayedSource === 'sunday' ? '＋ Create skill' : 'Install from npm'}</button>}
       </section> : <div class="skills-list">
         {visibleSkills.map((skill, index) => <article class={`skills-card context-panel${removingId === skill.id ? ' leaving' : ''}`} style={{ '--skills-index': Math.min(index, 8) }} key={skill.id}>
           <div class="skills-card-header"><div><span class={`skills-origin ${skill.source.type !== 'sunday' ? 'npm' : ''}`}>{skill.source.type === 'device' ? 'DEVICE SKILL' : skill.source.type === 'npm' ? 'NPM PACKAGE' : 'SUNDAY SKILL'}</span><h3>{skill.name}</h3></div><span class={`skills-status${skill.enabled ? ' enabled' : ''}`}>{skill.enabled ? 'Enabled' : 'Disabled'}</span></div>
@@ -208,7 +208,7 @@ export default function Skills({ exiting = false } = {}) {
           {skill.source.type === 'npm' && <p class="skills-package">{skill.source.package} · {skill.source.path}</p>}
           {skill.source.type === 'device' && <p class="skills-package">{skill.source.location} · managed outside Sunday</p>}
           <details class="skills-review"><summary>Review instructions</summary><pre>{skill.content}</pre></details>
-          <div class="skills-card-actions">{skill.source.type !== 'device' && <button class="context-button secondary" type="button" onClick={() => startEdit(skill)} disabled={busy}>{busy ? 'Please wait…' : 'Edit'}</button>}<button class="context-button" type="button" aria-pressed={skill.enabled} onClick={() => setEnabled(skill, !skill.enabled)} disabled={busy}>{busy ? 'Please wait…' : skill.enabled ? 'Disable' : 'Enable'}</button>{skill.source.type !== 'device' && <button class="context-button secondary danger" type="button" onClick={() => removeSkill(skill)} disabled={busy}>{removingId === skill.id ? 'Deleting…' : 'Delete'}</button>}</div>
+          <div class="skills-card-actions">{skill.source.type !== 'device' && <button class="btn btn-ghost" type="button" onClick={() => startEdit(skill)} disabled={busy}>{busy ? 'Please wait…' : 'Edit'}</button>}<button class="btn btn-primary" type="button" aria-pressed={skill.enabled} onClick={() => setEnabled(skill, !skill.enabled)} disabled={busy}>{busy ? 'Please wait…' : skill.enabled ? 'Disable' : 'Enable'}</button>{skill.source.type !== 'device' && <button class="btn btn-ghost danger" type="button" onClick={() => removeSkill(skill)} disabled={busy}>{removingId === skill.id ? 'Deleting…' : 'Delete'}</button>}</div>
         </article>)}
       </div>}
     </div>

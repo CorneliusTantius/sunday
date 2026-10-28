@@ -225,20 +225,20 @@ export default function Memory({ toast }) {
       <div><p class="eyebrow">CONTEXT MODE</p><h1 id="context-title" tabIndex="-1">Indexed context</h1><p>Add selected documents and durable facts for agents to retrieve later.</p></div>
       <div class="context-header-actions">
         <div class="context-count"><strong>{sources.length}</strong> sources</div>
-        <button ref={indexButton} class="context-button" type="button" onClick={openIndexer}>＋ Index a source</button>
+        <button ref={indexButton} class="btn btn-primary" type="button" onClick={openIndexer}>＋ Index a source</button>
       </div>
     </header>
-    {error && !indexOpen && <p class="context-error" role="alert">{error}</p>}
+    {error && !indexOpen && <p class="alert alert-error" role="alert">{error}</p>}
     <div class="context-view-controls" role="group" aria-label="Memory view">
-      <button class={`context-button${!graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
-      <button class={`context-button${graphOpen ? '' : ' secondary'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
+      <button class={`btn ${!graphOpen ? 'btn-primary' : 'btn-ghost'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
+      <button class={`btn ${graphOpen ? 'btn-primary' : 'btn-ghost'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
     </div>
-    {graphOpen && <section class="context-panel context-global-panel context-tab-view" aria-labelledby="context-global-title">
+    {graphOpen && <section class="card card-bordered bg-base-200 p-5 context-tab-view" aria-labelledby="context-global-title">
       <header class="context-global-header">
         <div><h2 id="context-global-title">Knowledge graph</h2><p>Select a dot, then switch to Notes to read it.</p></div>
         <div class="context-global-meta">
           <span>{graph.nodes.length} notes · {graph.links.length} links</span>
-          <button class="context-button secondary" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
+          <button class="btn btn-ghost" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
         </div>
       </header>
       {graphLoading ? <p class="context-empty">Loading graph…</p> : graph.nodes.length ? <div class="context-global-scroll">
@@ -279,11 +279,11 @@ export default function Memory({ toast }) {
       </div> : <p class="context-empty">No indexed notes yet. Index notes to populate the graph.</p>}
     </section>}
     {!graphOpen && <div class="context-layout context-tab-view">
-      <section class="context-panel" aria-label="Indexed sources">
+      <section class="card card-bordered bg-base-200 p-5" aria-label="Indexed sources">
         <h2>Notes <span class="context-notes-count">{visibleSources.length}</span></h2>
         <form class="context-search" onSubmit={search}>
           <label class="field-label" for="context-search">Search note titles and content</label>
-          <div class="context-search-row"><input class="text-input" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="context-button" type="submit">Search</button></div>
+          <div class="context-search-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
         {loading ? <p class="context-empty">Loading notes…</p> : visibleSources.length ? <ul class="context-source-list">
           {visibleSources.map(item => <li key={item.id}><button class={`context-source${selected?.id === item.id ? ' active' : ''}`} onClick={() => openSource(item.id)}>
@@ -297,9 +297,9 @@ export default function Memory({ toast }) {
         </div>}
       </section>
       <div class="context-detail-column">
-        <section class="context-panel context-detail" aria-label="Selected source">
+        <section class="card card-bordered bg-base-200 p-5" aria-label="Selected source">
           {selected ? <>
-            <div class="context-detail-header"><div><p class="eyebrow">{selected.scope}</p><h2>{selected.title}</h2><p>{selected.source}</p></div><button class="context-button secondary" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
+            <div class="context-detail-header"><div><p class="eyebrow">{selected.scope}</p><h2>{selected.title}</h2><p>{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
             <pre>{selected.content}</pre>
             <section class="context-note-links" aria-labelledby="context-links-title">
               <h3 id="context-links-title">Linked notes</h3>
@@ -308,19 +308,19 @@ export default function Memory({ toast }) {
                   {links.map(link => {
                     const other = link.source === selected.source ? link.target : link.source;
                     const item = sources.find(sourceItem => sourceItem.source === other);
-                    return <li key={`${link.source}:${link.target}`}><button type="button" class="context-link-open" onClick={() => item && openSource(item.id)}>{item?.title || other}</button><span>{link.relation} · {link.source === selected.source ? 'outgoing' : 'incoming'}</span><button type="button" class="context-link-remove" aria-label={`Remove link to ${item?.title || other}`} disabled={linkBusy} onClick={() => unlinkSource(link)}>×</button></li>;
+                    return <li key={`${link.source}:${link.target}`}><button type="button" class="link link-primary" onClick={() => item && openSource(item.id)}>{item?.title || other}</button><span>{link.relation} · {link.source === selected.source ? 'outgoing' : 'incoming'}</span><button type="button" class="btn btn-ghost btn-xs" aria-label={`Remove link to ${item?.title || other}`} disabled={linkBusy} onClick={() => unlinkSource(link)}>×</button></li>;
                   })}
                 </ul>
               </> : <p class="context-empty">No linked notes yet.</p>}
               <form class="context-link-form" onSubmit={linkSource}>
                 <label class="field-label" for="context-link-target">Link to note</label>
                 <div class="context-link-controls">
-                  <select class="text-input" id="context-link-target" required value={linkTarget} onChange={event => setLinkTarget(event.currentTarget.value)}>
+                  <select class="select select-bordered w-full" id="context-link-target" required value={linkTarget} onChange={event => setLinkTarget(event.currentTarget.value)}>
                     <option value="">Choose an indexed note…</option>
                     {sources.filter(item => item.source !== selected.source).map(item => <option key={item.id} value={item.source}>{item.title} · {item.source}</option>)}
                   </select>
-                  <input class="text-input" aria-label="Relationship" placeholder="Relationship" maxLength={80} value={linkRelation} onInput={event => setLinkRelation(event.currentTarget.value)} />
-                  <button class="context-button" type="submit" disabled={linkBusy || !linkTarget}>{linkBusy ? 'Linking…' : 'Link note'}</button>
+                  <input class="input input-bordered" aria-label="Relationship" placeholder="Relationship" maxLength={80} value={linkRelation} onInput={event => setLinkRelation(event.currentTarget.value)} />
+                  <button class="btn btn-primary" type="submit" disabled={linkBusy || !linkTarget}>{linkBusy ? 'Linking…' : 'Link note'}</button>
                 </div>
               </form>
             </section>
@@ -332,20 +332,20 @@ export default function Memory({ toast }) {
       <section ref={indexDialog} class="context-modal" role="dialog" aria-modal="true" aria-labelledby="context-index-title" aria-describedby="context-index-help">
         <header class="context-modal-header">
           <div><p class="eyebrow">CONTEXT MODE</p><h2 id="context-index-title">Index a source</h2></div>
-          <button class="icon-button" type="button" aria-label="Close index source dialog" disabled={busy} onClick={closeIndexer}>×</button>
+          <button class="btn btn-ghost btn-square btn-sm" type="button" aria-label="Close index source dialog" disabled={busy} onClick={closeIndexer}>×</button>
         </header>
         <p class="field-note" id="context-index-help">Sources are shared with agents that have Context search enabled. Reuse the same source name to update it.</p>
-        {error && <p class="context-error" role="alert">{error}</p>}
+        {error && <p class="alert alert-error" role="alert">{error}</p>}
         <form class="context-index-form" onSubmit={indexSource}>
           <label class="field-label" for="context-source">Source ID</label>
-          <input ref={sourceInput} class="text-input" id="context-source" required maxLength={300} value={source} onInput={event => setSource(event.currentTarget.value)} placeholder="docs/release-guide.md" />
+          <input ref={sourceInput} class="input input-bordered" id="context-source" required maxLength={300} value={source} onInput={event => setSource(event.currentTarget.value)} placeholder="docs/release-guide.md" />
           <label class="field-label" for="context-source-title">Title</label>
-          <input class="text-input" id="context-source-title" required maxLength={120} value={title} onInput={event => setTitle(event.currentTarget.value)} placeholder="Release guide" />
+          <input class="input input-bordered" id="context-source-title" required maxLength={120} value={title} onInput={event => setTitle(event.currentTarget.value)} placeholder="Release guide" />
           <label class="field-label" for="context-content">Content</label>
-          <textarea class="text-input context-content-input" id="context-content" required maxLength={200000} value={content} onInput={event => setContent(event.currentTarget.value)} placeholder="Paste selected text or durable facts to make them searchable." />
+          <textarea class="textarea textarea-bordered w-full" id="context-content" required maxLength={200000} value={content} onInput={event => setContent(event.currentTarget.value)} placeholder="Paste selected text or durable facts to make them searchable." />
           <div class="context-modal-actions">
-            <button class="context-button secondary" type="button" disabled={busy} onClick={closeIndexer}>Cancel</button>
-            <button class="context-button" type="submit" disabled={busy}>{busy ? 'Indexing…' : 'Index source'}</button>
+            <button class="btn btn-ghost" type="button" disabled={busy} onClick={closeIndexer}>Cancel</button>
+            <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Indexing…' : 'Index source'}</button>
           </div>
         </form>
       </section>

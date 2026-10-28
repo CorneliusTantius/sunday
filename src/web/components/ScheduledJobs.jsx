@@ -213,25 +213,25 @@ export default function ScheduledJobs() {
     </header>
 
     <div class="scheduled-job-layout">
-      <form class="scheduled-job-builder" onSubmit={save}>
+      <form class="scheduled-job-builder card card-bordered bg-base-200 p-5" onSubmit={save}>
         <div class="scheduled-job-section-heading">
           <div><p class="eyebrow">{editingId ? 'EDIT AUTOMATION' : 'NEW AUTOMATION'}</p><h2>{editingId ? 'Edit scheduled job' : 'Build a scheduled job'}</h2></div>
         </div>
         <div class="scheduled-job-fields">
           <div class="scheduled-job-field scheduled-job-field-wide">
             <label class="field-label" for="scheduled-job-name">Job name</label>
-            <input class="text-input" id="scheduled-job-name" type="text" required minLength="1" maxLength="120" value={draft.name} disabled={loading || saving} onInput={event => change('name', event.currentTarget.value)} />
+            <input class="input input-bordered" id="scheduled-job-name" type="text" required minLength="1" maxLength="120" value={draft.name} disabled={loading || saving} onInput={event => change('name', event.currentTarget.value)} />
           </div>
           <div class="scheduled-job-field scheduled-job-field-wide">
             <label class="field-label" for="scheduled-job-agent">Run with persona</label>
-            <select class="select" id="scheduled-job-agent" required value={draft.personaId} disabled={loading || saving || !personas.length} onChange={event => change('personaId', event.currentTarget.value)}>
+            <select class="select select-bordered" id="scheduled-job-agent" required value={draft.personaId} disabled={loading || saving || !personas.length} onChange={event => change('personaId', event.currentTarget.value)}>
               <option value="" disabled>{personas.length ? 'Choose a persona' : 'Create a persona first'}</option>
               {personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
             </select>
           </div>
           <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-model">Model</label>
-            <select class="select" id="scheduled-job-model" value={selectedModelKey} disabled={loading || saving || !connectedModels.length} onChange={event => {
+            <select class="select select-bordered" id="scheduled-job-model" value={selectedModelKey} disabled={loading || saving || !connectedModels.length} onChange={event => {
               const selected = connectedModels.find(item => modelKey(item) === event.currentTarget.value);
               change('model', selected?.id || '');
               change('provider', selected?.provider || '');
@@ -244,93 +244,93 @@ export default function ScheduledJobs() {
           </div>
           <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-thinking">Thinking level</label>
-            <select class="select" id="scheduled-job-thinking" value={draft.thinkingLevel} disabled={loading || saving || !thinkingLevels.length} onChange={event => change('thinkingLevel', event.currentTarget.value)}>
+            <select class="select select-bordered" id="scheduled-job-thinking" value={draft.thinkingLevel} disabled={loading || saving || !thinkingLevels.length} onChange={event => change('thinkingLevel', event.currentTarget.value)}>
               <option value="">Use default</option>
               {thinkingLevels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}
             </select>
           </div>
           <div class="scheduled-job-field scheduled-job-field-wide">
             <label class="field-label" for="scheduled-job-task">Task prompt</label>
-            <textarea class="text-input scheduled-job-task" id="scheduled-job-task" rows="5" required maxLength="20000" placeholder="Describe the task to run on every occurrence…" value={draft.task} disabled={loading || saving} onInput={event => change('task', event.currentTarget.value)} />
+            <textarea class="textarea textarea-bordered w-full" id="scheduled-job-task" rows="5" required maxLength="20000" placeholder="Describe the task to run on every occurrence…" value={draft.task} disabled={loading || saving} onInput={event => change('task', event.currentTarget.value)} />
             <p class="field-note">A new agent session is created for each run.</p>
           </div>
           <fieldset class="scheduled-job-field scheduled-job-field-wide scheduled-job-repositories" disabled={loading || saving}>
             <legend class="field-label">Allowed repositories</legend>
-            {repositories.length ? <div class="scheduled-job-repo-list">{repositories.map(repo => <label class="repository-checkbox" key={repo.name}>
-              <input type="checkbox" value={repo.name} checked={draft.allowedRepositories.includes(repo.name)} onChange={event => toggleRepository(repo.name, event.currentTarget.checked)} />
+            {repositories.length ? <div class="scheduled-job-repo-list">{repositories.map(repo => <label class="repository-checkbox flex items-center gap-3 rounded-box p-2 hover:bg-base-300" key={repo.name}>
+              <input class="checkbox checkbox-primary" type="checkbox" value={repo.name} checked={draft.allowedRepositories.includes(repo.name)} onChange={event => toggleRepository(repo.name, event.currentTarget.checked)} />
               <span>{repo.name}</span>
             </label>)}</div> : <p class="field-note">No repositories available. This job will not have repository access.</p>}
             <p class="field-note">Repository tools are restricted to this selection.</p>
           </fieldset>
           <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-frequency">Repeat</label>
-            <select class="select" id="scheduled-job-frequency" value={draft.schedule.type} disabled={loading || saving} onChange={event => chooseSchedule(event.currentTarget.value)}>
+            <select class="select select-bordered" id="scheduled-job-frequency" value={draft.schedule.type} disabled={loading || saving} onChange={event => chooseSchedule(event.currentTarget.value)}>
               {scheduleTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
           {['daily', 'weekly', 'monthly'].includes(draft.schedule.type) && <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-time">At</label>
-            <input class="text-input" id="scheduled-job-time" type="time" required value={draft.schedule.time} disabled={loading || saving} onInput={event => changeSchedule('time', event.currentTarget.value)} />
+            <input class="input input-bordered" id="scheduled-job-time" type="time" required value={draft.schedule.time} disabled={loading || saving} onInput={event => changeSchedule('time', event.currentTarget.value)} />
           </div>}
           {draft.schedule.type === 'weekly' && <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-day">Weekday</label>
-            <select class="select" id="scheduled-job-day" value={draft.schedule.weekday} disabled={loading || saving} onChange={event => changeSchedule('weekday', Number(event.currentTarget.value))}>
+            <select class="select select-bordered" id="scheduled-job-day" value={draft.schedule.weekday} disabled={loading || saving} onChange={event => changeSchedule('weekday', Number(event.currentTarget.value))}>
               {weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}
             </select>
           </div>}
           {draft.schedule.type === 'monthly' && <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-day-of-month">Day of month</label>
-            <select class="select" id="scheduled-job-day-of-month" value={draft.schedule.dayOfMonth} disabled={loading || saving} onChange={event => changeSchedule('dayOfMonth', Number(event.currentTarget.value))}>
+            <select class="select select-bordered" id="scheduled-job-day-of-month" value={draft.schedule.dayOfMonth} disabled={loading || saving} onChange={event => changeSchedule('dayOfMonth', Number(event.currentTarget.value))}>
               {Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
             </select>
             <p class="field-note">Days 29–31 do not run in shorter months.</p>
           </div>}
           {['every_n_minutes', 'every_n_hours'].includes(draft.schedule.type) && <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-interval">Every</label>
-            <div class="scheduled-job-interval"><input class="text-input" id="scheduled-job-interval" type="number" min="1" max={draft.schedule.type === 'every_n_minutes' ? 59 : 24} required value={draft.schedule.interval} disabled={loading || saving} onInput={event => changeSchedule('interval', Number(event.currentTarget.value))} /><span>{draft.schedule.type === 'every_n_minutes' ? 'minutes' : 'hours'}</span></div>
+            <div class="scheduled-job-interval"><input class="input input-bordered" id="scheduled-job-interval" type="number" min="1" max={draft.schedule.type === 'every_n_minutes' ? 59 : 24} required value={draft.schedule.interval} disabled={loading || saving} onInput={event => changeSchedule('interval', Number(event.currentTarget.value))} /><span>{draft.schedule.type === 'every_n_minutes' ? 'minutes' : 'hours'}</span></div>
             <p class="field-note">Aligned to local clock {draft.schedule.type === 'every_n_minutes' ? 'minute' : 'hour'} boundaries.</p>
           </div>}
           <div class="scheduled-job-field">
             <label class="field-label" for="scheduled-job-timezone">Timezone</label>
-            <input class="text-input" id="scheduled-job-timezone" type="text" required maxLength="100" placeholder="America/Los_Angeles" value={draft.schedule.timezone} disabled={loading || saving} onInput={event => changeSchedule('timezone', event.currentTarget.value)} />
+            <input class="input input-bordered" id="scheduled-job-timezone" type="text" required maxLength="100" placeholder="America/Los_Angeles" value={draft.schedule.timezone} disabled={loading || saving} onInput={event => changeSchedule('timezone', event.currentTarget.value)} />
             <p class="field-note">Use an IANA timezone, such as Europe/London or UTC.</p>
           </div>
         </div>
-        {error && <p class="form-error scheduled-job-error" role="alert">{error}</p>}
+        {error && <p class="alert alert-error scheduled-job-error" role="alert">{error}</p>}
         {status && <p class="scheduled-job-status" role="status">{status}</p>}
         {!personas.length && !loading && <p class="field-note" role="status">Create a persona before adding a scheduled job.</p>}
         <div class="scheduled-job-actions">
-          {editingId && <button class="secondary-button" type="button" disabled={saving} onClick={resetForm}>Cancel edit</button>}
-          <button class="primary-button" type="submit" disabled={!canSave}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create scheduled job'}</button>
+          {editingId && <button class="btn btn-ghost" type="button" disabled={saving} onClick={resetForm}>Cancel edit</button>}
+          <button class="btn btn-primary" type="submit" disabled={!canSave}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create scheduled job'}</button>
         </div>
       </form>
 
       <aside class="scheduled-job-aside" aria-label="Saved scheduled jobs">
-        <section class="scheduled-job-summary">
+        <section class="card card-bordered bg-base-200 p-5">
           <div class="scheduled-job-list-heading"><div><p class="eyebrow">AUTOMATIONS</p><h2>Your jobs</h2></div><span>{jobs.length}</span></div>
           {loading && <p class="field-note" role="status">Loading scheduled jobs…</p>}
           {!loading && !jobs.length && <div class="scheduled-job-empty-state"><span class="scheduled-job-clock-icon" aria-hidden="true">◷</span><div><strong>No scheduled jobs yet</strong><p>Create a job to run a recurring persona task.</p></div></div>}
           <div class="scheduled-job-list">{jobs.map(job => {
             const persona = personas.find(item => item.id === job.personaId);
             const busy = pendingId === job.id;
-            return <article class="scheduled-job-card" key={job.id}>
+            return <article class="scheduled-job-card card card-bordered bg-base-100 p-4" key={job.id}>
               <div class="scheduled-job-card-heading"><div><h3>{job.name}</h3><span class={`scheduled-job-state${job.enabled ? ' enabled' : ''}`}>{job.enabled ? 'Enabled' : 'Disabled'}</span></div></div>
               <p class="scheduled-job-card-persona">Persona · <strong>{persona?.name || 'Unavailable persona'}</strong></p>
               <p class="scheduled-job-card-schedule">{scheduleLabel(job.schedule)}</p>
               <p class="scheduled-job-card-task">{job.task}</p>
               <p class="scheduled-job-card-repos">Repositories · {job.allowedRepositories.length ? job.allowedRepositories.join(', ') : 'None'}</p>
               <div class="scheduled-job-card-actions">
-                <button class="secondary-button" type="button" disabled={Boolean(pendingId || saving)} onClick={() => editJob(job)}>Edit</button>
-                <button class="secondary-button" type="button" disabled={Boolean(pendingId)} onClick={() => setEnabled(job)}>{busy ? 'Saving…' : job.enabled ? 'Disable' : 'Enable'}</button>
-                <button class="secondary-button" type="button" disabled={Boolean(pendingId)} onClick={() => remove(job)}>Delete</button>
-                <button class="scheduled-job-history-toggle" type="button" aria-expanded={Boolean(expandedHistory[job.id])} disabled={Boolean(pendingId)} onClick={() => toggleHistory(job)}>{busy && expandedHistory[job.id] && !Object.hasOwn(history, job.id) ? 'Loading runs…' : `${expandedHistory[job.id] ? 'Hide' : 'Show'} run history`}</button>
+                <button class="btn btn-ghost" type="button" disabled={Boolean(pendingId || saving)} onClick={() => editJob(job)}>Edit</button>
+                <button class="btn btn-ghost" type="button" disabled={Boolean(pendingId)} onClick={() => setEnabled(job)}>{busy ? 'Saving…' : job.enabled ? 'Disable' : 'Enable'}</button>
+                <button class="btn btn-ghost" type="button" disabled={Boolean(pendingId)} onClick={() => remove(job)}>Delete</button>
+                <button class="btn btn-ghost btn-sm" type="button" aria-expanded={Boolean(expandedHistory[job.id])} disabled={Boolean(pendingId)} onClick={() => toggleHistory(job)}>{busy && expandedHistory[job.id] && !Object.hasOwn(history, job.id) ? 'Loading runs…' : `${expandedHistory[job.id] ? 'Hide' : 'Show'} run history`}</button>
               </div>
               {expandedHistory[job.id] && <section class="scheduled-job-history" aria-label={`Run history for ${job.name}`}>
                 <h4>Run history</h4>
                 {!Object.hasOwn(history, job.id) && <p class="field-note" role="status">Loading run history…</p>}
                 {history[job.id]?.length === 0 && <p class="field-note">No runs yet.</p>}
                 {history[job.id]?.map(run => <article class="scheduled-job-run" key={run.id}>
-                  <button class="scheduled-job-run-open" type="button" disabled={!run.sessionId} aria-haspopup="dialog" onClick={() => openTranscript(run)}>
+                  <button class="scheduled-job-run-open btn btn-ghost h-auto w-full flex-col items-stretch text-left" type="button" disabled={!run.sessionId} aria-haspopup="dialog" onClick={() => openTranscript(run)}>
                     <span><strong class={`scheduled-job-run-status ${run.status}`}>{run.status}</strong><time>{formatDate(run.scheduledFor)}</time></span>
                     {run.result && <span class="scheduled-job-run-result">{run.result}</span>}
                     {run.error && <span class="scheduled-job-run-error">{run.error}</span>}
@@ -343,8 +343,8 @@ export default function ScheduledJobs() {
       </aside>
     </div>
     <dialog class="scheduled-job-transcript-dialog" ref={transcriptDialog} aria-labelledby="scheduled-job-transcript-title" onClose={() => { transcriptRequest.current++; setSelectedRun(null); }} onCancel={event => { event.preventDefault(); closeTranscript(); }} onClick={event => { if (event.target === transcriptDialog.current) closeTranscript(); }}>
-      <header class="scheduled-job-transcript-header"><div><p class="eyebrow">RUN TRANSCRIPT</p><h2 id="scheduled-job-transcript-title">{selectedRun ? formatDate(selectedRun.scheduledFor) : 'Run transcript'}</h2></div><button class="icon-button" type="button" aria-label="Close transcript" onClick={closeTranscript}>×</button></header>
-      {transcriptError && <p class="form-error" role="alert">{transcriptError}</p>}
+      <header class="scheduled-job-transcript-header"><div><p class="eyebrow">RUN TRANSCRIPT</p><h2 id="scheduled-job-transcript-title">{selectedRun ? formatDate(selectedRun.scheduledFor) : 'Run transcript'}</h2></div><button class="btn btn-ghost btn-square btn-sm" type="button" aria-label="Close transcript" onClick={closeTranscript}>×</button></header>
+      {transcriptError && <p class="alert alert-error" role="alert">{transcriptError}</p>}
       {!transcript && !transcriptError && <p class="field-note" role="status">Loading transcript…</p>}
       {transcript && <div class="scheduled-job-transcript-content">{transcript.map((message, index) => <article class={`scheduled-job-transcript-message ${message.role}`} key={index}><h3>{message.role === 'assistant' ? 'Assistant' : message.role === 'user' ? 'You' : message.role}</h3><pre>{messageText(message.content)}</pre></article>)}</div>}
     </dialog>
