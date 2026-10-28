@@ -22,31 +22,6 @@ import { getContextMetrics, formatTokens } from './context.js';
 const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
 const activityLabels = { compacting: 'Compacting context…', waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
 const streamIdleTimeout = 150_000;
-const galaxyStarColors = [
-  ['rgba(231,237,255,.98)', 'rgba(231,237,255,.72)'],
-  ['rgba(180,135,255,.98)', 'rgba(157,92,255,.76)'],
-  ['rgba(118,235,255,.98)', 'rgba(66,232,255,.72)'],
-];
-const galaxyStars = Array.from({ length: 64 }, (_, index) => {
-  const prominent = index % 7 === 0;
-  const [color, glow] = galaxyStarColors[Math.floor(Math.random() * galaxyStarColors.length)];
-  const range = (min, max) => min + Math.random() * (max - min);
-  return {
-    id: index,
-    style: {
-      left: `${range(1, 99)}%`,
-      top: `${range(1, 99)}%`,
-      '--star-size': `${range(prominent ? 2.4 : 1.3, prominent ? 3.8 : 2.6)}px`,
-      '--star-color': color,
-      '--star-glow-color': glow,
-      '--star-glow-size': `${range(prominent ? 5 : 2, prominent ? 10 : 5)}px`,
-      '--star-duration': `${range(9, 16)}s`,
-      '--star-delay': `${-range(0, 16)}s`,
-      '--star-drift-x': `${range(-17, 17)}px`,
-      '--star-drift-y': `${range(-13, 13)}px`,
-    },
-  };
-});
 
 function progressLabel(status) {
   return Object.hasOwn(activityLabels, status) ? activityLabels[status] : activityLabels.waiting;
@@ -568,75 +543,72 @@ export default function App() {
     : session.running;
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
-    return <div class="session-row" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
-      <Character profile={session.profile || {}} /><button class={`session-item${session.id === sessionId ? ' active' : ''}`} title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="session-title">{session.title || 'New agent'}</span></button>
-      {(session.id === sessionId ? activeRunning : session.running) && <span class="session-running-pill" role="img" aria-label="Running" title="Running" />}
-      <button class={`icon-button session-action pin-session${pinned ? ' pinned' : ''}`} data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
-      <button class="icon-button session-action configure-session" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={sessionIsRunning(session) || loadingSession} onClick={event => { if (sessionIsRunning(session) || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
+    return <div class="card card-border flex-row items-center gap-1 bg-base-200 p-2" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
+      <Character profile={session.profile || {}} /><button class={`btn btn-ghost btn-sm min-w-0 flex-1 justify-start truncate ${session.id === sessionId ? 'btn-active' : ''}`}  title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="truncate">{session.title || 'New agent'}</span></button>
+      {(session.id === sessionId ? activeRunning : session.running) && <span class="badge badge-success badge-xs" role="img" aria-label="Running" title="Running" />}
+      <button class={`btn btn-ghost btn-square btn-xs ${pinned ? 'text-primary' : ''}`}  data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
+      <button class="btn btn-ghost btn-square btn-xs" title="Configure agent" aria-label={`Configure agent: ${session.title}`} disabled={sessionIsRunning(session) || loadingSession} onClick={event => { if (sessionIsRunning(session) || sessionLock.current) return; configOpener.current = event.currentTarget; setConfiguredSession(session); }}>⚙</button>
     </div>;
   };
 
   return <>
-    <div class="app-shell" ref={shell}>
-      <div class="galaxy-stars" aria-hidden="true">{galaxyStars.map(star => <span class="galaxy-star" key={star.id} style={star.style} />)}</div>
-      <aside ref={sidebar} class={`sidebar${mobile && sidebarOpen ? ' open' : ''}${!mobile && !sidebarOpen ? ' collapsed' : ''}`} id="sidebar">
-        <div class="sidebar-brand"><a class="brand" href="#" aria-label="Sunday home"><span class="brand-card-heading"><Character brand /><span class="brand-ascii" aria-hidden="true">{`                     ██
-▄█▀▀▀ ██ █▄ ██▀█▄ ▄█▀██ ▄█▀█▄ ▄█ █▄
- ▀▀█▄ ██ ██ ██ ██ ██ ██ ██▀██ ██ ██
-▀▀▀▀   ▀▀▀  ▀▀ ▀▀  ▀▀▀▀ ▀▀ ▀▀  ▀▀██
-                               ▀▀▀ `}</span></span></a><button ref={collapseButton} class="icon-button" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
-        <div class="sidebar-scroll">
-        <section class="agents-feature" aria-labelledby="agents-title">
-          <div class="feature-heading"><a class="feature-link" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="icon-button agents-toggle" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
-          <div id="agents-sessions" class={`agents-sessions${expanded ? ' expanded' : ''}`} inert={!expanded} aria-hidden={!expanded}>
-            <div class="agents-sessions-content"><button class="new-chat" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span class="plus">＋</span> New agent</button>
-            <nav class="sessions-list" id="sessions-list" aria-label="Sunday Agents">
+    <div class="flex h-dvh min-h-0 overflow-hidden bg-base-100 text-base-content" ref={shell}>
+      <aside ref={sidebar} class={`z-20 flex h-full w-72 shrink-0 flex-col overflow-y-auto border-r border-base-300 bg-base-200 p-4 transition-transform max-[700px]:fixed max-[700px]:inset-y-0 max-[700px]:left-0 max-[700px]:w-[min(20rem,85vw)] ${mobile ? sidebarOpen ? 'translate-x-0' : '-translate-x-full' : sidebarOpen ? '' : 'hidden'}`} id="sidebar">
+        <div class="navbar min-h-0 border-b border-base-300 px-0 pb-4"><a class="navbar-start flex min-w-0 items-center gap-3 text-lg font-bold text-base-content no-underline" href="#" aria-label="Sunday home"><Character brand /><span>Sunday</span></a><button ref={collapseButton} class="btn btn-ghost btn-square btn-sm" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
+        <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-4">
+        <section class="rounded-box border border-base-300 bg-base-100 p-2" aria-labelledby="agents-title">
+          <div class="flex items-center justify-between gap-2"><a class="flex min-w-0 flex-1 items-center gap-3 rounded-field px-3 py-2 font-semibold text-base-content hover:bg-base-200" id="agents-title" href="#chat" aria-current={page === 'chat' ? 'page' : undefined}><MenuIcon name="agents" /><span>Sunday Agents</span></a><button class="btn btn-ghost btn-square btn-sm" id="agents-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} Sunday Agents sessions`} aria-expanded={expanded} aria-controls="agents-sessions" onClick={() => setExpanded(!expanded)}><svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
+          <div id="agents-sessions" class={expanded ? 'mt-2' : 'hidden'} inert={!expanded} aria-hidden={!expanded}>
+            <div class="flex flex-col gap-2"><button class="btn btn-outline btn-sm justify-start" id="new-chat" disabled={loadingSession} onClick={() => createSession()}><span aria-hidden="true">＋</span> New agent</button>
+            <nav class="flex w-full flex-col gap-1" id="sessions-list" aria-label="Sunday Agents">
               {pinnedSessions.map(renderSession)}
               {unpinnedSessions.map(renderSession)}
             </nav>
             </div>
           </div>
         </section>
-        <a class={`feature-heading feature-link context-link${page === 'context' ? ' active' : ''}`} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" /><span>Context</span></a>
-        <a class={`feature-heading feature-link skills-link${page === 'skills' ? ' active' : ''}`} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" /><span>Skills</span></a>
-        <a class={`feature-heading feature-link scheduled-job-link${page === 'scheduled-job' ? ' active' : ''}`} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" /><span>Scheduled job</span></a>
-        <a class="feature-heading repos-feature feature-link" id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" /><span>Repositories</span></a>
-        <a class="feature-heading feature-link files-feature" id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" /><span>Files</span></a>
-        <a class="feature-heading feature-link" id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" /><span>Socials</span></a>
-        <div class="sidebar-bottom"><button ref={settingsButton} class="icon-button settings-shortcut" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
+        <ul class="menu menu-sm w-full gap-1 p-0">
+          <li><a class={page === 'context' ? 'active' : ''} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" />Context</a></li>
+          <li><a class={page === 'skills' ? 'active' : ''} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" />Skills</a></li>
+          <li><a id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Scheduled job</a></li>
+          <li><a id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
+          <li><a id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" />Files</a></li>
+          <li><a id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" />Socials</a></li>
+        </ul>
+        <div class="mt-auto flex justify-end border-t border-base-300 pt-3"><button ref={settingsButton} class="btn btn-ghost btn-square" id="open-settings" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button></div>
         </div>
       </aside>
-      <button ref={menu} class="icon-button sidebar-reopen" id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
-      <button class={`sidebar-backdrop${mobile && sidebarOpen ? ' open' : ''}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
-      <main class="main">
+      <button ref={menu} class={`btn btn-ghost btn-square fixed left-3 top-3 z-10 ${!mobile && sidebarOpen ? 'hidden' : ''}`}  id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
+      <button class={`fixed inset-0 z-10 bg-neutral/60 ${mobile && sidebarOpen ? '' : 'hidden'}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" onClick={closeSidebar} />
+      <main class="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}
         {(page === 'skills' || skillsExiting) && <Skills exiting={skillsExiting} />}
         {page === 'editor' && <Suspense fallback={<section class="repositories-page" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
-        <section ref={transcript} class={`conversation${page !== 'chat' ? ' hidden' : ''}`} id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
-          <div class={`welcome${messages.length ? ' hidden' : ''}`} id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
-          {activeRunning && !busy && <div class="background-run-status" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
-          <div ref={messageList} class="messages" id="messages">{memoryActivity && <p role="status" class="memory-activity">{memoryActivity} · Review notes in Memory</p>}<CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`message ${message.role}`}>
+        <section ref={transcript} class={`mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
+          <div class={`m-auto max-w-xl px-4 py-16 text-center ${messages.length ? 'hidden' : ''}`}  id="welcome"><Character welcome /><h1 id="welcome-greeting">{greetingText}</h1></div>
+          {activeRunning && !busy && <div class="alert alert-info my-3" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}
+          <div ref={messageList} class="flex flex-col gap-6 py-6" id="messages">{memoryActivity && <p role="status" class="badge badge-info badge-outline self-start">{memoryActivity} · Review notes in Memory</p>}<CompactionSummary compaction={compaction} /><MessageHistory key={sessionId} messages={messages} transcript={transcript}>{(message, index) => <div key={index} class={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`} >
             {message.role === 'assistant' && <div class="avatar"><Character profile={profile || {}} /></div>}
             {message.role === 'assistant' ? <div class="assistant-content"><MessageBubble content={message.content} error={message.error} /><ToolCalls calls={message.toolCalls} /></div> : <SkillCommandMessage content={message.content} error={message.error} />}
           </div>}</MessageHistory></div>
         </section>
-        <div class={`composer-wrap${page !== 'chat' ? ' hidden' : ''}`} id="chat-composer">
-          {showLatest && <button class="scroll-to-latest" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
-          {busy && activity && <div class="response-activity" id="response-activity" role="status">{activity}</div>}
-          <form class="composer" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="composer-footer">{contextWindow > 0 && <div class="context-meter" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction reserves space for the model response.">
-            <div class="context-meter-label"><span><i class="context-live-dot" />CONTEXT <small>{measuredUsage && contextUsage.measured ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
-            <div class="context-meter-track" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="context-meter-fill" style={{ width: `${contextPercent}%` }} /></div>
-          </div>}<button class="send-button" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">{busy ? <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" /> : <path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}</svg></button></div></form>
-          <div class="composer-controls"><label class="composer-model-label" for="chat-model">MODEL</label><select class="select chat-model" id="chat-model" value={sessionConfig?.model || ''} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !models.length} onChange={event => updateSessionConfig({ model: event.currentTarget.value })}>{models.length ? models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>) : <option value="">{settings ? 'Connect a provider to see models' : 'Loading models…'}</option>}</select><label class="thinking-label" for="thinking-level">THINKING</label><select class="select thinking-level" id="thinking-level" value={thinking} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !sessionConfig || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => updateSessionConfig({ thinkingLevel: event.currentTarget.value })}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
+        <div class={`mx-auto w-full max-w-5xl flex-none px-4 pb-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="chat-composer">
+          {showLatest && <button class="btn btn-sm btn-outline mb-2" id="scroll-to-latest" type="button" aria-controls="conversation" onClick={scrollToLatest}>↓ Scroll to latest</button>}
+          {busy && activity && <div class="badge badge-ghost mb-2" id="response-activity" role="status">{activity}</div>}
+          <form class="card card-border bg-base-200 p-4" id="chat-form" onSubmit={sendMessage}><ComposerInput inputRef={promptInput} value={prompt} onChange={setPrompt} sessionId={sessionId} disabled={busy || activeRunning} /><div class="flex items-center justify-between gap-3 pt-2">{contextWindow > 0 && <div class="min-w-0 flex-1" aria-label="Model context usage" title="LIVE: last measured request plus draft estimate. EST.: approximate tokens. Automatic compaction reserves space for the model response.">
+            <div class="mb-1 flex justify-between gap-3 text-xs text-base-content/70"><span><i class="mr-1 inline-block size-2 rounded-full bg-success" />CONTEXT <small>{measuredUsage && contextUsage.measured ? 'LIVE' : 'EST.'}</small></span><span><b>{contextPercent}%</b> {formatTokens(contextTokens)} / {formatTokens(contextWindow)} TOKENS</span></div>
+            <div class="h-1.5 overflow-hidden rounded-full bg-base-300" role="progressbar" aria-label="Context usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow={contextPercent} aria-valuetext={`${contextPercent}% of model context used`}><div class="h-full rounded-full bg-primary transition-[width]" style={{ width: `${contextPercent}%` }} /></div>
+          </div>}<button class="btn btn-primary btn-circle" id="send-button" type="submit" aria-label={busy ? 'Stop response' : 'Send message'}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">{busy ? <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" /> : <path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}</svg></button></div></form>
+          <div class="flex flex-wrap items-center gap-2 pt-3"><label class="text-xs font-semibold text-base-content/70" for="chat-model">MODEL</label><select class="select select-sm w-full max-w-xs" id="chat-model" value={sessionConfig?.model || ''} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !models.length} onChange={event => updateSessionConfig({ model: event.currentTarget.value })}>{models.length ? models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>) : <option value="">{settings ? 'Connect a provider to see models' : 'Loading models…'}</option>}</select><label class="text-xs font-semibold text-base-content/70" for="thinking-level">THINKING</label><select class="select select-sm w-full max-w-xs" id="thinking-level" value={thinking} disabled={!ready || loadingSession || busy || activeRunning || updatingSettings || !sessionConfig || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => updateSessionConfig({ thinkingLevel: event.currentTarget.value })}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
 
         </div>
       </main>
     </div>
     {settingsOpen && <Settings settings={settings} onReload={loadSettings} onClose={closeSettings} toast={toast} />}
     {configuredSession && <SessionConfig key={configuredSession.id} session={configuredSession} onSaved={loadSessions} onDelete={deleteSession} toast={toast} onClose={() => { setConfiguredSession(null); requestAnimationFrame(() => configOpener.current?.focus()); }} />}
-    <div class={`toast${toastText ? ' show' : ''}`} id="toast" role="status" aria-live="polite">{toastText}</div>
+    <div class={`toast toast-end toast-bottom z-50 ${toastText ? '' : 'hidden'}`} id="toast" role="status" aria-live="polite"><div class="alert alert-info">{toastText}</div></div>
   </>;
 }
