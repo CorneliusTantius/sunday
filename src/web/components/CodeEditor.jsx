@@ -272,28 +272,28 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
   saveAction.current = save;
 
   function fileButton(path, label) {
-    return <button type="button" class="code-editor-file-button btn btn-ghost justify-start text-base-content" disabled={saving}
-      aria-current={file === path ? 'page' : undefined} onClick={() => openFile(path)}><span class="code-editor-entry-icon" aria-hidden="true">◇</span><span>{label}</span></button>;
+    return <button type="button" class="btn btn-ghost min-h-9 w-full justify-start gap-2 rounded-field px-2.5 py-2 text-left text-[13px] leading-snug text-base-content [overflow-wrap:anywhere] aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary disabled:opacity-60 sm:min-h-11" disabled={saving}
+      aria-current={file === path ? 'page' : undefined} onClick={() => openFile(path)}><span class="w-4 flex-none text-center text-base-content/60" aria-hidden="true">◇</span><span>{label}</span></button>;
   }
 
   function directoryContents(path) {
     const directory = directories[path];
-    return <div class="code-editor-directory" id={`code-editor-directory-${encodeURIComponent(path)}`} aria-busy={directory?.loading}>
-      {directory?.loading && <p class="field-note" role="status">Loading files…</p>}
-      {directory?.error && <div class="code-editor-directory-error">
-        <p class="form-error alert alert-error py-2" role="alert">{directory.error}</p>
-        <button type="button" class="secondary-button btn btn-outline btn-sm" onClick={() => loadDirectory(path)}>Retry {path || root}</button>
+    return <div id={`code-editor-directory-${encodeURIComponent(path)}`} aria-busy={directory?.loading}>
+      {directory?.loading && <p class="py-2 text-sm text-base-content/70" role="status">Loading files…</p>}
+      {directory?.error && <div class="space-y-2">
+        <p class="alert alert-error py-2" role="alert">{directory.error}</p>
+        <button type="button" class="btn btn-outline btn-sm" onClick={() => loadDirectory(path)}>Retry {path || root}</button>
       </div>}
-      {directory && !directory.loading && !directory.error && !directory.entries.length && <p class="field-note">This directory is empty.</p>}
-      <ul class="code-editor-tree-list">
+      {directory && !directory.loading && !directory.error && !directory.entries.length && <p class="py-2 text-sm text-base-content/70">This directory is empty.</p>}
+      <ul class="m-1 list-none space-y-1 p-0 [&_ul]:ml-3 [&_ul]:border-l [&_ul]:border-base-300 [&_ul]:pl-1">
         {directory?.entries.map(entry => {
           const childPath = path ? `${path}/${entry.name}` : entry.name;
           const isDirectory = entry.type === 'directory';
-          return <li class="code-editor-tree-item" key={childPath}>
+          return <li class="my-1" key={childPath}>
             {isDirectory ? <>
-              <button type="button" class="code-editor-directory-button btn btn-ghost justify-start text-base-content" aria-expanded={expanded.has(childPath)}
+              <button type="button" class="btn btn-ghost min-h-9 w-full justify-start gap-2 rounded-field px-2.5 py-2 text-left text-[13px] font-semibold leading-snug text-base-content [overflow-wrap:anywhere] sm:min-h-11" aria-expanded={expanded.has(childPath)}
                 aria-controls={`code-editor-directory-${encodeURIComponent(childPath)}`} onClick={() => toggleDirectory(childPath)}>
-                <span class="code-editor-entry-icon" aria-hidden="true">{expanded.has(childPath) ? '▾' : '▸'}</span><span>{entry.name}</span>
+                <span class="w-4 flex-none text-center text-base-content/60" aria-hidden="true">{expanded.has(childPath) ? '▾' : '▸'}</span><span>{entry.name}</span>
               </button>
               {expanded.has(childPath) && directoryContents(childPath)}
             </> : fileButton(childPath, entry.name)}
@@ -303,35 +303,35 @@ export default function CodeEditor({ toast, onDirtyChange, onSavingChange }) {
     </div>;
   }
 
-  return <section class="code-editor-page" aria-labelledby="code-editor-title">
-    <header class="code-editor-header"><div><p class="eyebrow">WORKSPACE</p><h1 id="code-editor-title" tabIndex="-1">Files</h1></div>
-      <button type="button" class="primary-button btn btn-primary" onClick={save} disabled={!file || !dirty || saving || loadingFile} aria-keyshortcuts="Control+s Meta+s">{saving ? 'Saving…' : 'Save'}</button>
+  return <section class="flex min-h-0 min-w-0 flex-1 flex-col p-3 sm:p-6" aria-labelledby="code-editor-title">
+    <header class="mb-3 flex flex-none items-center justify-between gap-3 sm:mb-5"><div><p class="mb-1 text-xs font-bold tracking-widest text-primary">WORKSPACE</p><h1 class="m-0 text-2xl font-bold sm:text-[28px]" id="code-editor-title" tabIndex="-1">Files</h1></div>
+      <button type="button" class="btn btn-primary" onClick={save} disabled={!file || !dirty || saving || loadingFile} aria-keyshortcuts="Control+s Meta+s">{saving ? 'Saving…' : 'Save'}</button>
     </header>
-    <div class="code-editor-layout">
-      <aside class="code-editor-sidebar" aria-label="File browser">
-        <div class="code-editor-sidebar-header"><h2 class="code-editor-tree-title">FILE TREE</h2>
-          <button type="button" class="secondary-button btn btn-outline btn-sm" onClick={refreshFiles}>Refresh files</button>
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-box border border-base-300 lg:flex-row">
+      <aside class="max-h-[35dvh] min-h-0 w-full flex-[0_1_220px] overflow-auto border-b border-base-300 bg-base-200 p-2.5 lg:max-h-none lg:w-[260px] lg:flex-none lg:border-b-0 lg:border-r lg:p-3.5" aria-label="File browser">
+        <div class="mb-2.5 flex items-center justify-between gap-2 lg:mb-4"><h2 class="m-0 text-[11px] font-bold tracking-widest text-base-content/70">FILE TREE</h2>
+          <button type="button" class="btn btn-outline btn-sm" onClick={refreshFiles}>Refresh files</button>
         </div>
-        <form class="code-editor-search" onSubmit={changeDirectory}>
-          <label class="field-label" for="code-editor-root-input">Directory</label>
-          <div class="code-editor-search-controls">
-            <input class="text-input input input-bordered w-full" id="code-editor-root-input" value={directoryInput} onInput={event => setDirectoryInput(event.currentTarget.value)} placeholder="~/sunday or /absolute/path" spellcheck={false} />
-            <button type="submit" class="secondary-button btn btn-outline btn-sm" disabled={!directoryInput.trim() || saving || loadingFile}>Open</button>
-            <button type="button" class="secondary-button btn btn-outline btn-sm" disabled={root === '/' || saving || loadingFile}
+        <form class="mb-2.5 lg:mb-4" onSubmit={changeDirectory}>
+          <label class="mb-2 block text-sm font-semibold" for="code-editor-root-input">Directory</label>
+          <div class="flex flex-wrap gap-1.5">
+            <input class="input input-bordered h-[38px] min-w-0 flex-[1_1_130px]" id="code-editor-root-input" value={directoryInput} onInput={event => setDirectoryInput(event.currentTarget.value)} placeholder="~/sunday or /absolute/path" spellcheck={false} />
+            <button type="submit" class="btn btn-outline btn-sm" disabled={!directoryInput.trim() || saving || loadingFile}>Open</button>
+            <button type="button" class="btn btn-outline btn-sm" disabled={root === '/' || saving || loadingFile}
               onClick={() => changeDirectory(null, root.split('/').slice(0, -1).join('/') || '/')}>Up</button>
           </div>
-          {directoryError && <p class="form-error alert alert-error py-2" role="alert">{directoryError}</p>}
+          {directoryError && <p class="alert alert-error py-2" role="alert">{directoryError}</p>}
         </form>
-        <nav class="code-editor-tree" aria-label={`Files in ${root}`}>
+        <nav class="min-w-0" aria-label={`Files in ${root}`}>
           {directoryContents('')}
         </nav>
       </aside>
-      <div class="code-editor-main">
-        <p class="code-editor-file-label field-label" id="code-editor-file">{file ? `${file}${dirty ? ' — Unsaved changes' : ''}` : 'Choose a file to edit.'}</p>
-        {error && <p class="form-error alert alert-error py-2" role="alert">{error}</p>}
-        <p class="code-editor-status field-note" role="status">{loadingFile ? 'Loading file…' : status}</p>
-        <div class="code-editor-host" ref={host} aria-describedby="code-editor-file" aria-busy={loadingFile || saving} />
-        <p class="code-editor-save-hint field-note">Save with Ctrl+S or ⌘S.</p>
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col p-2.5 lg:p-3.5">
+        <p class="mb-2 block text-sm [overflow-wrap:anywhere]" id="code-editor-file">{file ? `${file}${dirty ? ' — Unsaved changes' : ''}` : 'Choose a file to edit.'}</p>
+        {error && <p class="alert alert-error py-2" role="alert">{error}</p>}
+        <p class="mb-2 text-sm text-base-content/70 empty:hidden" role="status">{loadingFile ? 'Loading file…' : status}</p>
+        <div class="min-h-0 min-w-0 flex-1 overflow-hidden rounded-box border border-base-300 text-base lg:text-sm [&_.cm-editor.cm-focused]:outline [&_.cm-editor.cm-focused]:outline-2 [&_.cm-editor.cm-focused]:outline-primary" ref={host} aria-describedby="code-editor-file" aria-busy={loadingFile || saving} />
+        <p class="mt-2 flex-none text-sm text-base-content/70">Save with Ctrl+S or ⌘S.</p>
       </div>
     </div>
   </section>;

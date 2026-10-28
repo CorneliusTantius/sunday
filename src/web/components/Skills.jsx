@@ -138,7 +138,8 @@ export default function Skills({ exiting = false } = {}) {
     {error && !form && <p class="alert alert-error" role="alert">{error}</p>}
     {notice && <p class="alert alert-info" role="status">{notice}</p>}
 
-    <dialog ref={dialog} class="modal-box max-h-[90vh] w-full max-w-3xl overflow-auto" aria-labelledby="skills-form-title" onClose={() => { setForm(''); setError(''); }} onCancel={event => { event.preventDefault(); closeForm(); }} onClick={event => { if (event.target === dialog.current) closeForm(); }}>
+    <dialog ref={dialog} class="modal" aria-labelledby="skills-form-title" onClose={() => { setForm(''); setError(''); }} onCancel={event => { event.preventDefault(); closeForm(); }} onClick={event => { if (event.target === dialog.current) closeForm(); }}>
+      <div class="modal-box max-h-[90vh] w-full max-w-3xl overflow-auto">
       {form === 'npm' && <form class="grid gap-3" onSubmit={installNpmSkill} aria-labelledby="skills-form-title">
         <div class="mb-4 flex items-start justify-between gap-4 border-b border-base-300 pb-3"><div><p class="text-xs font-bold tracking-widest text-primary">NPM PACKAGE</p><h2 id="skills-form-title">Install skill instructions</h2></div><button class="btn btn-ghost" type="button" onClick={closeForm} disabled={busy}>Cancel</button></div>
         {error && <p class="alert alert-error" role="alert">{error}</p>}
@@ -156,6 +157,7 @@ export default function Skills({ exiting = false } = {}) {
         <p class="text-sm leading-relaxed text-base-content/70">Instructions are shared with all Sunday agents when enabled. They cannot grant tools or permissions. New skills start disabled.</p>
         <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : form === 'edit' ? 'Save changes' : 'Create skill'}</button>
       </form>}
+      </div>
     </dialog>
 
     <div class="mb-3 flex items-center justify-between gap-3">

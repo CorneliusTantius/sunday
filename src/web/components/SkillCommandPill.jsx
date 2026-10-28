@@ -37,20 +37,20 @@ export default function SkillCommandPill({ skillId }) {
   }, [open, skillId]);
 
   return <>
-    <button class="skill-command-pill badge badge-soft badge-primary cursor-pointer" type="button" onClick={() => setOpen(true)} aria-label={`Show details for skill ${skillId}`}>
+    <button class="badge badge-soft badge-primary mb-2 inline-flex max-w-full cursor-pointer gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" type="button" onClick={() => setOpen(true)} aria-label={`Show details for skill ${skillId}`}>
       <span aria-hidden="true">✦</span> {skillId}
     </button>
-    <dialog class="toolcalls-dialog skill-details-dialog modal" ref={dialog} aria-labelledby={titleId} onClose={() => setOpen(false)} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }}>
-      <div class="modal-box flex max-h-[75dvh] max-w-3xl flex-col overflow-hidden bg-base-100 p-0 text-base-content">
-        <header class="toolcalls-header flex items-center justify-between gap-4 border-b border-base-300 p-5"><div><div class="eyebrow">ENABLED SKILL</div><h2 id={titleId}>{skill?.name || skillId}</h2></div><button class="icon-button btn btn-ghost btn-circle btn-sm" type="button" aria-label="Close skill details" onClick={() => dialog.current?.close()}>×</button></header>
-        <div class="skill-details-body">
+    <dialog class="modal" ref={dialog} aria-labelledby={titleId} onClose={() => setOpen(false)} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }}>
+      <div class="modal-box flex max-h-[75dvh] w-[min(680px,calc(100%-32px))] max-w-none flex-col overflow-hidden border border-base-300 bg-base-100 p-0 text-base-content shadow-2xl">
+        <header class="flex items-center justify-between gap-4 border-b border-base-300 p-5"><div><div class="mb-1 text-xs font-bold tracking-widest text-primary">ENABLED SKILL</div><h2 class="m-0 text-xl font-bold" id={titleId}>{skill?.name || skillId}</h2></div><button class="btn btn-ghost btn-circle btn-sm" type="button" aria-label="Close skill details" onClick={() => dialog.current?.close()}>×</button></header>
+        <div class="min-h-0 flex-1 overflow-auto p-4 sm:px-6 sm:pb-6">
         {loading && <p role="status">Loading skill details…</p>}
-        {error && <p role="status" class="error-text">{error}</p>}
+        {error && <p role="status" class="text-error">{error}</p>}
         {skill && <>
-          {skill.description && <p class="skill-detail-description">{skill.description}</p>}
-          <p class="skill-detail-source">{skill.source?.type === 'device' ? `Installed on device${skill.source.location ? ` · ${skill.source.location}` : ''}` : skill.source?.type === 'npm' ? 'Imported skill' : 'Sunday skill'}</p>
-          <h3>Instructions</h3>
-          <pre class="skill-detail-content mockup-code max-h-[48dvh] overflow-auto whitespace-pre-wrap bg-base-200 p-3 text-base-content">{skill.content}</pre>
+          {skill.description && <p class="mb-2 text-base-content">{skill.description}</p>}
+          <p class="text-xs text-base-content/70">{skill.source?.type === 'device' ? `Installed on device${skill.source.location ? ` · ${skill.source.location}` : ''}` : skill.source?.type === 'npm' ? 'Imported skill' : 'Sunday skill'}</p>
+          <h3 class="mb-2 mt-5 text-base font-bold">Instructions</h3>
+          <pre class="mockup-code m-0 max-h-[48dvh] overflow-auto whitespace-pre-wrap rounded-field border border-base-300 bg-base-200 p-3 text-[13px] leading-relaxed text-base-content">{skill.content}</pre>
         </>}
         </div>
       </div>

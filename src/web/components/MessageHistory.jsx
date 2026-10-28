@@ -22,7 +22,7 @@ export default function MessageHistory({ messages, transcript, children }) {
   }
 
   return <>
-    {start > 0 && <button type="button" class="show-older-messages btn btn-ghost btn-sm text-base-content/70 hover:text-base-content" onClick={showOlder}>Show older messages ({start})</button>}
+    {start > 0 && <button type="button" class="btn btn-ghost btn-sm self-start text-base-content/70 hover:text-base-content" onClick={showOlder}>Show older messages ({start})</button>}
     {messages.slice(start).map((message, index) => children(message, start + index))}
   </>;
 }

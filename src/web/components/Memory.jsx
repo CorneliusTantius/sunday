@@ -298,7 +298,7 @@ export default function Memory({ toast }) {
         <section class="card card-bordered bg-base-200 p-5" aria-label="Selected source">
           {selected ? <>
             <div class="mb-4 flex items-start justify-between gap-3"><div><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2>{selected.title}</h2><p>{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
-            <pre>{selected.content}</pre>
+            <pre class="max-w-full whitespace-pre-wrap break-words">{selected.content}</pre>
             <section class="mt-4 border-t border-base-300 pt-4" aria-labelledby="context-links-title">
               <h3 id="context-links-title">Linked notes</h3>
               {linksLoading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading links…</p> : links.length ? <>
@@ -326,7 +326,7 @@ export default function Memory({ toast }) {
         </section>
       </div>
     </div>}
-    {indexOpen && <div class="modal-backdrop z-10" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeIndexer(); }}>
+    {indexOpen && <div class="modal modal-open z-50" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeIndexer(); }}>
       <section ref={indexDialog} class="modal-box max-h-[85vh] w-full max-w-xl overflow-auto" role="dialog" aria-modal="true" aria-labelledby="context-index-title" aria-describedby="context-index-help">
         <header class="mb-4 flex items-start justify-between gap-4 border-b border-base-300 pb-3">
           <div><p class="text-xs font-bold tracking-widest text-primary">CONTEXT MODE</p><h2 id="context-index-title">Index a source</h2></div>

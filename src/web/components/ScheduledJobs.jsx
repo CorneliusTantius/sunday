@@ -342,11 +342,13 @@ export default function ScheduledJobs() {
         </section>
       </aside>
     </div>
-    <dialog class="modal-box max-h-[80vh] w-full max-w-3xl" ref={transcriptDialog} aria-labelledby="scheduled-job-transcript-title" onClose={() => { transcriptRequest.current++; setSelectedRun(null); }} onCancel={event => { event.preventDefault(); closeTranscript(); }} onClick={event => { if (event.target === transcriptDialog.current) closeTranscript(); }}>
+    <dialog class="modal" ref={transcriptDialog} aria-labelledby="scheduled-job-transcript-title" onClose={() => { transcriptRequest.current++; setSelectedRun(null); }} onCancel={event => { event.preventDefault(); closeTranscript(); }} onClick={event => { if (event.target === transcriptDialog.current) closeTranscript(); }}>
+      <div class="modal-box max-h-[80vh] w-full max-w-3xl">
       <header class="mb-4 flex items-start justify-between gap-4"><div><p class="text-xs font-bold tracking-widest text-primary">RUN TRANSCRIPT</p><h2 id="scheduled-job-transcript-title">{selectedRun ? formatDate(selectedRun.scheduledFor) : 'Run transcript'}</h2></div><button class="btn btn-ghost btn-square btn-sm" type="button" aria-label="Close transcript" onClick={closeTranscript}>×</button></header>
       {transcriptError && <p class="alert alert-error" role="alert">{transcriptError}</p>}
       {!transcript && !transcriptError && <p class="mt-2 text-sm leading-relaxed text-base-content/70" role="status">Loading transcript…</p>}
-      {transcript && <div class="grid max-h-[60vh] gap-3 overflow-y-auto">{transcript.map((message, index) => <article class="rounded-box border border-base-300 bg-base-100 p-3" key={index}><h3>{message.role === 'assistant' ? 'Assistant' : message.role === 'user' ? 'You' : message.role}</h3><pre>{messageText(message.content)}</pre></article>)}</div>}
+      {transcript && <div class="grid max-h-[60vh] gap-3 overflow-y-auto">{transcript.map((message, index) => <article class="rounded-box border border-base-300 bg-base-100 p-3" key={index}><h3>{message.role === 'assistant' ? 'Assistant' : message.role === 'user' ? 'You' : message.role}</h3><pre class="whitespace-pre-wrap break-words">{messageText(message.content)}</pre></article>)}</div>}
+      </div>
     </dialog>
   </section>;
 }
