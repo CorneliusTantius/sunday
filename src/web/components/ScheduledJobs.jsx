@@ -202,7 +202,7 @@ export default function ScheduledJobs() {
     }
   }
 
-  return <section class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6" aria-labelledby="scheduled-job-title">
+  return <section class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 py-8 sm:px-6" aria-labelledby="scheduled-job-title">
     <header class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
       <div>
         <p class="text-xs font-bold tracking-widest text-primary">AUTOMATION</p>
@@ -213,7 +213,7 @@ export default function ScheduledJobs() {
     </header>
 
     <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(16rem,.9fr)]">
-      <form class="min-w-0 card card-bordered bg-base-200 p-5 max-h-[calc(100dvh-2rem)] overflow-y-auto" onSubmit={save}>
+      <form class="min-w-0 card card-bordered bg-base-200 p-5" onSubmit={save}>
         <div class="border-b border-base-300 pb-4">
           <div><p class="text-xs font-bold tracking-widest text-primary">{editingId ? 'EDIT AUTOMATION' : 'NEW AUTOMATION'}</p><h2>{editingId ? 'Edit automation' : 'Create an automation'}</h2></div>
         </div>

@@ -86,8 +86,12 @@ async function mount(t) {
   };
   await waitFor(() => {
     assert.equal($('#scheduled-job-title')?.textContent, 'Automations');
-    assert.equal($('form').classList.contains('overflow-y-auto'), true);
-    assert.ok($('form').className.includes('max-h-'));
+    const content = $('section[aria-labelledby="scheduled-job-title"]');
+    assert.equal(content.classList.contains('flex-1'), true);
+    assert.equal(content.classList.contains('min-h-0'), true);
+    assert.equal(content.classList.contains('overflow-y-auto'), true);
+    assert.equal($('form').classList.contains('overflow-y-auto'), false);
+    assert.equal($('form').className.includes('max-h-'), false);
     assert.equal($('#scheduled-job-agent')?.disabled, false);
   });
   return { window, $, click, setValue, calls, jobs };
