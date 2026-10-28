@@ -5,10 +5,11 @@ import { readFileSync } from 'node:fs';
 const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
 
 test('chat header keeps accessible unlabeled model and thinking dropdowns', () => {
-  const controls = app.match(/<div class="flex flex-wrap items-center gap-2 pt-3">([\s\S]*?)<\/div>/)?.[1];
-  assert.ok(controls);
-  assert.match(controls, /<select[^>]*id="chat-model" aria-label="Model"/);
-  assert.match(controls, /<select[^>]*id="thinking-level" aria-label="Thinking"/);
+  const row = app.match(/<div class="flex min-w-0 flex-nowrap items-center gap-2 pt-3">([\s\S]*?)<\/div>/);
+  assert.ok(row, 'model and thinking selectors should share a non-wrapping row');
+  const controls = row[1];
+  assert.match(controls, /<select class="select select-sm min-w-0 flex-\[2\] bg-base-200" id="chat-model" aria-label="Model"/);
+  assert.match(controls, /<select class="select select-sm min-w-0 flex-1 bg-base-200" id="thinking-level" aria-label="Thinking"/);
   assert.doesNotMatch(controls, /<label|>MODEL<|>THINKING</);
 });
 
