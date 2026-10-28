@@ -220,44 +220,44 @@ export default function Memory({ toast }) {
     }
   }
 
-  return <section class="context-page" aria-labelledby="context-title">
-    <header class="context-header">
-      <div><p class="eyebrow">CONTEXT MODE</p><h1 id="context-title" tabIndex="-1">Indexed context</h1><p>Add selected documents and durable facts for agents to retrieve later.</p></div>
-      <div class="context-header-actions">
-        <div class="context-count"><strong>{sources.length}</strong> sources</div>
+  return <section class="mx-auto w-full max-w-6xl min-h-0 overflow-y-auto px-4 py-8 sm:px-6" aria-labelledby="context-title">
+    <header class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+      <div><p class="text-xs font-bold tracking-widest text-primary">CONTEXT MODE</p><h1 id="context-title" tabIndex="-1">Indexed context</h1><p>Add selected documents and durable facts for agents to retrieve later.</p></div>
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="badge badge-outline"><strong>{sources.length}</strong> sources</div>
         <button ref={indexButton} class="btn btn-primary" type="button" onClick={openIndexer}>＋ Index a source</button>
       </div>
     </header>
     {error && !indexOpen && <p class="alert alert-error" role="alert">{error}</p>}
-    <div class="context-view-controls" role="group" aria-label="Memory view">
+    <div class="join mb-4" role="group" aria-label="Memory view">
       <button class={`btn ${!graphOpen ? 'btn-primary' : 'btn-ghost'}`} type="button" aria-pressed={!graphOpen} onClick={() => setGraphOpen(false)}>Notes list</button>
       <button class={`btn ${graphOpen ? 'btn-primary' : 'btn-ghost'}`} type="button" aria-pressed={graphOpen} onClick={() => setGraphOpen(true)}>Knowledge graph</button>
     </div>
-    {graphOpen && <section class="card card-bordered bg-base-200 p-5 context-tab-view" aria-labelledby="context-global-title">
-      <header class="context-global-header">
+    {graphOpen && <section class="card card-bordered bg-base-200 p-5 mb-4" aria-labelledby="context-global-title">
+      <header class="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div><h2 id="context-global-title">Knowledge graph</h2><p>Select a dot, then switch to Notes to read it.</p></div>
-        <div class="context-global-meta">
+        <div class="flex flex-wrap items-center gap-3 text-sm text-base-content/70">
           <span>{graph.nodes.length} notes · {graph.links.length} links</span>
           <button class="btn btn-ghost" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
         </div>
       </header>
-      {graphLoading ? <p class="context-empty">Loading graph…</p> : graph.nodes.length ? <div class="context-global-scroll">
-        <svg class="context-global-svg" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph">
-          <rect class="context-global-background" x="0" y="0" width={CONTEXT_GRAPH_WIDTH} height={CONTEXT_GRAPH_HEIGHT} />
+      {graphLoading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading graph…</p> : graph.nodes.length ? <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+        <svg class="block h-[min(620px,65vh)] min-h-90 w-full select-none" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph">
+          <rect x="0" y="0" width={CONTEXT_GRAPH_WIDTH} height={CONTEXT_GRAPH_HEIGHT} fill="transparent" />
           <g>
-            <g class="context-global-edges" aria-hidden="true">
+            <g style={{ pointerEvents: 'none' }} aria-hidden="true">
               {graph.links.map((link, index) => {
                 const from = graphPositionBySource.get(link.source), to = graphPositionBySource.get(link.target);
                 if (!from || !to) return null;
                 const related = activeGraphSource && (link.source === activeGraphSource || link.target === activeGraphSource);
                 const dimmed = activeGraphSource && !related;
-                return <g key={`${link.source}:${link.target}:${link.relation || index}`} class={`context-graph-edge${related ? ' active' : ''}${dimmed ? ' dimmed' : ''}`}>
+                return <g key={`${link.source}:${link.target}:${link.relation || index}`} opacity={dimmed ? 0.15 : 1}>
                   <title>{`${from.title} ${link.relation || 'links to'} ${to.title}`}</title>
-                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={related ? 'var(--color-primary)' : 'var(--color-base-content)'} strokeOpacity={related ? 0.95 : 0.45} strokeWidth={related ? 1.7 : 1.15} vectorEffect="non-scaling-stroke" />
                 </g>;
               })}
             </g>
-            <g class="context-global-nodes">
+            <g>
               {graphNodes.map(node => {
                 const sourceKey = node.source || node.id;
                 const isActive = hoveredGraphSource === sourceKey || selected?.source === sourceKey;
@@ -265,56 +265,54 @@ export default function Memory({ toast }) {
                 const tooltipX = node.x > CONTEXT_GRAPH_WIDTH - 220 ? -210 : 10;
                 const tooltipY = node.y > CONTEXT_GRAPH_HEIGHT - 110 ? -100 : 10;
                 const radius = 3.5 + Math.min(node.degree, 6) * 0.55;
-                return <g key={node.id} data-graph-node={sourceKey} class={`context-graph-node-dot${isActive ? ' active' : ''}${node.degree ? ' connected' : ' isolated'}${isDimmed ? ' dimmed' : ''}`} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
-                  <circle class="context-graph-hit" r="16" />
-                  <circle class="context-graph-point" r={radius} />
-                  <foreignObject class="context-graph-tooltip" x={tooltipX} y={tooltipY} width="200" height="100" aria-hidden="true">
-                    <div class="context-graph-tooltip-content"><strong>{node.title}</strong><span>{node.source}</span></div>
-                  </foreignObject>
+                return <g key={node.id} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} style={{ cursor: 'pointer', opacity: isDimmed ? 0.22 : 1 }} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
+                  <title>{`${node.title} — ${node.source}`}</title>
+                  <circle r="16" fill="transparent" pointerEvents="all" />
+                  <circle r={radius} fill={isActive ? 'var(--color-primary)' : node.degree ? 'var(--color-base-content)' : 'var(--color-base-300)'} stroke="var(--color-base-100)" strokeWidth={isActive ? 2.5 : 1} vectorEffect="non-scaling-stroke" />
                 </g>;
               })}
             </g>
           </g>
         </svg>
-      </div> : <p class="context-empty">No indexed notes yet. Index notes to populate the graph.</p>}
+      </div> : <p class="my-3 text-sm leading-relaxed text-base-content/70">No indexed notes yet. Index notes to populate the graph.</p>}
     </section>}
-    {!graphOpen && <div class="context-layout context-tab-view">
+    {!graphOpen && <div class="grid gap-4 lg:grid-cols-[minmax(17rem,.8fr)_minmax(0,1.2fr)] mb-4">
       <section class="card card-bordered bg-base-200 p-5" aria-label="Indexed sources">
-        <h2>Notes <span class="context-notes-count">{visibleSources.length}</span></h2>
-        <form class="context-search" onSubmit={search}>
-          <label class="field-label" for="context-search">Search note titles and content</label>
-          <div class="context-search-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
+        <h2>Notes <span class="badge badge-primary badge-sm">{visibleSources.length}</span></h2>
+        <form class="mt-4 grid gap-2" onSubmit={search}>
+          <label class="label-text font-medium" for="context-search">Search note titles and content</label>
+          <div class="flex flex-col gap-2 sm:flex-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
-        {loading ? <p class="context-empty">Loading notes…</p> : visibleSources.length ? <ul class="context-source-list">
-          {visibleSources.map(item => <li key={item.id}><button class={`context-source${selected?.id === item.id ? ' active' : ''}`} onClick={() => openSource(item.id)}>
+        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <ul class="mt-3 grid max-h-[65vh] list-none gap-2 overflow-auto p-0">
+          {visibleSources.map(item => <li key={item.id}><button class={`btn h-auto w-full flex-col items-start gap-1 p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost'}`}  onClick={() => openSource(item.id)}>
             <strong>{item.title}</strong><span>{item.source}</span><small>{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
           </button></li>)}
-        </ul> : <p class="context-empty">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
-        {query.trim() && <div class="context-results" aria-label="Content search results">
-          {results.length > 0 ? results.map((result, index) => <button class="context-result" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
+        </ul> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
+        {query.trim() && <div class="mt-3 grid gap-2" aria-label="Content search results">
+          {results.length > 0 ? results.map((result, index) => <button class="btn h-auto w-full flex-col items-start gap-1 p-3 text-left" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
             <strong>{result.title}</strong><span>{result.source}</span><p>{result.excerpt}</p>
-          </button>) : <p class="context-empty">Submit the search to find matching note content.</p>}
+          </button>) : <p class="my-3 text-sm leading-relaxed text-base-content/70">Submit the search to find matching note content.</p>}
         </div>}
       </section>
-      <div class="context-detail-column">
+      <div class="grid gap-4">
         <section class="card card-bordered bg-base-200 p-5" aria-label="Selected source">
           {selected ? <>
-            <div class="context-detail-header"><div><p class="eyebrow">{selected.scope}</p><h2>{selected.title}</h2><p>{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
+            <div class="mb-4 flex items-start justify-between gap-3"><div><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2>{selected.title}</h2><p>{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
             <pre>{selected.content}</pre>
-            <section class="context-note-links" aria-labelledby="context-links-title">
+            <section class="mt-4 border-t border-base-300 pt-4" aria-labelledby="context-links-title">
               <h3 id="context-links-title">Linked notes</h3>
-              {linksLoading ? <p class="context-empty">Loading links…</p> : links.length ? <>
-                <ul class="context-link-list">
+              {linksLoading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading links…</p> : links.length ? <>
+                <ul class="my-3 grid max-h-50 list-none gap-1 overflow-auto p-0">
                   {links.map(link => {
                     const other = link.source === selected.source ? link.target : link.source;
                     const item = sources.find(sourceItem => sourceItem.source === other);
                     return <li key={`${link.source}:${link.target}`}><button type="button" class="link link-primary" onClick={() => item && openSource(item.id)}>{item?.title || other}</button><span>{link.relation} · {link.source === selected.source ? 'outgoing' : 'incoming'}</span><button type="button" class="btn btn-ghost btn-xs" aria-label={`Remove link to ${item?.title || other}`} disabled={linkBusy} onClick={() => unlinkSource(link)}>×</button></li>;
                   })}
                 </ul>
-              </> : <p class="context-empty">No linked notes yet.</p>}
-              <form class="context-link-form" onSubmit={linkSource}>
-                <label class="field-label" for="context-link-target">Link to note</label>
-                <div class="context-link-controls">
+              </> : <p class="my-3 text-sm leading-relaxed text-base-content/70">No linked notes yet.</p>}
+              <form class="mt-3 grid gap-2" onSubmit={linkSource}>
+                <label class="label-text font-medium" for="context-link-target">Link to note</label>
+                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,.45fr)_auto]">
                   <select class="select select-bordered w-full" id="context-link-target" required value={linkTarget} onChange={event => setLinkTarget(event.currentTarget.value)}>
                     <option value="">Choose an indexed note…</option>
                     {sources.filter(item => item.source !== selected.source).map(item => <option key={item.id} value={item.source}>{item.title} · {item.source}</option>)}
@@ -324,26 +322,26 @@ export default function Memory({ toast }) {
                 </div>
               </form>
             </section>
-          </> : <p class="context-empty">Select a source to inspect it.</p>}
+          </> : <p class="my-3 text-sm leading-relaxed text-base-content/70">Select a source to inspect it.</p>}
         </section>
       </div>
     </div>}
-    {indexOpen && <div class="modal-backdrop context-modal-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeIndexer(); }}>
-      <section ref={indexDialog} class="context-modal" role="dialog" aria-modal="true" aria-labelledby="context-index-title" aria-describedby="context-index-help">
-        <header class="context-modal-header">
-          <div><p class="eyebrow">CONTEXT MODE</p><h2 id="context-index-title">Index a source</h2></div>
+    {indexOpen && <div class="modal-backdrop z-10" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeIndexer(); }}>
+      <section ref={indexDialog} class="modal-box max-h-[85vh] w-full max-w-xl overflow-auto" role="dialog" aria-modal="true" aria-labelledby="context-index-title" aria-describedby="context-index-help">
+        <header class="mb-4 flex items-start justify-between gap-4 border-b border-base-300 pb-3">
+          <div><p class="text-xs font-bold tracking-widest text-primary">CONTEXT MODE</p><h2 id="context-index-title">Index a source</h2></div>
           <button class="btn btn-ghost btn-square btn-sm" type="button" aria-label="Close index source dialog" disabled={busy} onClick={closeIndexer}>×</button>
         </header>
-        <p class="field-note" id="context-index-help">Sources are shared with agents that have Context search enabled. Reuse the same source name to update it.</p>
+        <p class="mt-2 text-sm leading-relaxed text-base-content/70" id="context-index-help">Sources are shared with agents that have Context search enabled. Reuse the same source name to update it.</p>
         {error && <p class="alert alert-error" role="alert">{error}</p>}
-        <form class="context-index-form" onSubmit={indexSource}>
-          <label class="field-label" for="context-source">Source ID</label>
+        <form class="grid gap-2" onSubmit={indexSource}>
+          <label class="label-text font-medium" for="context-source">Source ID</label>
           <input ref={sourceInput} class="input input-bordered" id="context-source" required maxLength={300} value={source} onInput={event => setSource(event.currentTarget.value)} placeholder="docs/release-guide.md" />
-          <label class="field-label" for="context-source-title">Title</label>
+          <label class="label-text font-medium" for="context-source-title">Title</label>
           <input class="input input-bordered" id="context-source-title" required maxLength={120} value={title} onInput={event => setTitle(event.currentTarget.value)} placeholder="Release guide" />
-          <label class="field-label" for="context-content">Content</label>
+          <label class="label-text font-medium" for="context-content">Content</label>
           <textarea class="textarea textarea-bordered w-full" id="context-content" required maxLength={200000} value={content} onInput={event => setContent(event.currentTarget.value)} placeholder="Paste selected text or durable facts to make them searchable." />
-          <div class="context-modal-actions">
+          <div class="mt-2 flex justify-end gap-2">
             <button class="btn btn-ghost" type="button" disabled={busy} onClick={closeIndexer}>Cancel</button>
             <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Indexing…' : 'Index source'}</button>
           </div>
