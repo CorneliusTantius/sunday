@@ -277,28 +277,28 @@ export default function Memory({ toast }) {
       </div> : <p class="my-3 text-sm leading-relaxed text-base-content/70">No indexed notes yet. Index notes to populate the graph.</p>}
     </section>}
     {!graphOpen && <div class="grid gap-4 lg:grid-cols-[minmax(17rem,.8fr)_minmax(0,1.2fr)] mb-4">
-      <section class="card card-bordered bg-base-200 p-5" aria-label="Indexed sources">
+      <section class="card card-bordered min-w-0 bg-base-200 p-5" aria-label="Indexed sources">
         <h2>Notes <span class="badge badge-primary badge-sm">{visibleSources.length}</span></h2>
         <form class="mt-4 grid gap-2" onSubmit={search}>
           <label class="label-text font-medium" for="context-search">Search note titles and content</label>
           <div class="flex flex-col gap-2 sm:flex-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
-        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <ul class="mt-3 grid max-h-[65vh] list-none gap-2 overflow-auto p-0">
-          {visibleSources.map(item => <li key={item.id}><button class={`btn h-auto w-full flex-col items-start gap-1 p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  onClick={() => openSource(item.id)}>
-            <strong>{item.title}</strong><span>{item.source}</span><small>{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
+        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <ul class="mt-3 grid max-h-[65vh] min-w-0 list-none gap-2 overflow-auto p-0">
+          {visibleSources.map(item => <li key={item.id} class="min-w-0"><button class={`btn h-auto w-full min-w-0 justify-start rounded-box flex-col items-start gap-1 overflow-hidden p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  onClick={() => openSource(item.id)}>
+            <strong class="w-full min-w-0 whitespace-normal break-words">{item.title}</strong><span class="w-full min-w-0 whitespace-normal break-all">{item.source}</span><small class="w-full whitespace-normal">{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
           </button></li>)}
         </ul> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
         {query.trim() && <div class="mt-3 grid gap-2" aria-label="Content search results">
-          {results.length > 0 ? results.map((result, index) => <button class="btn h-auto w-full flex-col items-start gap-1 p-3 text-left" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
-            <strong>{result.title}</strong><span>{result.source}</span><p>{result.excerpt}</p>
+          {results.length > 0 ? results.map((result, index) => <button class="btn h-auto w-full min-w-0 justify-start rounded-box flex-col items-start gap-1 overflow-hidden p-3 text-left" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
+            <strong class="w-full min-w-0 whitespace-normal break-words">{result.title}</strong><span class="w-full min-w-0 whitespace-normal break-all">{result.source}</span><p class="w-full whitespace-normal break-words">{result.excerpt}</p>
           </button>) : <p class="my-3 text-sm leading-relaxed text-base-content/70">Submit the search to find matching note content.</p>}
         </div>}
       </section>
       <div class="grid gap-4">
-        <section class="card card-bordered bg-base-200 p-5" aria-label="Selected source">
+        <section class="card card-bordered min-w-0 overflow-hidden bg-base-200 p-5" aria-label="Selected source">
           {selected ? <>
-            <div class="mb-4 flex items-start justify-between gap-3"><div><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2>{selected.title}</h2><p>{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
-            <pre class="max-w-full whitespace-pre-wrap break-words">{selected.content}</pre>
+            <div class="mb-4 flex min-w-0 items-start justify-between gap-3"><div class="min-w-0 break-words"><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2 class="break-words">{selected.title}</h2><p class="break-all">{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
+            <pre class="max-w-full whitespace-pre-wrap break-all">{selected.content}</pre>
             <section class="mt-4 border-t border-base-300 pt-4" aria-labelledby="context-links-title">
               <h3 id="context-links-title">Linked notes</h3>
               {linksLoading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading links…</p> : links.length ? <>
