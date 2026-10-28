@@ -542,7 +542,7 @@ export default function App() {
     : session.running;
   const renderSession = session => {
     const pinned = pinnedIds.has(session.id);
-    return <div class="card card-border flex-row items-center gap-1 bg-base-200 p-2" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
+    return <div class="flex flex-row items-center gap-1 rounded-full border border-base-300 bg-base-200 p-1" key={session.id} onClick={event => { if (event.target.closest('button, select')) return; if (!loadingSession) openSession(session.id); }}>
       <button class={`btn btn-ghost btn-sm min-w-0 flex-1 justify-start truncate ${session.id === sessionId ? 'btn-active' : ''}`}  title={session.title || 'New agent'} disabled={loadingSession} onClick={() => openSession(session.id)}><span class="truncate">{session.title || 'New agent'}</span></button>
       {(session.id === sessionId ? activeRunning : session.running) && <span class="badge badge-success badge-xs" role="img" aria-label="Running" title="Running" />}
       <button class={`btn btn-ghost btn-square btn-xs ${pinned ? 'text-primary' : ''}`}  data-agent-id={session.id} title={pinned ? 'Unpin agent' : 'Pin agent'} aria-label={`${pinned ? 'Unpin' : 'Pin'} agent: ${session.title || 'New agent'}`} aria-pressed={pinned} onClick={() => togglePinnedAgent(session)}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m16 3 5 5-4 1-4 4-1 4-2-2-7 7 7-7-2-2 4-1 4-4 0-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></button>

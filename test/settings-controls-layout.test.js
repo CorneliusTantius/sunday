@@ -34,3 +34,18 @@ test('persona tools are in an initially open native disclosure', () => {
   assert.match(personas, /<\/div><\/fieldset><\/details>/);
 });
 
+test('settings section navigation is compact, left-aligned, and has no hover border highlight', () => {
+  const settings = read('components/Settings.jsx');
+  assert.match(settings, /<nav class="[^\"]*gap-1[^\"]*" aria-label="Settings sections">/);
+  assert.equal((settings.match(/btn-ghost w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent/g) || []).length, 5);
+});
+
+test('config controls use darker Nord backgrounds and retain a primary keyboard focus indicator', () => {
+  const settings = read('components/Settings.jsx');
+  const config = settings.match(/<section inert=\{page !== 'config'\}[\s\S]*?<\/section>/)?.[0];
+  assert.ok(config);
+  assert.equal((config.match(/bg-black\/10/g) || []).length, 3);
+  assert.equal((config.match(/focus-visible:outline-primary/g) || []).length, 3);
+  assert.equal((config.match(/focus:outline-none/g) || []).length, 3);
+});
+

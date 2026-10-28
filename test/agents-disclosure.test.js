@@ -21,3 +21,16 @@ test('Agents list is always visible below Socials with a divider', () => {
   assert.ok(gearStart >= 0 && gearEnd > gearStart);
   assert.match(app.slice(gearStart, gearEnd), /<svg[^>]*width="16" height="16"/);
 });
+
+test('agent row actions share a rounded pill without a hover border', () => {
+  const rowStart = app.indexOf('const renderSession = session =>');
+  const rowEnd = app.indexOf('\n  };', rowStart);
+  const row = app.slice(rowStart, rowEnd);
+  assert.match(row, /<div class="flex flex-row items-center[^\"]*rounded-full border border-base-300/);
+  assert.doesNotMatch(row, /card-border|hover:border/);
+  assert.match(row, /title=\{session\.title \|\| 'New agent'\}/);
+  assert.match(row, /title=\{pinned \? 'Unpin agent' : 'Pin agent'\} aria-label=\{`\$\{pinned \? 'Unpin' : 'Pin'\} agent:/);
+  assert.match(row, /aria-pressed=\{pinned\} onClick=\{\(\) => togglePinnedAgent\(session\)\}/);
+  assert.match(row, /title="Configure agent" aria-label=\{`Configure agent:/);
+  assert.match(row, /disabled=\{sessionIsRunning\(session\) \|\| loadingSession\}/);
+});
