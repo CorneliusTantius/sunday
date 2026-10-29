@@ -6,6 +6,7 @@ const read = path => readFileSync(new URL(`../src/web/${path}`, import.meta.url)
 
 test('Context and Skills remain separate top-level destinations', () => {
   const app = read('App.jsx');
+  assert.match(app, /<ul class="menu menu-sm w-full gap-1 p-0">\s*<li><a class=\{page === 'repositories' \? 'active' : ''\} id="repos-link" href="#repositories"/);
   assert.match(app, /id="skills-link" href="#context\/skills" aria-current=\{page === 'skills' \? 'page' : undefined\}/);
   assert.match(app, /id="context-link" href="#context"/);
   assert.match(app, /id="scheduled-job-link"[^>]*>.*?<MenuIcon name="schedule" \/>Automations/s);

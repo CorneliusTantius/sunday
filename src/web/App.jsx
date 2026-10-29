@@ -561,10 +561,10 @@ export default function App() {
         <div class="navbar min-h-0 border-b border-base-300 px-0 pb-4"><a class="navbar-start flex min-w-0 items-center text-2xl font-bold tracking-tight text-base-content no-underline" href="#" aria-label="Sunday home">Sunday</a><button ref={collapseButton} class="btn btn-ghost btn-square btn-sm ml-auto hover:border-transparent" id="collapse-sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" onClick={closeSidebar}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
         <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain py-4">
         <ul class="menu menu-sm w-full gap-1 p-0">
+          <li><a class={page === 'repositories' ? 'active' : ''} id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
           <li><a class={page === 'context' ? 'active' : ''} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" />Context</a></li>
           <li><a class={page === 'skills' ? 'active' : ''} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" />Skills</a></li>
           <li><a class={page === 'scheduled-job' ? 'active' : ''} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Automations</a></li>
-          <li><a class={page === 'repositories' ? 'active' : ''} id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
         </ul>
         <hr class="my-1 border-base-300" />
         <section aria-labelledby="agents-heading" class="flex min-h-0 flex-col gap-2">

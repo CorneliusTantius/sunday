@@ -6,11 +6,11 @@ const app = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8')
 
 test('Agents list is always visible below the page destinations with a divider', () => {
   const sidebar = app.slice(app.indexOf('<ul class="menu menu-sm'), app.indexOf('<main '));
-  const lastDestination = sidebar.indexOf('id="repos-link"');
+  const destinationsEnd = sidebar.indexOf('</ul>');
   const divider = sidebar.indexOf('<hr class="my-1 border-base-300" />');
   const heading = sidebar.indexOf('<h2 id="agents-heading"');
   const sessions = sidebar.indexOf('id="sessions-list"');
-  assert.ok(lastDestination >= 0 && divider > lastDestination && heading > divider && sessions > heading);
+  assert.ok(destinationsEnd >= 0 && divider > destinationsEnd && heading > divider && sessions > heading);
   assert.match(sidebar, /<h2 id="agents-heading"[^>]*>Agents<\/h2>/);
   assert.doesNotMatch(sidebar, /agents-toggle|Sunday Agents|inert=\{!expanded\}/);
   assert.equal((sidebar.match(/<hr/g) || []).length, 1, 'only one intended sidebar separator');
