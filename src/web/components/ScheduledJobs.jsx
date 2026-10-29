@@ -202,7 +202,7 @@ export default function ScheduledJobs() {
     }
   }
 
-  return <section class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 py-8 sm:px-6" aria-labelledby="scheduled-job-title">
+  return <section class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 py-8 sm:px-6" id="scheduled-jobs-page" aria-labelledby="scheduled-job-title">
     <header class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
       <div>
         <p class="text-xs font-bold tracking-widest text-primary">AUTOMATION</p>
