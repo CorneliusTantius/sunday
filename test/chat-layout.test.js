@@ -17,7 +17,7 @@ test('viewport layout confines scrolling to chat history and repository content'
   assert.match(styles, /@keyframes page-enter/);
   assert.match(styles, /@keyframes page-exit/);
   assert.match(styles, /\.page-exit \{ animation: page-exit 140ms ease-in both; pointer-events: none; \}/);
-  assert.match(styles, /#prompt:focus-visible, #repo-url:focus-visible,[\s\S]*?#scheduled-jobs-page input:focus-visible,[\s\S]*?#scheduled-jobs-page select:focus-visible \{\s*outline: none;/);
+  assert.match(styles, /#repo-url:focus-visible,[\s\S]*?#scheduled-jobs-page input:focus-visible,[\s\S]*?#scheduled-jobs-page select:focus-visible \{\s*outline: none;/);
   const scheduledJobs = readFileSync(new URL('../src/web/components/ScheduledJobs.jsx', import.meta.url), 'utf8');
   assert.match(scheduledJobs, /id="scheduled-jobs-page"/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-enter, \.page-exit, \.settings-view-enter \{ animation: none; \}/);

@@ -11,6 +11,7 @@ import { buildSystemPrompt } from '../src/server/prompts.js';
 import { retrieveMemory, memoryOverview, reviewMemory, memoryPrefix, MEMORY_REVIEW_PROMPT } from '../src/server/memory-lifecycle.js';
 import { dispatchToolCalls } from '../src/server/tool-dispatch.js';
 import { TOOL_OUTPUT_NAMES, TOOL_OUTPUT_TOOLS, TOOL_OUTPUT_INLINE_LIMIT } from '../src/server/tool-output-storage.js';
+import { compactionMessageIndex } from '../src/server/compaction-position.js';
 
 const source = readFileSync(new URL('../src/server/index.js', import.meta.url), 'utf8');
 function harness(streams, idle = 100, total = 1000, agents = [], contextWindow = 10000, { mcpTools = [], nativeOutput = 'ok', mcpOutput = 'MCP result', outputStorageError = null, contextOverrides = {} } = {}) {
@@ -35,7 +36,7 @@ function harness(streams, idle = 100, total = 1000, agents = [], contextWindow =
   };
   const model = { id: 'test', api: 'test', provider: 'test', contextWindow };
   const context = vm.createContext({
-    AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow,
+    AbortController, AbortSignal, Error, setInterval, clearInterval, estimateContext, shouldCompact, measuredInput, compactionCut, isContextOverflow, compactionMessageIndex,
     retrieveMemory, memoryOverview, reviewMemory, MEMORY_REVIEW_PROMPT,
     summarizeContext: async () => 'Earlier work summary',
     setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, ms >= 135000 && ms <= 225000 ? idle : ms === 900000 ? total : ms === 5000 ? 1 : ms); }, clearTimeout,

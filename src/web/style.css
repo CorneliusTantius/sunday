@@ -53,11 +53,12 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visib
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
-#prompt:focus-visible, #repo-url:focus-visible,
+#repo-url:focus-visible,
 #scheduled-jobs-page input:focus-visible, #scheduled-jobs-page textarea:focus-visible, #scheduled-jobs-page select:focus-visible {
   outline: none;
 }
 #prompt:focus-visible {
+  outline: none;
   caret-color: var(--color-primary);
 }
 

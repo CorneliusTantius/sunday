@@ -32,6 +32,7 @@ function mcpLoginState(id, login) { return { id, status: ['starting', 'waiting']
 import { providers, credentialId, createModelsByMode } from './provider-models.js';
 import { loadModelCatalogs, refreshModelCatalog } from './model-catalog.js';
 import { sortModelsAlphabetically } from './model-sorting.js';
+import { compactionMessageIndex } from './compaction-position.js';
 
 const appDir = fileURLToPath(new URL('../../', import.meta.url));
 let updateRunning = false;
@@ -329,8 +330,15 @@ function ensureContextMessages(session, model) {
 function appendContextUser(session, message) {
   if (Array.isArray(session.contextMessages)) session.contextMessages.push(contextUserMessage(message));
 }
+function positionedCompaction(session, compaction) {
+  if (!compaction?.summary) return compaction;
+  const through = Number.isInteger(compaction.through) ? compaction.through : (session.compaction?.through || 0);
+  return { ...compaction, messageIndex: compactionMessageIndex(session.messages || [], through) };
+}
 function publicSession(session) {
   const { contextMessages, ...visible } = session;
+  if (session.compaction?.summary) visible.compaction = positionedCompaction(session, session.compaction);
+  if (session.latestCompaction?.summary) visible.latestCompaction = positionedCompaction(session, session.latestCompaction);
   return visible;
 }
 function waitForChat(promise, signal) {
@@ -454,9 +462,9 @@ async function runChatTurn(session, job) {
     // Do not advance the durable boundary through an unfinished tool exchange.
     if (!toolCalls.length) session.compaction = { summary: compactedSummary, through, updatedAt: Date.now() };
     else compactionPending = true;
-    session.latestCompaction = { summary: compactedSummary, updatedAt: Date.now() };
+    session.latestCompaction = { summary: compactedSummary, through, updatedAt: Date.now() };
     await saveSession(session);
-    publishChat(job, { type: 'compaction', compaction: session.latestCompaction });
+    publishChat(job, { type: 'compaction', compaction: positionedCompaction(session, session.latestCompaction) });
     reportContext(estimateCurrentContext(history));
     return true;
   }
@@ -1383,7 +1391,7 @@ const server = http.createServer(async (req, res) => {
         if (!model) throw new Error('Choose a valid model in settings');
         if (!await waitForChat(models.getAuth(model), AbortSignal.timeout(CHAT_IDLE_TIMEOUT_MS))) throw new Error(`Connect ${providers.find(p => p.id === selected.provider).name} in settings first`);
         if (activeChats.has(input.sessionId)) throw new Error('Agent is busy');
-        const job = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null, compaction: session.latestCompaction || session.compaction || null, compactOnly };
+        const job = { controller: new AbortController(), subscribers: new Set(), sequence: 0, answer: '', toolCalls: [], contextUsage: null, compaction: positionedCompaction(session, session.latestCompaction || session.compaction || null), compactOnly };
         activeChats.set(input.sessionId, job);
         subscribeChat(res, job);
         try { await executeChatTurn(session, job); }
