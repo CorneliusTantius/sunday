@@ -18,7 +18,10 @@ test('notes list rows use moderate corners and contain long note text', () => {
   assert.match(memory, /isAutomaticContextSource\(item\.source\) \? 'Auto' : 'Intentional'/);
   assert.match(memory, /<span class="w-full min-w-0 whitespace-normal break-all">\{item.source\}<\/span>/);
   assert.match(memory, /<pre class="max-w-full whitespace-pre-wrap break-all">\{selected.content\}<\/pre>/);
-  assert.match(memory, /label: 'Intentional notes', notes: visibleNoteGroups\.intentional/);
-  assert.match(memory, /label: 'Auto notes', notes: visibleNoteGroups\.automatic/);
+  assert.match(memory, /role="group" aria-label="Filter notes by type"/);
+  assert.match(memory, /aria-pressed=\{noteFilter === filter\.id\} onClick=\{\(\) => setNoteFilter\(filter\.id\)\}/);
+  assert.match(memory, /filterContextNotes\(visibleSources, noteFilter\)/);
+  assert.match(memory, /label: 'Intentional notes', notes: filteredNoteGroups\.intentional/);
+  assert.match(memory, /label: 'Auto notes', notes: filteredNoteGroups\.automatic/);
   assert.match(memory, /layoutSeparatedContextGraph\(graph\.nodes, graph\.links\)/);
 });

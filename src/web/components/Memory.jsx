@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutSeparatedContextGraph } from '../context-graph.js';
-import { groupContextNotes, isAutomaticContextSource } from '../context-notes.js';
+import { filterContextNotes, groupContextNotes, isAutomaticContextSource } from '../context-notes.js';
 
 export default function Memory({ toast }) {
   const [sources, setSources] = useState([]);
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState('');
+  const [noteFilter, setNoteFilter] = useState('all');
   const [results, setResults] = useState([]);
   const [links, setLinks] = useState([]);
   const [linkTarget, setLinkTarget] = useState('');
@@ -189,6 +190,20 @@ export default function Memory({ toast }) {
 
   const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
   const visibleNoteGroups = groupContextNotes(visibleSources);
+  const filteredSources = filterContextNotes(visibleSources, noteFilter);
+  const filteredNoteGroups = groupContextNotes(filteredSources);
+  const noteFilterOptions = [
+    { id: 'all', label: 'All', count: visibleSources.length },
+    { id: 'intentional', label: 'Intentional', count: visibleNoteGroups.intentional.length },
+    { id: 'automatic', label: 'Auto', count: visibleNoteGroups.automatic.length },
+  ];
+  const emptyNotesMessage = !sources.length
+    ? 'No indexed notes yet. Index a source to build your memory.'
+    : !visibleSources.length
+      ? 'No notes match this title or source.'
+      : noteFilter === 'automatic'
+        ? 'No auto notes match this title or source.'
+        : 'No intentional notes match this title or source.';
   const graphNoteGroups = groupContextNotes(graph.nodes);
   const graphLayout = useMemo(() => layoutSeparatedContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
   useEffect(() => {
@@ -296,8 +311,11 @@ export default function Memory({ toast }) {
           <label class="label-text font-medium" for="context-search">Search note titles and content</label>
           <div class="flex flex-col gap-2 sm:flex-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
-        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <div class="mt-3 max-h-[65vh] min-w-0 space-y-4 overflow-auto">
-          {[{ label: 'Intentional notes', notes: visibleNoteGroups.intentional }, { label: 'Auto notes', notes: visibleNoteGroups.automatic }].filter(group => group.notes.length).map(group => <section key={group.label} aria-label={group.label}>
+        <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter notes by type">
+          {noteFilterOptions.map(filter => <button key={filter.id} class={`btn btn-sm rounded-full ${noteFilter === filter.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} type="button" aria-pressed={noteFilter === filter.id} onClick={() => setNoteFilter(filter.id)}>{filter.label}<span class="badge badge-sm">{filter.count}</span></button>)}
+        </div>
+        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : filteredSources.length ? <div class="mt-3 max-h-[65vh] min-w-0 space-y-4 overflow-auto">
+          {[{ label: 'Intentional notes', notes: filteredNoteGroups.intentional }, { label: 'Auto notes', notes: filteredNoteGroups.automatic }].filter(group => group.notes.length).map(group => <section key={group.label} aria-label={group.label}>
             <h3 class="mb-2 flex items-center gap-2">{group.label}<span class="badge badge-outline badge-sm">{group.notes.length}</span></h3>
             <ul class="grid min-w-0 list-none gap-2 p-0">
               {group.notes.map(item => <li key={item.id} class="min-w-0"><button class={`btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} onClick={() => openSource(item.id)}>
@@ -305,7 +323,7 @@ export default function Memory({ toast }) {
               </button></li>)}
             </ul>
           </section>)}
-        </div> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
+        </div> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{emptyNotesMessage}</p>}
         {query.trim() && <div class="mt-3 grid gap-2" aria-label="Content search results">
           {results.length > 0 ? results.map((result, index) => <button class="btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
             <strong class="w-full min-w-0 whitespace-normal break-words">{result.title}</strong><span class="badge badge-sm badge-outline">{isAutomaticContextSource(result.source) ? 'Auto note' : 'Intentional note'}</span><span class="w-full min-w-0 whitespace-normal break-all">{result.source}</span><p class="w-full whitespace-normal break-words">{result.excerpt}</p>

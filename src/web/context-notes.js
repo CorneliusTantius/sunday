@@ -8,3 +8,9 @@ export function groupContextNotes(notes = []) {
     automatic: notes.filter(note => isAutomaticContextSource(note.source)),
   };
 }
+
+export function filterContextNotes(notes = [], filter = 'all') {
+  if (filter === 'intentional') return notes.filter(note => !isAutomaticContextSource(note.source));
+  if (filter === 'automatic') return notes.filter(note => isAutomaticContextSource(note.source));
+  return notes;
+}

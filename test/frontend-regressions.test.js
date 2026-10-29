@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { BASIC_TOOLS } from '../src/server/tools.js';
 import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph, layoutSeparatedContextGraph } from '../src/web/context-graph.js';
-import { groupContextNotes, isAutomaticContextSource } from '../src/web/context-notes.js';
+import { filterContextNotes, groupContextNotes, isAutomaticContextSource } from '../src/web/context-notes.js';
 
 const deferred = () => {
   let resolve;
@@ -24,7 +24,7 @@ function mount(name, props, request, jsonRequest = async () => ({}), globals = {
   const slots = [], effects = [], timers = new Map(), timerDelays = [];
   let cursor = 0, dirty = false, nextTimer = 0, view;
   const context = vm.createContext({
-    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph, layoutSeparatedContextGraph, groupContextNotes, isAutomaticContextSource,
+    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph, layoutSeparatedContextGraph, filterContextNotes, groupContextNotes, isAutomaticContextSource,
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
     setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, fn); timerDelays.push(ms); return id; },
