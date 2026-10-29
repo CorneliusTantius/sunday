@@ -473,8 +473,8 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <section inert={page !== 'update'} id="settings-update-page" class={page === 'update' ? 'grid gap-3 settings-view-enter' : 'hidden'}>
             <h3>Update Sunday</h3>
             <p class="text-sm text-base-content/70">Pull the latest changes with git pull. This does not install dependencies, build, or restart Sunday.</p>
-            <div class="flex flex-wrap gap-2"><button class="btn btn-ghost border-0" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
-            <button class="btn btn-ghost border-0" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
+            <div class="flex flex-wrap gap-2"><button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="update-app" disabled={updating} onClick={update}>{updating ? 'Updating…' : 'Update'}</button>
+            <button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="restart-app" disabled={updating} onClick={restart}>Restart app</button></div>
             <p class="text-sm text-base-content/70">Runs npm install, builds, and restarts the server, interrupting running tasks. The page reloads when ready.</p>
             <pre id="update-output" class="whitespace-pre-wrap break-words" role="status">{updateOutput}</pre>
           </section>

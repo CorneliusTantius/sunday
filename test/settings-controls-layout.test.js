@@ -85,6 +85,16 @@ test('settings section navigation is compact, left-aligned, and has no hover bor
   assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent/g) || []).length, 5);
 });
 
+test('Settings Update and Restart actions use the same visible surface as other settings buttons', () => {
+  const settings = read('components/Settings.jsx');
+  const updatePage = settings.match(/<section inert=\{page !== 'update'\}[\s\S]*?<\/section>/)?.[0];
+  assert.ok(updatePage);
+  for (const id of ['update-app', 'restart-app']) {
+    assert.match(updatePage, new RegExp(`class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" id="${id}"`));
+  }
+  assert.match(settings, /class="btn btn-ghost border-0 bg-black\/20 hover:bg-black\/30" id="refresh-models"/);
+});
+
 test('config controls use darker Nord backgrounds and retain a primary keyboard focus indicator', () => {
   const settings = read('components/Settings.jsx');
   const config = settings.match(/<section inert=\{page !== 'config'\}[\s\S]*?<\/section>/)?.[0];
