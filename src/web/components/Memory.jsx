@@ -301,7 +301,7 @@ export default function Memory({ toast }) {
             <h3 class="mb-2 flex items-center gap-2">{group.label}<span class="badge badge-outline badge-sm">{group.notes.length}</span></h3>
             <ul class="grid min-w-0 list-none gap-2 p-0">
               {group.notes.map(item => <li key={item.id} class="min-w-0"><button class={`btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} onClick={() => openSource(item.id)}>
-                <strong class="w-full min-w-0 whitespace-normal break-words">{item.title}</strong><span class="w-full min-w-0 whitespace-normal break-all">{item.source}</span><small class="w-full whitespace-normal">{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
+                <span class="flex w-full min-w-0 flex-wrap items-start justify-between gap-2"><strong class="min-w-0 flex-1 whitespace-normal break-words">{item.title}</strong><span class={`badge badge-sm shrink-0 ${isAutomaticContextSource(item.source) ? 'badge-secondary' : 'badge-outline'}`}>{isAutomaticContextSource(item.source) ? 'Auto' : 'Intentional'}</span></span><span class="w-full min-w-0 whitespace-normal break-all">{item.source}</span><small class="w-full whitespace-normal">{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
               </button></li>)}
             </ul>
           </section>)}
