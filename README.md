@@ -21,7 +21,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. In **Settings**, connect an AI provider and choose a model. To update the checkout, install dependencies, build, and launch Sunday in the background, run `./run.sh`. Its output is written to `~/sunday/data/sunday.log`; the server continues running after the terminal closes. To run it in the foreground instead, use `npm run build` followed by `npm start`.
+Open <http://localhost:3000>. In **Settings**, connect an AI provider and choose a model. To update the checkout, install dependencies, build, and launch Sunday in the background, run `./run.sh`. Its output is written to `~/sunday/data/sunday.log`; the server continues running after the terminal closes. Stop it gracefully with `./stop.sh`. To run it in the foreground instead, use `npm run build` followed by `npm start`.
 
 ## Features
 
