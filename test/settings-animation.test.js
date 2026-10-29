@@ -29,11 +29,11 @@ test('settings fills the mobile viewport with compact scrollable section navigat
   assert.doesNotMatch(settings.match(/<section class=\{`card relative z-10[\s\S]*?aria-labelledby="settings-title"/)?.[0] || '', /sm:border|border-base-300/);
   assert.match(settings, /grid h-full min-h-0 grid-cols-1 gap-3 px-2\.5 py-3 sm:grid-cols-/);
   assert.match(settings, /min-w-0 min-h-0 gap-1 overflow-x-auto/);
-  assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full/g) || []).length, 5);
+  assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full/g) || []).length, 4);
 });
 
 test('settings tab content animates in and respects reduced motion', () => {
-  for (const [id, page] of [['provider', 'providers'], ['connect', 'connect'], ['config', 'config'], ['mcp', 'mcp']]) {
+  for (const [id, page] of [['provider', 'providers'], ['connect', 'connect'], ['config', 'config']]) {
     assert.ok(settings.includes(`id="settings-${id}-page" class={page === '${page}' ? 'settings-view-enter' : 'hidden'}`));
   }
   assert.ok(settings.includes("class={page === 'update' ? 'grid gap-3 settings-view-enter' : 'hidden'}"));

@@ -3,6 +3,7 @@ import { request, jsonRequest } from './api.js';
 import Character from './components/Character.jsx';
 import MenuIcon from './components/MenuIcon.jsx';
 import Repositories from './components/Repositories.jsx';
+import McpPage from './components/McpPage.jsx';
 import ScheduledJobs from './components/ScheduledJobs.jsx';
 import Memory from './components/Memory.jsx';
 import Skills from './components/Skills.jsx';
@@ -31,7 +32,7 @@ function cancelChat(sessionId) {
     .catch(() => {}).finally(() => clearTimeout(timer));
 }
 function currentPage() {
-  return location.hash === '#repositories' ? 'repositories' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#context/skills' ? 'skills' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
+  return location.hash === '#repositories' ? 'repositories' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#context/skills' ? 'skills' : location.hash === '#mcp' ? 'mcp' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
 }
 
 function greeting() {
@@ -267,12 +268,13 @@ export default function App() {
     return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(pageTransitionTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    const title = { repositories: 'Repositories', 'scheduled-job': 'Automations', context: 'Context' }[page] || 'Chat';
+    const title = { repositories: 'Repositories', 'scheduled-job': 'Automations', context: 'Context', mcp: 'MCP servers' }[page] || 'Chat';
     document.title = `Sunday — ${title}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
     if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
     else if (page === 'scheduled-job') shell.current?.querySelector('#scheduled-job-title')?.focus();
+    else if (page === 'mcp') shell.current?.querySelector('#mcp-title')?.focus();
     else if (page === 'context' || page === 'skills') shell.current?.querySelector(page === 'skills' ? '#skills-title' : '#context-title')?.focus();
     else if (!mobile) promptInput.current?.focus();
   }, [page]);
@@ -562,9 +564,10 @@ export default function App() {
         <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain py-4">
         <ul class="menu menu-sm w-full gap-1 p-0">
           <li><a class={page === 'repositories' ? 'active' : ''} id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
+          <li><a class={page === 'scheduled-job' ? 'active' : ''} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Automations</a></li>
           <li><a class={page === 'context' ? 'active' : ''} id="context-link" href="#context" aria-current={page === 'context' ? 'page' : undefined}><MenuIcon name="memory" />Context</a></li>
           <li><a class={page === 'skills' ? 'active' : ''} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" />Skills</a></li>
-          <li><a class={page === 'scheduled-job' ? 'active' : ''} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Automations</a></li>
+          <li><a class={page === 'mcp' ? 'active' : ''} id="mcp-link" href="#mcp" aria-current={page === 'mcp' ? 'page' : undefined}><MenuIcon name="mcp" />MCP</a></li>
         </ul>
         <hr class="my-1 border-base-300" />
         <section aria-labelledby="agents-heading" class="flex min-h-0 flex-col gap-2">
@@ -584,6 +587,7 @@ export default function App() {
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}
+        {page === 'mcp' && <McpPage toast={toast} />}
         {page === 'skills' && <Skills exiting={pagePhase === 'exit'} />}
         <section ref={transcript} class={`mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`m-auto max-w-xl px-4 py-16 text-center ${messages.length ? 'hidden' : ''}`}  id="welcome"><Character welcome /><h1 class="text-3xl font-semibold tracking-tight" id="welcome-greeting">{greetingText}</h1></div>

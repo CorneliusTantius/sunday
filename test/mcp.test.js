@@ -74,7 +74,7 @@ test('MCP failures produce actionable diagnostics without transport secrets', as
   await call('tool_search', { query: 'datadog' });
   const context = await client.prepare();
   assert.ok(context.diagnostics.length);
-  assert.match(context.diagnostics.join(' '), /Settings → MCP/);
+  assert.match(context.diagnostics.join(' '), /the MCP page/);
   assert.doesNotMatch(JSON.stringify(context), new RegExp(secret));
 });
 
@@ -100,7 +100,7 @@ test('MCP authentication failures distinguish needs-sign-in from stored credenti
   const client = await connectMcp({ mcpServers: { authRequired: { url: `http://127.0.0.1:${server.address().port}/mcp` } } }, AbortSignal.timeout(10000), { agentDir: dir });
   t.after(async () => { await client.close(); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); });
   await client.call('tool_search', { query: 'metrics' }, issuingMessage('tool_search', { query: 'metrics' }));
-  assert.match((await client.prepare()).diagnostics.join(' '), /Sign in again in Settings → MCP/);
+  assert.match((await client.prepare()).diagnostics.join(' '), /Sign in again in the MCP page/);
 });
 
 test('aborting discovery while a transport starts settles the call and releases the subprocess', async t => {
@@ -144,13 +144,13 @@ test('execution, nested codemode errors, and reconnect failures never expose HTT
   const observed = [];
   await assert.rejects(call('mcp__echo__get_metric', {}), error => {
     observed.push(error.message);
-    return /Settings → MCP/.test(error.message);
+    return /the MCP page/.test(error.message);
   });
   observed.push(await call('codemode', { code: 'try { await tools.mcp__echo__get_metric({}); } catch (error) { console.log(error.message); }' }));
   server.failReconnect();
   await assert.rejects(call('mcp__echo__get_metric', {}), error => {
     observed.push(error.message);
-    return /Settings → MCP/.test(error.message);
+    return /the MCP page/.test(error.message);
   });
   assert.ok(server.initializations >= 2, 'expired sessions must attempt a new initialize handshake');
   observed.push(JSON.stringify(await client.prepare()));

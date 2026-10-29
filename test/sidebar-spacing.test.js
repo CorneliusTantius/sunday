@@ -4,12 +4,15 @@ import { readFileSync } from 'node:fs';
 
 const read = path => readFileSync(new URL(`../src/web/${path}`, import.meta.url), 'utf8');
 
-test('Context and Skills remain separate top-level destinations', () => {
+test('left navigation orders Repositories, Automations, Context, Skills, and MCP', () => {
   const app = read('App.jsx');
-  assert.match(app, /<ul class="menu menu-sm w-full gap-1 p-0">\s*<li><a class=\{page === 'repositories' \? 'active' : ''\} id="repos-link" href="#repositories"/);
+  const nav = app.slice(app.indexOf('<ul class="menu menu-sm w-full gap-1 p-0">'), app.indexOf('</ul>', app.indexOf('<ul class="menu menu-sm w-full gap-1 p-0">')));
+  const destinations = ['repos-link', 'scheduled-job-link', 'context-link', 'skills-link', 'mcp-link'];
+  assert.deepEqual(destinations.map(id => nav.indexOf(`id="${id}"`)), [...destinations].map(id => nav.indexOf(`id="${id}"`)).sort((a, b) => a - b));
   assert.match(app, /id="skills-link" href="#context\/skills" aria-current=\{page === 'skills' \? 'page' : undefined\}/);
   assert.match(app, /id="context-link" href="#context"/);
   assert.match(app, /id="scheduled-job-link"[^>]*>.*?<MenuIcon name="schedule" \/>Automations/s);
+  assert.match(app, /id="mcp-link" href="#mcp"/);
   assert.match(app, /Repositories<\/a><\/li>[\s\S]*?<hr class="my-1 border-base-300"[\s\S]*?id="sessions-list"/);
   assert.doesNotMatch(app, /<Character profile=\{session\.profile/);
 });

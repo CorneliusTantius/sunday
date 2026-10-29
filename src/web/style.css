@@ -59,6 +59,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visib
 }
 #prompt:focus-visible {
   outline: none;
+}
+#prompt:focus-visible {
   caret-color: var(--color-primary);
 }
 

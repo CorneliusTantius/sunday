@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import Personas from './Personas.jsx';
-import McpServers from './McpServers.jsx';
 
 const providerNames = { openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google' };
 const connected = provider => provider.hasApiKey || provider.oauthConnected;
@@ -40,21 +39,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
   const [authTick, setAuthTick] = useState(0);
   const [authBusy, setAuthBusy] = useState(false);
   const [code, setCode] = useState('');
-  const [mcpConfig, setMcpConfig] = useState({ mcpServers: {} });
-  const [mcpLoading, setMcpLoading] = useState(false);
-  const [mcpSaving, setMcpSaving] = useState(false);
-  const [mcpLogin, setMcpLogin] = useState(null);
-  const [mcpAuth, setMcpAuth] = useState({});
-  useEffect(() => {
-    if (page !== 'mcp') return;
-    let active = true;
-    setMcpAuth({});
-    request('/api/mcp/auth').then(data => { if (active) setMcpAuth(data); })
-      .catch(error => { if (active) setError(error.message); });
-    return () => { active = false; };
-  }, [page, mcpConfig, mcpLogin?.status]);
-  const [mcpRedirect, setMcpRedirect] = useState('');
-  const [mcpLoginBusy, setMcpLoginBusy] = useState(false);
   const backdrop = useRef(null);
   const closeButton = useRef(null);
   const contentViewport = useRef(null);
@@ -236,58 +220,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
 
   function navigate(nextPage) { setPage(nextPage); setError(''); }
 
-  useEffect(() => {
-    if (page !== 'mcp') return;
-    let active = true;
-    setMcpLoading(true); setError('');
-    request('/api/mcp').then(data => {
-      if (active) setMcpConfig(data);
-    }).catch(error => { if (active) setError(error.message); })
-      .finally(() => { if (active) setMcpLoading(false); });
-    return () => { active = false; };
-  }, [page]);
-
-  useEffect(() => {
-    if (page !== 'mcp' || mcpLogin?.status !== 'pending' || !mcpLogin.id) return;
-    let active = true;
-    let timer;
-    async function poll() {
-      try {
-        const data = await request(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`);
-        if (!active || !alive.current) return;
-        setMcpLogin(data);
-        if (data.status === 'pending') timer = setTimeout(poll, 1200);
-      } catch (error) {
-        if (active && alive.current) { setError(error.message); timer = setTimeout(poll, 1200); }
-      }
-    }
-    timer = setTimeout(poll, 1200);
-    return () => { active = false; clearTimeout(timer); };
-  }, [page, mcpLogin?.id, mcpLogin?.status]);
-
-  async function mcpLoginAction(url, method, body) {
-    if (mcpLoginBusy) return;
-    setMcpLoginBusy(true); setError('');
-    try {
-      const data = method === 'DELETE' ? await request(url, { method }) : await jsonRequest(url, method, body);
-      if (alive.current) { setMcpLogin(data?.id ? data : null); setMcpRedirect(''); }
-    } catch (error) { if (alive.current) setError(error.message); }
-    finally { if (alive.current) setMcpLoginBusy(false); }
-  }
-
-  async function saveMcp(config) {
-    if (mcpSaving || mcpLoading) return false;
-    setError('');
-    setMcpSaving(true);
-    try {
-      await jsonRequest('/api/mcp', 'PUT', config);
-      setMcpConfig(config);
-      toast('MCP settings saved');
-      return true;
-    } catch (error) { setError(error.message); return false; }
-    finally { setMcpSaving(false); }
-  }
-
   function chooseDefaultModel(value) {
     const selected = connectedModels.find(item => `${item.provider}:${item.mode}:${item.id}` === value);
     if (!selected) return;
@@ -422,7 +354,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
         <nav class="flex min-w-0 min-h-0 gap-1 overflow-x-auto border-b border-base-300 pb-2 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6" aria-label="Settings sections">
           <button class={`btn btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent${page === 'providers' || page === 'connect' ? ' btn-active' : ''}`} id="settings-providers-nav" onClick={() => navigate('providers')}>Providers</button>
           <button class={`btn btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent${page === 'config' ? ' btn-active' : ''}`} id="settings-config-nav" disabled={saving} onClick={openConfig}>Config</button>
-          <button class={`btn btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent${page === 'mcp' ? ' btn-active' : ''}`} id="settings-mcp-nav" onClick={() => navigate('mcp')}>MCP</button>
           <button class={`btn btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent${page === 'personas' ? ' btn-active' : ''}`} id="settings-personas-nav" onClick={() => navigate('personas')}>Personas</button>
           <button class={`btn btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent${page === 'update' ? ' btn-active' : ''}`} id="settings-update-nav" onClick={() => navigate('update')}>Update</button>
         </nav>
@@ -465,10 +396,6 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="settings-thinking-level">Default thinking level</label><select id="settings-thinking-level" class="select select-bordered w-full bg-black/10 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" value={thinkingLevel} disabled={loading || saving || levels.length === 1} title={levels.length === 1 && levels[0] === 'off' ? 'This model does not support thinking' : 'Reasoning effort'} onChange={event => setThinking(event.currentTarget.value)}>{levels.map(level => <option key={level} value={level}>{level === 'xhigh' ? 'Extra high' : level[0].toUpperCase() + level.slice(1)}</option>)}</select></div>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="default-persona">Default persona</label><select id="default-persona" class="select select-bordered w-full bg-black/10 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" value={defaultPersonaId} disabled={saving} onChange={event => setDefaultPersonaId(event.currentTarget.value)}>{personas.map(persona => <option key={persona.id} value={persona.id}>{persona.name}</option>)}</select></div>
             <button class="btn btn-primary mt-2" id="save-chat-defaults" disabled={saving || loading} onClick={save}>{saving ? 'Saving…' : 'Save chat defaults'}</button>
-          </section>
-          <section inert={page !== 'mcp'} id="settings-mcp-page" class={page === 'mcp' ? 'settings-view-enter' : 'hidden'}>
-            {mcpLoading ? <p role="status">Loading MCP settings…</p> : <McpServers config={mcpConfig} auth={mcpAuth} busy={mcpSaving} onSave={saveMcp} loginBusy={mcpLoginBusy || mcpLogin?.status === 'pending'} onLogin={name => mcpLoginAction('/api/mcp/login', 'POST', { server: name })} />}
-            {mcpLogin && <div class="alert alert-info mt-4 flex-col items-start" aria-live="polite"><p>{mcpLogin.error || `Sign-in ${mcpLogin.status}`}</p>{mcpLogin.url && <p><a href={mcpLogin.url} target="_blank" rel="noopener">Open sign-in ↗</a></p>}{mcpLogin.status === 'pending' && <><label class="label font-semibold" for="mcp-redirect-url">Redirect URL</label><input id="mcp-redirect-url" class="input input-bordered w-full" value={mcpRedirect} onInput={event => setMcpRedirect(event.currentTarget.value)} /><button class="btn btn-outline" disabled={mcpLoginBusy || !mcpRedirect} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'POST', { redirectUrl: mcpRedirect })}>Finish sign-in</button><button class="btn btn-ghost" disabled={mcpLoginBusy} onClick={() => mcpLoginAction(`/api/mcp/login/${encodeURIComponent(mcpLogin.id)}`, 'DELETE')}>Cancel sign-in</button></>}</div>}
           </section>
           <section inert={page !== 'update'} id="settings-update-page" class={page === 'update' ? 'grid gap-3 settings-view-enter' : 'hidden'}>
             <h3>Update Sunday</h3>

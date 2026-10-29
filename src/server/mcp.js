@@ -43,7 +43,7 @@ async function makeSession(config, agentDir, openUrl, ui = {}) {
     // Server notifications are untrusted and may echo credentials; never persist SDK server logs.
     extensionFactories: [createCodemodeExtension({ mode: 'on' }), createToolSearchExtension(), createMcpExtension({ loadConfig: () => ({ servers: Object.entries(config.mcpServers).map(([name, entry]) => ({ name, config: entry, source: 'extension' })), errors: [] }), openUrl, logPath: devNull }),
       pi => pi.on('tool_result', event => event.isError ? {
-        content: [{ type: 'text', text: 'MCP tool execution failed. Check arguments, server configuration, sign-in, and connectivity in Settings → MCP.' }], details: {},
+        content: [{ type: 'text', text: 'MCP tool execution failed. Check arguments, server configuration, sign-in, and connectivity in the MCP page.' }], details: {},
       } : undefined),
     ],
   });
@@ -131,8 +131,8 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
     if (!['warning', 'error'].includes(type)) return;
     const affected = servers.filter(name => message.includes(`${name}:`));
     const action = message.includes('needs sign-in')
-      ? 'Sign in again in Settings → MCP.'
-      : 'Check the enabled MCP server configuration and connectivity in Settings → MCP; stored sign-in credentials do not verify connectivity.';
+      ? 'Sign in again in the MCP page.'
+      : 'Check the enabled MCP server configuration and connectivity in the MCP page; stored sign-in credentials do not verify connectivity.';
     const diagnostic = `MCP ${affected.length ? affected.join(', ') : 'connection or discovery'} needs attention. ${action}`;
     if (!diagnostics.includes(diagnostic)) diagnostics.push(diagnostic);
   };
@@ -170,7 +170,7 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
       // Nested codemode calls require the actual issuing message, not a separate model run.
       session.agent.state.messages = [assistantMessage];
       const toolCall = { type: 'toolCall', id: `sunday-mcp-${++sequence}`, name, arguments: args ?? {} };
-      const failure = () => new Error(`MCP tool ${name} failed. Check its arguments and the server configuration, sign-in, and connectivity in Settings → MCP.`);
+      const failure = () => new Error(`MCP tool ${name} failed. Check its arguments and the server configuration, sign-in, and connectivity in the MCP page.`);
       let outcome;
       try {
         outcome = await runToolCall(toolCall, {
@@ -190,7 +190,7 @@ export async function connectMcp(config, signal, { agentDir } = {}) {
 
 export async function createMcpLogin(config, name, agentDir) {
   if (!config.mcpServers[name]?.url) throw new Error('OAuth requires an HTTP MCP server');
-  const loginFailure = 'MCP sign-in failed. Check the server configuration and try signing in again in Settings → MCP.';
+  const loginFailure = 'MCP sign-in failed. Check the server configuration and try signing in again in the MCP page.';
   let resolveRedirect, url, error, status = 'starting';
   const redirect = new Promise(resolve => { resolveRedirect = resolve; });
   const session = await makeSession({ mcpServers: { [name]: config.mcpServers[name] } }, agentDir,

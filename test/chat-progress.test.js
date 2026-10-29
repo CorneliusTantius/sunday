@@ -471,7 +471,7 @@ test('chat exposes sanitized MCP connection failures as reference data and tool 
   const config = { mcpServers: { datadog: { command: '/missing/SECRET_CONFIG_PATH' } } };
   const h = harness(round => round === 0
     ? stream([], [{ type: 'toolCall', id: 'discover', name: 'tool_search', arguments: { query: 'datadog' } }])
-    : stream([{ type: 'text_delta', delta: 'Datadog needs attention in Settings → MCP.' }]),
+    : stream([{ type: 'text_delta', delta: 'Datadog needs attention in the MCP page.' }]),
   2000, 20000, [], 10000, { contextOverrides: { mcpConfig: config, connectMcp } });
   h.session.messages.push({ role: 'user', content: 'Find Datadog tools.' });
   await h.run();
@@ -511,5 +511,5 @@ test('HTTP execution credentials never reach chat events, model context, or pers
   assert.ok(!observed.includes(server.querySecret));
   const result = h.inputs[2].messages.find(message => message.role === 'toolResult' && message.toolName === 'mcp__echo__get_metric');
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /Settings → MCP/);
+  assert.match(result.content[0].text, /the MCP page/);
 });

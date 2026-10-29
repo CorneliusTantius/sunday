@@ -88,7 +88,7 @@ test('Settings modal uses slightly narrower horizontal padding', () => {
 test('settings section navigation is compact, left-aligned, and has no hover border highlight', () => {
   const settings = read('components/Settings.jsx');
   assert.match(settings, /<nav class="[^\"]*gap-1[^\"]*" aria-label="Settings sections">/);
-  assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent/g) || []).length, 5);
+  assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full shrink-0 justify-start text-left hover:border-transparent/g) || []).length, 4);
 });
 
 test('Settings Update and Restart actions use the same visible surface as other settings buttons', () => {

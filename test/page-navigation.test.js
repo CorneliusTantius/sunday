@@ -9,7 +9,7 @@ const currentPage = app.slice(app.indexOf('function currentPage()'), app.indexOf
 test('removed Files and Socials routes fall back to Chat; active routes remain available', () => {
   const routes = [
     ['#context', 'context'], ['#memory', 'context'], ['#context/skills', 'skills'],
-    ['#scheduled-job', 'scheduled-job'], ['#repositories', 'repositories'],
+    ['#scheduled-job', 'scheduled-job'], ['#repositories', 'repositories'], ['#mcp', 'mcp'],
     ['#files', 'chat'], ['#editor', 'chat'], ['#socials', 'chat'], ['#dashboard', 'chat'],
   ];
   for (const [hash, expected] of routes) {
