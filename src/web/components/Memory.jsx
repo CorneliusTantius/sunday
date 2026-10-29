@@ -242,7 +242,7 @@ export default function Memory({ toast }) {
     <header class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
       <div><p class="text-xs font-bold tracking-widest text-primary">CONTEXT MODE</p><h1 id="context-title" tabIndex="-1">Indexed context</h1><p>Add selected documents and durable facts for agents to retrieve later.</p></div>
       <div class="flex flex-wrap items-center gap-3">
-        <div class="badge badge-outline"><strong>{sources.length}</strong> sources</div>
+        <div class="text-sm text-base-content/70"><strong class="font-semibold text-base-content tabular-nums">{sources.length}</strong> sources</div>
         <button ref={indexButton} class="btn btn-primary" type="button" onClick={openIndexer}>＋ Index a source</button>
       </div>
     </header>
@@ -306,17 +306,17 @@ export default function Memory({ toast }) {
     </section>}
     {!graphOpen && <div class="grid gap-4 lg:grid-cols-[minmax(17rem,.8fr)_minmax(0,1.2fr)] mb-4">
       <section class="card card-bordered min-w-0 bg-base-200 p-5" aria-label="Indexed sources">
-        <h2>Notes <span class="badge badge-primary badge-sm">{visibleSources.length}</span></h2>
+        <h2>Notes <span class="ml-1 text-sm font-normal tabular-nums opacity-70">{visibleSources.length}</span></h2>
         <form class="mt-4 grid gap-2" onSubmit={search}>
           <label class="label-text font-medium" for="context-search">Search note titles and content</label>
           <div class="flex flex-col gap-2 sm:flex-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
         <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter notes by type">
-          {noteFilterOptions.map(filter => <button key={filter.id} class={`btn btn-sm rounded-full ${noteFilter === filter.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} type="button" aria-pressed={noteFilter === filter.id} onClick={() => setNoteFilter(filter.id)}>{filter.label}<span class="badge badge-sm">{filter.count}</span></button>)}
+          {noteFilterOptions.map(filter => <button key={filter.id} class={`btn btn-sm rounded-full ${noteFilter === filter.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} type="button" aria-pressed={noteFilter === filter.id} onClick={() => setNoteFilter(filter.id)}>{filter.label}<span class="ml-1 text-xs tabular-nums opacity-80">{filter.count}</span></button>)}
         </div>
         {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : filteredSources.length ? <div class="mt-3 max-h-[65vh] min-w-0 space-y-4 overflow-auto">
           {[{ label: 'Intentional notes', notes: filteredNoteGroups.intentional }, { label: 'Auto notes', notes: filteredNoteGroups.automatic }].filter(group => group.notes.length).map(group => <section key={group.label} aria-label={group.label}>
-            <h3 class="mb-2 flex items-center gap-2">{group.label}<span class="badge badge-outline badge-sm">{group.notes.length}</span></h3>
+            <h3 class="mb-2 flex items-center gap-2">{group.label}<span class="text-sm font-normal tabular-nums opacity-70">{group.notes.length}</span></h3>
             <ul class="grid min-w-0 list-none gap-2 p-0">
               {group.notes.map(item => <li key={item.id} class="min-w-0"><button class={`btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} onClick={() => openSource(item.id)}>
                 <span class="flex w-full min-w-0 flex-wrap items-start justify-between gap-2"><strong class="min-w-0 flex-1 whitespace-normal break-words">{item.title}</strong><span class={`badge badge-sm shrink-0 ${isAutomaticContextSource(item.source) ? 'badge-secondary' : 'badge-outline'}`}>{isAutomaticContextSource(item.source) ? 'Auto' : 'Intentional'}</span></span><span class="w-full min-w-0 whitespace-normal break-all">{item.source}</span><small class="w-full whitespace-normal">{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>

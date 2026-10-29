@@ -20,6 +20,10 @@ test('notes list rows use moderate corners and contain long note text', () => {
   assert.match(memory, /<pre class="max-w-full whitespace-pre-wrap break-all">\{selected.content\}<\/pre>/);
   assert.match(memory, /role="group" aria-label="Filter notes by type"/);
   assert.match(memory, /aria-pressed=\{noteFilter === filter\.id\} onClick=\{\(\) => setNoteFilter\(filter\.id\)\}/);
+  assert.match(memory, /<span class="ml-1 text-xs tabular-nums opacity-80">\{filter\.count\}<\/span>/);
+  assert.match(memory, /<span class="text-sm font-normal tabular-nums opacity-70">\{group\.notes\.length\}<\/span>/);
+  assert.match(memory, /<strong class="font-semibold text-base-content tabular-nums">\{sources\.length\}<\/strong>/);
+  assert.doesNotMatch(memory, /class="badge[^\"]*">\{(?:filter\.count|group\.notes\.length|visibleSources\.length|sources\.length)\}<\/span>/);
   assert.match(memory, /filterContextNotes\(visibleSources, noteFilter\)/);
   assert.match(memory, /label: 'Intentional notes', notes: filteredNoteGroups\.intentional/);
   assert.match(memory, /label: 'Auto notes', notes: filteredNoteGroups\.automatic/);
