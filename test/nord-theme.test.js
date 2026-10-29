@@ -66,7 +66,7 @@ test('Skills page and create forms use explicit DaisyUI controls and readable hi
   assert.match(skills, /class="input input-bordered w-full bg-base-200" value=\{draft\.name\}/);
   assert.match(skills, /class="input input-bordered w-full bg-base-200" value=\{draft\.description\}/);
   assert.match(skills, /label class="grid gap-1\.5 text-sm font-medium">Instructions<textarea class="textarea textarea-bordered rounded-box w-full bg-base-200"/);
-  assert.match(skills, /badge badge-sm h-auto max-w-full whitespace-normal px-2 py-1 text-\[10px\] leading-tight text-center/);
+  assert.match(skills, /badge badge-ghost badge-sm h-auto max-w-full whitespace-normal px-2 py-1 text-\[10px\] leading-tight text-center/);
   assert.match(skills, /badge badge-sm h-auto flex-none whitespace-nowrap px-2 py-1 text-\[10px\] leading-tight/);
   assert.match(skills, /class="text-xl font-semibold">\{form === 'edit' \?/);
   assert.match(skills, /<pre class="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words/);

@@ -86,5 +86,10 @@ test('separated graph lanes distinguish automatic notes and retain cross-lane de
   assert.equal(bySource.get('auto/project/hash').automatic, true);
   assert.deepEqual(layout.map(node => node.degree), [2, 1, 1]);
   assert.ok(layout.every(node => node.x >= 56 && node.x <= CONTEXT_GRAPH_WIDTH - 56));
+  const mobileLayout = layoutSeparatedContextGraph(nodes, links, true);
+  const mobileBySource = new Map(mobileLayout.map(node => [node.source, node]));
+  assert.ok(mobileBySource.get('sunday/one.md').y < CONTEXT_GRAPH_HEIGHT);
+  assert.ok(mobileBySource.get('auto/project/hash').y > CONTEXT_GRAPH_HEIGHT);
+  assert.ok(mobileLayout.every(node => node.x >= 56 && node.x <= CONTEXT_GRAPH_WIDTH - 56));
   assert.ok(nodes.every(node => !('x' in node) && !('automatic' in node)), 'layout does not mutate input nodes');
 });

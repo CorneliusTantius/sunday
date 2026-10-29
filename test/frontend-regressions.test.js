@@ -470,8 +470,10 @@ test('context page opens on graph and hides notes until the Notes view is select
 
 test('context notes show an Obsidian-style dot graph and selected-note link controls', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
-  assert.match(source, /layoutSeparatedContextGraph\(graph\.nodes, graph\.links\)/);
-  assert.match(source, /<svg class="block h-\[min\(620px,65vh\)\] min-h-90 w-full select-none"[^>]*role="group" aria-label="Connected notes graph grouped by type"/);
+  assert.match(source, /layoutSeparatedContextGraph\(graph\.nodes, graph\.links, mobileGraph\)/);
+  assert.match(source, /window\.matchMedia\('\(max-width: 639px\)'\)/);
+  assert.match(source, /mobileGraph \? CONTEXT_GRAPH_HEIGHT \* 2 : CONTEXT_GRAPH_HEIGHT/);
+  assert.match(source, /<svg class=\{`block \$\{mobileGraph \? 'h-\[min\(1240px,80vh\)\]' : 'h-\[min\(620px,65vh\)\]'\} min-h-90 w-full select-none`} viewBox=\{`0 0 \$\{CONTEXT_GRAPH_WIDTH\} \$\{graphHeight\}`} role="group" aria-label="Connected notes graph grouped by type"/);
   assert.match(source, /aria-hidden="true"/);
   assert.match(source, /<circle r=\{radius\} fill=\{isActive \? 'var\(--color-primary\)' : node\.automatic \? 'var\(--color-secondary\)'/);
   assert.match(source, /<title>\{`\$\{node\.title\} — \$\{node\.source\}`\}<\/title>/);

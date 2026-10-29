@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
 import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutSeparatedContextGraph } from '../context-graph.js';
 import { filterContextNotes, groupContextNotes, isAutomaticContextSource } from '../context-notes.js';
+import { renderMarkdown } from './MessageBubble.js';
 
 export default function Memory({ toast }) {
   const [sources, setSources] = useState([]);
@@ -22,6 +23,7 @@ export default function Memory({ toast }) {
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [graphLoading, setGraphLoading] = useState(true);
   const [graphOpen, setGraphOpen] = useState(true);
+  const [mobileGraph, setMobileGraph] = useState(false);
   const [hoveredGraphSource, setHoveredGraphSource] = useState('');
   const [graphAnimation, setGraphAnimation] = useState({ layout: null, progress: 1 });
   const [source, setSource] = useState('');
@@ -274,7 +276,16 @@ export default function Memory({ toast }) {
         ? 'No auto notes match this title or source.'
         : 'No intentional notes match this title or source.';
   const graphNoteGroups = groupContextNotes(graph.nodes);
-  const graphLayout = useMemo(() => layoutSeparatedContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 639px)');
+    const update = () => setMobileGraph(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
+  const graphHeight = mobileGraph ? CONTEXT_GRAPH_HEIGHT * 2 : CONTEXT_GRAPH_HEIGHT;
+  const graphLayout = useMemo(() => layoutSeparatedContextGraph(graph.nodes, graph.links, mobileGraph), [graph.nodes, graph.links, mobileGraph]);
   useEffect(() => {
     if (!graphOpen || !graphLayout.length || typeof window === 'undefined' || !window.requestAnimationFrame) return;
     const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -296,7 +307,7 @@ export default function Memory({ toast }) {
     motion?.addEventListener?.('change', stopForReducedMotion);
     return () => { window.cancelAnimationFrame(frame); motion?.removeEventListener?.('change', stopForReducedMotion); };
   }, [graphLayout, graphOpen]);
-  const graphNodes = animateContextGraph(graphLayout, graphAnimation.layout === graphLayout ? graphAnimation.progress : 1);
+  const graphNodes = animateContextGraph(graphLayout, graphAnimation.layout === graphLayout ? graphAnimation.progress : 1, graphHeight);
   const graphPositionBySource = new Map(graphNodes.map(node => [String(node.source || node.id), node]));
   const activeGraphSource = hoveredGraphSource;
   const activeGraphNeighbors = new Set();
@@ -333,13 +344,20 @@ export default function Memory({ toast }) {
           <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-base-content" aria-hidden="true" />Intentional notes</span>
           <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-secondary" aria-hidden="true" />Auto notes</span>
         </div>
-        <svg class="block h-[min(620px,65vh)] min-h-90 w-full select-none" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph grouped by type">
+        <svg class={`block ${mobileGraph ? 'h-[min(1240px,80vh)]' : 'h-[min(620px,65vh)]'} min-h-90 w-full select-none`} viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${graphHeight}`} role="group" aria-label="Connected notes graph grouped by type">
           <rect x="0" y="0" width={CONTEXT_GRAPH_WIDTH} height={CONTEXT_GRAPH_HEIGHT} fill="transparent" />
           <g aria-hidden="true" pointerEvents="none">
-            <rect x="12" y="10" width="476" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
-            <rect x="512" y="10" width="476" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
-            <text x="250" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Intentional notes</text>
-            <text x="750" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Auto notes</text>
+            {mobileGraph ? <>
+              <rect x="12" y="10" width="976" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
+              <rect x="12" y="630" width="976" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
+              <text x="500" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Intentional notes</text>
+              <text x="500" y="658" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Auto notes</text>
+            </> : <>
+              <rect x="12" y="10" width="476" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
+              <rect x="512" y="10" width="476" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
+              <text x="250" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Intentional notes</text>
+              <text x="750" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Auto notes</text>
+            </>}
           </g>
           <g>
             <g style={{ pointerEvents: 'none' }} aria-hidden="true">
@@ -428,7 +446,7 @@ export default function Memory({ toast }) {
         <section class="card card-bordered min-w-0 overflow-hidden bg-base-200 p-5" aria-label="Selected source">
           {selected ? <>
             <div class="mb-4 flex min-w-0 items-start justify-between gap-3"><div class="min-w-0 break-words"><span class="badge badge-outline badge-sm">{isAutomaticContextSource(selected.source) ? 'Auto note' : 'Intentional note'}</span><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2 class="break-words">{selected.title}</h2><p class="break-all">{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
-            <pre class="max-w-full whitespace-pre-wrap break-all">{selected.content}</pre>
+            <div class="max-w-full min-w-0 whitespace-normal break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:mb-4 [&_ul]:mb-4 [&_ol]:mb-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_h1]:my-4 [&_h1]:text-[1.6em] [&_h1]:font-bold [&_h2]:my-4 [&_h2]:text-[1.4em] [&_h2]:font-bold [&_h3]:my-4 [&_h3]:text-[1.2em] [&_h3]:font-semibold [&_blockquote]:mb-4 [&_blockquote]:border-l-[3px] [&_blockquote]:border-base-300 [&_blockquote]:pl-4 [&_code]:rounded-field [&_code]:bg-base-100 [&_code]:px-1 [&_code]:py-0.5 [&_pre]:mb-4 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-box [&_pre]:border [&_pre]:border-base-300 [&_pre]:bg-base-100 [&_pre]:p-3 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_a]:text-primary [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected.content) }} />
             <section class="mt-4 border-t border-base-300 pt-4" aria-labelledby="context-links-title">
               <h3 id="context-links-title">Linked notes</h3>
               {linksLoading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading links…</p> : links.length ? <>

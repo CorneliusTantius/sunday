@@ -6,11 +6,11 @@ export const CONTEXT_GRAPH_HEIGHT = 620;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 // A damped spring expands the settled layout from the center and gently overshoots.
-export function animateContextGraph(nodes, progress) {
+export function animateContextGraph(nodes, progress, height = CONTEXT_GRAPH_HEIGHT) {
   if (progress >= 1) return nodes;
   const time = Math.max(0, progress);
   const scale = 1 - 0.55 * Math.exp(-5 * time) * Math.cos(12 * time);
-  const centerX = CONTEXT_GRAPH_WIDTH / 2, centerY = CONTEXT_GRAPH_HEIGHT / 2;
+  const centerX = CONTEXT_GRAPH_WIDTH / 2, centerY = height / 2;
   return nodes.map(node => ({ ...node, x: centerX + (node.x - centerX) * scale, y: centerY + (node.y - centerY) * scale }));
 }
 
@@ -96,7 +96,7 @@ export function layoutContextGraph(nodes = [], links = []) {
 }
 
 /** Lay out automatic and intentional notes in separate graph lanes. */
-export function layoutSeparatedContextGraph(nodes = [], links = []) {
+export function layoutSeparatedContextGraph(nodes = [], links = [], vertical = false) {
   if (!nodes.length) return [];
 
   const allSources = new Set(nodes.map(node => node.source || node.id));
@@ -115,12 +115,14 @@ export function layoutSeparatedContextGraph(nodes = [], links = []) {
     const groupNodes = nodes.filter(node => isAutomaticContextSource(node.source) === automatic);
     const groupSources = new Set(groupNodes.map(node => node.source || node.id));
     const groupLinks = links.filter(link => groupSources.has(link.source) && groupSources.has(link.target));
-    const centerX = CONTEXT_GRAPH_WIDTH * (automatic ? 0.75 : 0.25);
+    const centerX = vertical ? CONTEXT_GRAPH_WIDTH / 2 : CONTEXT_GRAPH_WIDTH * (automatic ? 0.75 : 0.25);
+    const centerY = vertical ? CONTEXT_GRAPH_HEIGHT * (automatic ? 1.5 : 0.5) : CONTEXT_GRAPH_HEIGHT / 2;
     return layoutContextGraph(groupNodes, groupLinks).map(node => ({
       ...node,
       automatic,
       degree: totalDegree.get(node.source || node.id) || 0,
-      x: centerX + (node.x - CONTEXT_GRAPH_WIDTH / 2) * 0.42,
+      x: vertical ? centerX + (node.x - CONTEXT_GRAPH_WIDTH / 2) * 0.84 : centerX + (node.x - CONTEXT_GRAPH_WIDTH / 2) * 0.42,
+      y: vertical ? centerY + (node.y - CONTEXT_GRAPH_HEIGHT / 2) * 0.84 : node.y,
     }));
   });
 }

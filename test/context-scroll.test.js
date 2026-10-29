@@ -17,7 +17,8 @@ test('notes list rows use moderate corners and contain long note text', () => {
   assert.match(memory, /badge badge-sm shrink-0 \$\{isAutomaticContextSource\(item\.source\) \? 'badge-secondary' : 'badge-outline'\}/);
   assert.match(memory, /isAutomaticContextSource\(item\.source\) \? 'Auto' : 'Intentional'/);
   assert.match(memory, /<span class="w-full min-w-0 whitespace-normal break-all">\{item.source\}<\/span>/);
-  assert.match(memory, /<pre class="max-w-full whitespace-pre-wrap break-all">\{selected.content\}<\/pre>/);
+  assert.match(memory, /import \{ renderMarkdown \} from '\.\/MessageBubble\.js';/);
+  assert.match(memory, /dangerouslySetInnerHTML=\{\{ __html: renderMarkdown\(selected\.content\) \}\}/);
   assert.match(memory, /role="group" aria-label="Filter notes by type"/);
   assert.match(memory, /aria-pressed=\{noteFilter === filter\.id\} onClick=\{\(\) => setNoteFilter\(filter\.id\)\}/);
   assert.match(memory, /<span class="ml-1 text-xs tabular-nums opacity-80">\{filter\.count\}<\/span>/);
@@ -27,5 +28,5 @@ test('notes list rows use moderate corners and contain long note text', () => {
   assert.match(memory, /filterContextNotes\(visibleSources, noteFilter\)/);
   assert.match(memory, /label: 'Intentional notes', notes: filteredNoteGroups\.intentional/);
   assert.match(memory, /label: 'Auto notes', notes: filteredNoteGroups\.automatic/);
-  assert.match(memory, /layoutSeparatedContextGraph\(graph\.nodes, graph\.links\)/);
+  assert.match(memory, /layoutSeparatedContextGraph\(graph\.nodes, graph\.links, mobileGraph\)/);
 });
