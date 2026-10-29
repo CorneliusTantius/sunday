@@ -34,8 +34,9 @@ test('scroll-to-latest has no outlined border', () => {
 
 test('greeting is larger and context/token details are slightly smaller', () => {
   assert.match(app, /<h1 class="text-3xl font-semibold tracking-tight" id="welcome-greeting">/);
-  const contextLine = app.match(/<div class="mb-1 flex justify-between gap-3 text-\[11px\] text-base-content\/70">([\s\S]*?)<\/div>/)?.[1];
+  const contextLine = app.match(/<div class="mb-1 flex justify-between gap-3 text-\[10px\] text-base-content\/70">([\s\S]*?)<\/div>/)?.[1];
   assert.ok(contextLine);
   assert.match(contextLine, /CONTEXT/);
   assert.match(contextLine, /TOKENS/);
+  assert.match(app, /class="h-1 overflow-hidden rounded-full bg-base-300" role="progressbar" aria-label="Context usage"/);
 });
