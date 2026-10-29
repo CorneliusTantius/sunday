@@ -11,6 +11,9 @@ test('viewport layout confines scrolling to chat history and repository content'
   assert.match(app, /ref=\{transcript\} class=\{`[^`]*min-h-0[^`]*flex-1[^`]*overflow-y-auto[^`]*`\}[^>]*id="conversation"/);
   assert.match(repositories, /<section class="[^"]*min-h-0[^\"]*overflow-hidden[^\"]*" id="repositories-page"/);
   assert.match(repositories, /id="repos-list" class="[^"]*min-h-0 flex-1[^\"]*overflow-y-auto overscroll-y-contain/);
+  assert.match(app, /<form class="card card-border bg-base-200 p-3 sm:p-4" id="chat-form"/);
+  assert.match(app, /class="btn btn-primary btn-circle btn-sm sm:btn-md" id="send-button"/);
+  assert.match(app, /<svg viewBox="0 0 24 24" class="size-4 sm:size-5" aria-hidden="true" focusable="false">/);
   assert.match(app, /id="messages"/);
   assert.match(app, /class=\{`flex flex-col gap-6 \$\{messages\.length \? 'py-6' : ''\}`\} id="messages"/);
   const styles = readFileSync(new URL('../src/web/style.css', import.meta.url), 'utf8');
