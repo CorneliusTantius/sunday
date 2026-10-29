@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph } from '../src/web/context-graph.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph, layoutSeparatedContextGraph } from '../src/web/context-graph.js';
 
 test('graph spring expands, overshoots, and settles exactly at the layout', () => {
   const layout = [{ id: 'a', x: 700, y: 310, degree: 1 }, { id: 'b', x: 400, y: 350, degree: 1 }];
@@ -63,4 +63,28 @@ test('context graph layout handles no notes and a lone unlinked note', () => {
   const [node] = layoutContextGraph([{ id: 'alone', source: 'alone.md', title: 'Alone' }]);
   assert.equal(node.degree, 0);
   assert.ok(Number.isFinite(node.x) && Number.isFinite(node.y));
+});
+
+test('separated graph lanes distinguish automatic notes and retain cross-lane degree', () => {
+  const nodes = [
+    { id: 'one', source: 'sunday/one.md' },
+    { id: 'auto', source: 'auto/project/hash' },
+    { id: 'two', source: 'sunday/two.md' },
+  ];
+  const links = [
+    { source: 'sunday/one.md', target: 'auto/project/hash' },
+    { source: 'sunday/one.md', target: 'sunday/two.md' },
+  ];
+  const layout = layoutSeparatedContextGraph(nodes, links);
+  const bySource = new Map(layout.map(node => [node.source, node]));
+
+  assert.deepEqual(layout, layoutSeparatedContextGraph(nodes, links));
+  assert.ok(bySource.get('sunday/one.md').x < CONTEXT_GRAPH_WIDTH / 2);
+  assert.ok(bySource.get('sunday/two.md').x < CONTEXT_GRAPH_WIDTH / 2);
+  assert.ok(bySource.get('auto/project/hash').x > CONTEXT_GRAPH_WIDTH / 2);
+  assert.equal(bySource.get('sunday/one.md').automatic, false);
+  assert.equal(bySource.get('auto/project/hash').automatic, true);
+  assert.deepEqual(layout.map(node => node.degree), [2, 1, 1]);
+  assert.ok(layout.every(node => node.x >= 56 && node.x <= CONTEXT_GRAPH_WIDTH - 56));
+  assert.ok(nodes.every(node => !('x' in node) && !('automatic' in node)), 'layout does not mutate input nodes');
 });

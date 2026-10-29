@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { request, jsonRequest } from '../api.js';
-import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph } from '../context-graph.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutSeparatedContextGraph } from '../context-graph.js';
+import { groupContextNotes, isAutomaticContextSource } from '../context-notes.js';
 
 export default function Memory({ toast }) {
   const [sources, setSources] = useState([]);
@@ -187,7 +188,9 @@ export default function Memory({ toast }) {
   }
 
   const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const graphLayout = useMemo(() => layoutContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
+  const visibleNoteGroups = groupContextNotes(visibleSources);
+  const graphNoteGroups = groupContextNotes(graph.nodes);
+  const graphLayout = useMemo(() => layoutSeparatedContextGraph(graph.nodes, graph.links), [graph.nodes, graph.links]);
   useEffect(() => {
     if (!graphOpen || !graphLayout.length || typeof window === 'undefined' || !window.requestAnimationFrame) return;
     const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -237,13 +240,23 @@ export default function Memory({ toast }) {
       <header class="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div><h2 id="context-global-title">Knowledge graph</h2><p>Select a dot, then switch to Notes to read it.</p></div>
         <div class="flex flex-wrap items-center gap-3 text-sm text-base-content/70">
-          <span>{graph.nodes.length} notes · {graph.links.length} links</span>
+          <span>{graphNoteGroups.intentional.length} intentional · {graphNoteGroups.automatic.length} auto · {graph.links.length} links</span>
           <button class="btn btn-ghost" type="button" disabled={graphLoading} onClick={refreshGraph}>{graphLoading ? 'Refreshing…' : 'Refresh graph'}</button>
         </div>
       </header>
       {graphLoading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading graph…</p> : graph.nodes.length ? <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
-        <svg class="block h-[min(620px,65vh)] min-h-90 w-full select-none" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph">
+        <div class="flex flex-wrap gap-4 border-b border-base-300 px-4 py-3 text-sm" aria-label="Note categories">
+          <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-base-content" aria-hidden="true" />Intentional notes</span>
+          <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-secondary" aria-hidden="true" />Auto notes</span>
+        </div>
+        <svg class="block h-[min(620px,65vh)] min-h-90 w-full select-none" viewBox={`0 0 ${CONTEXT_GRAPH_WIDTH} ${CONTEXT_GRAPH_HEIGHT}`} role="group" aria-label="Connected notes graph grouped by type">
           <rect x="0" y="0" width={CONTEXT_GRAPH_WIDTH} height={CONTEXT_GRAPH_HEIGHT} fill="transparent" />
+          <g aria-hidden="true" pointerEvents="none">
+            <rect x="12" y="10" width="476" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
+            <rect x="512" y="10" width="476" height="600" rx="18" fill="var(--color-base-200)" opacity="0.42" />
+            <text x="250" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Intentional notes</text>
+            <text x="750" y="38" textAnchor="middle" fill="var(--color-base-content)" fontSize="16" fontWeight="600">Auto notes</text>
+          </g>
           <g>
             <g style={{ pointerEvents: 'none' }} aria-hidden="true">
               {graph.links.map((link, index) => {
@@ -265,10 +278,10 @@ export default function Memory({ toast }) {
                 const tooltipX = node.x > CONTEXT_GRAPH_WIDTH - 220 ? -210 : 10;
                 const tooltipY = node.y > CONTEXT_GRAPH_HEIGHT - 110 ? -100 : 10;
                 const radius = 3.5 + Math.min(node.degree, 6) * 0.55;
-                return <g key={node.id} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open note: ${node.title}`} aria-pressed={selected?.source === sourceKey} style={{ cursor: 'pointer', opacity: isDimmed ? 0.22 : 1 }} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
+                return <g key={node.id} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex="0" aria-label={`Open ${node.automatic ? 'auto' : 'intentional'} note: ${node.title}`} aria-pressed={selected?.source === sourceKey} style={{ cursor: 'pointer', opacity: isDimmed ? 0.22 : 1 }} onPointerEnter={() => setHoveredGraphSource(sourceKey)} onPointerLeave={() => setHoveredGraphSource('')} onFocus={() => setHoveredGraphSource(sourceKey)} onBlur={() => setHoveredGraphSource('')} onClick={() => openSource(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSource(node.id); } }}>
                   <title>{`${node.title} — ${node.source}`}</title>
                   <circle r="16" fill="transparent" pointerEvents="all" />
-                  <circle r={radius} fill={isActive ? 'var(--color-primary)' : node.degree ? 'var(--color-base-content)' : 'var(--color-base-300)'} stroke="var(--color-base-100)" strokeWidth={isActive ? 2.5 : 1} vectorEffect="non-scaling-stroke" />
+                  <circle r={radius} fill={isActive ? 'var(--color-primary)' : node.automatic ? 'var(--color-secondary)' : node.degree ? 'var(--color-base-content)' : 'var(--color-base-300)'} stroke="var(--color-base-100)" strokeWidth={isActive ? 2.5 : 1} vectorEffect="non-scaling-stroke" />
                 </g>;
               })}
             </g>
@@ -283,21 +296,26 @@ export default function Memory({ toast }) {
           <label class="label-text font-medium" for="context-search">Search note titles and content</label>
           <div class="flex flex-col gap-2 sm:flex-row"><input class="input input-bordered" id="context-search" maxLength={300} value={query} onInput={event => { setQuery(event.currentTarget.value); setResults([]); }} placeholder="Search notes or content…" /><button class="btn btn-primary" type="submit">Search</button></div>
         </form>
-        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <ul class="mt-3 grid max-h-[65vh] min-w-0 list-none gap-2 overflow-auto p-0">
-          {visibleSources.map(item => <li key={item.id} class="min-w-0"><button class={`btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`}  onClick={() => openSource(item.id)}>
-            <strong class="w-full min-w-0 whitespace-normal break-words">{item.title}</strong><span class="w-full min-w-0 whitespace-normal break-all">{item.source}</span><small class="w-full whitespace-normal">{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
-          </button></li>)}
-        </ul> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
+        {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : visibleSources.length ? <div class="mt-3 max-h-[65vh] min-w-0 space-y-4 overflow-auto">
+          {[{ label: 'Intentional notes', notes: visibleNoteGroups.intentional }, { label: 'Auto notes', notes: visibleNoteGroups.automatic }].filter(group => group.notes.length).map(group => <section key={group.label} aria-label={group.label}>
+            <h3 class="mb-2 flex items-center gap-2">{group.label}<span class="badge badge-outline badge-sm">{group.notes.length}</span></h3>
+            <ul class="grid min-w-0 list-none gap-2 p-0">
+              {group.notes.map(item => <li key={item.id} class="min-w-0"><button class={`btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left ${selected?.id === item.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} onClick={() => openSource(item.id)}>
+                <strong class="w-full min-w-0 whitespace-normal break-words">{item.title}</strong><span class="w-full min-w-0 whitespace-normal break-all">{item.source}</span><small class="w-full whitespace-normal">{graph.links.filter(link => link.source === item.source || link.target === item.source).length} linked notes · {item.chunks} chunks</small>
+              </button></li>)}
+            </ul>
+          </section>)}
+        </div> : <p class="my-3 text-sm leading-relaxed text-base-content/70">{sources.length ? 'No notes match this title or source.' : 'No indexed notes yet. Index a source to build your memory.'}</p>}
         {query.trim() && <div class="mt-3 grid gap-2" aria-label="Content search results">
           {results.length > 0 ? results.map((result, index) => <button class="btn h-auto w-full min-w-0 justify-start rounded-xl flex-col items-start gap-1 overflow-hidden p-3 text-left" key={`${result.source}-${index}`} onClick={() => { const item = sources.find(source => source.source === result.source); if (item) openSource(item.id); }}>
-            <strong class="w-full min-w-0 whitespace-normal break-words">{result.title}</strong><span class="w-full min-w-0 whitespace-normal break-all">{result.source}</span><p class="w-full whitespace-normal break-words">{result.excerpt}</p>
+            <strong class="w-full min-w-0 whitespace-normal break-words">{result.title}</strong><span class="badge badge-sm badge-outline">{isAutomaticContextSource(result.source) ? 'Auto note' : 'Intentional note'}</span><span class="w-full min-w-0 whitespace-normal break-all">{result.source}</span><p class="w-full whitespace-normal break-words">{result.excerpt}</p>
           </button>) : <p class="my-3 text-sm leading-relaxed text-base-content/70">Submit the search to find matching note content.</p>}
         </div>}
       </section>
       <div class="grid gap-4">
         <section class="card card-bordered min-w-0 overflow-hidden bg-base-200 p-5" aria-label="Selected source">
           {selected ? <>
-            <div class="mb-4 flex min-w-0 items-start justify-between gap-3"><div class="min-w-0 break-words"><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2 class="break-words">{selected.title}</h2><p class="break-all">{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
+            <div class="mb-4 flex min-w-0 items-start justify-between gap-3"><div class="min-w-0 break-words"><span class="badge badge-outline badge-sm">{isAutomaticContextSource(selected.source) ? 'Auto note' : 'Intentional note'}</span><p class="text-xs font-bold tracking-widest text-primary">{selected.scope}</p><h2 class="break-words">{selected.title}</h2><p class="break-all">{selected.source}</p></div><button class="btn btn-ghost" type="button" disabled={busy} onClick={removeSource}>Remove</button></div>
             <pre class="max-w-full whitespace-pre-wrap break-all">{selected.content}</pre>
             <section class="mt-4 border-t border-base-300 pt-4" aria-labelledby="context-links-title">
               <h3 id="context-links-title">Linked notes</h3>

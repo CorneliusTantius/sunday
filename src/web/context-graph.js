@@ -1,3 +1,5 @@
+import { isAutomaticContextSource } from './context-notes.js';
+
 export const CONTEXT_GRAPH_WIDTH = 1000;
 export const CONTEXT_GRAPH_HEIGHT = 620;
 
@@ -91,4 +93,34 @@ export function layoutContextGraph(nodes = [], links = []) {
   }
 
   return nodes.map((node, index) => ({ ...node, x: positions[index].x, y: positions[index].y, degree: degree[index] }));
+}
+
+/** Lay out automatic and intentional notes in separate graph lanes. */
+export function layoutSeparatedContextGraph(nodes = [], links = []) {
+  if (!nodes.length) return [];
+
+  const allSources = new Set(nodes.map(node => node.source || node.id));
+  const totalDegree = new Map([...allSources].map(source => [source, 0]));
+  const countedEdges = new Set();
+  for (const link of links) {
+    if (!allSources.has(link.source) || !allSources.has(link.target) || link.source === link.target) continue;
+    const edge = JSON.stringify([link.source, link.target].sort());
+    if (countedEdges.has(edge)) continue;
+    countedEdges.add(edge);
+    totalDegree.set(link.source, totalDegree.get(link.source) + 1);
+    totalDegree.set(link.target, totalDegree.get(link.target) + 1);
+  }
+
+  return [false, true].flatMap(automatic => {
+    const groupNodes = nodes.filter(node => isAutomaticContextSource(node.source) === automatic);
+    const groupSources = new Set(groupNodes.map(node => node.source || node.id));
+    const groupLinks = links.filter(link => groupSources.has(link.source) && groupSources.has(link.target));
+    const centerX = CONTEXT_GRAPH_WIDTH * (automatic ? 0.75 : 0.25);
+    return layoutContextGraph(groupNodes, groupLinks).map(node => ({
+      ...node,
+      automatic,
+      degree: totalDegree.get(node.source || node.id) || 0,
+      x: centerX + (node.x - CONTEXT_GRAPH_WIDTH / 2) * 0.42,
+    }));
+  });
 }

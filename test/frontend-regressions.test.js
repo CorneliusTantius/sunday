@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { BASIC_TOOLS } from '../src/server/tools.js';
-import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph } from '../src/web/context-graph.js';
+import { CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph, layoutSeparatedContextGraph } from '../src/web/context-graph.js';
+import { groupContextNotes, isAutomaticContextSource } from '../src/web/context-notes.js';
 
 const deferred = () => {
   let resolve;
@@ -23,7 +24,7 @@ function mount(name, props, request, jsonRequest = async () => ({}), globals = {
   const slots = [], effects = [], timers = new Map(), timerDelays = [];
   let cursor = 0, dirty = false, nextTimer = 0, view;
   const context = vm.createContext({
-    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph,
+    request, jsonRequest, CONTEXT_GRAPH_HEIGHT, CONTEXT_GRAPH_WIDTH, animateContextGraph, layoutContextGraph, layoutSeparatedContextGraph, groupContextNotes, isAutomaticContextSource,
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
     setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, fn); timerDelays.push(ms); return id; },
@@ -455,13 +456,13 @@ test('context page opens on graph and hides notes until the Notes view is select
 
 test('context notes show an Obsidian-style dot graph and selected-note link controls', () => {
   const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
-  assert.match(source, /layoutContextGraph\(graph\.nodes, graph\.links\)/);
-  assert.match(source, /<svg class="block h-\[min\(620px,65vh\)\] min-h-90 w-full select-none"[^>]*role="group" aria-label="Connected notes graph"/);
+  assert.match(source, /layoutSeparatedContextGraph\(graph\.nodes, graph\.links\)/);
+  assert.match(source, /<svg class="block h-\[min\(620px,65vh\)\] min-h-90 w-full select-none"[^>]*role="group" aria-label="Connected notes graph grouped by type"/);
   assert.match(source, /aria-hidden="true"/);
-  assert.match(source, /<circle r=\{radius\} fill=\{isActive \? 'var\(--color-primary\)'/);
+  assert.match(source, /<circle r=\{radius\} fill=\{isActive \? 'var\(--color-primary\)' : node\.automatic \? 'var\(--color-secondary\)'/);
   assert.match(source, /<title>\{`\$\{node\.title\} — \$\{node\.source\}`\}<\/title>/);
   assert.doesNotMatch(source, /Graph zoom controls|startGraphPan|graphView|graphPositions/);
-  assert.match(source, /aria-label={`Open note: \$\{node\.title\}`}/);
+  assert.match(source, /aria-label={`Open \$\{node\.automatic \? 'auto' : 'intentional'\} note: \$\{node\.title\}`}/);
   assert.match(source, /Linked notes/);
   assert.match(source, /aria-label="Relationship"/);
   assert.match(source, /link\.source === selected\.source \? link\.target : link\.source/);

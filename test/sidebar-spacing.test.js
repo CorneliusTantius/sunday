@@ -15,7 +15,7 @@ test('Context and Skills remain separate top-level destinations', () => {
 
 test('Context graph nodes remain keyboard-operable buttons', () => {
   const memory = read('components/Memory.jsx');
-  assert.match(memory, /<g key=\{node\.id\} transform=\{`translate\(\$\{node\.x\} \$\{node\.y\}\)`\} role="button" tabIndex="0" aria-label=\{`Open note: \$\{node\.title\}`\}/);
+  assert.match(memory, /<g key=\{node\.id\} transform=\{`translate\(\$\{node\.x\} \$\{node\.y\}\)`\} role="button" tabIndex="0" aria-label=\{`Open \$\{node\.automatic \? 'auto' : 'intentional'\} note: \$\{node\.title\}`\}/);
   assert.match(memory, /onKeyDown=\{event => \{ if \(event\.key === 'Enter' \|\| event\.key === ' '\)/);
 });
 
