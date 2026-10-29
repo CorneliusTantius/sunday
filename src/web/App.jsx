@@ -84,8 +84,9 @@ export default function App() {
   const [page, setPage] = useState(currentPage);
   const pageRef = useRef(page);
   pageRef.current = page;
-  const [skillsExiting, setSkillsExiting] = useState(false);
-  const skillsExitTimer = useRef(null);
+  const [pagePhase, setPagePhase] = useState('enter');
+  const pendingPage = useRef(null);
+  const pageTransitionTimer = useRef(null);
   const editorDirty = useRef(false);
   const editorSaving = useRef(false);
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 700px)').matches);
@@ -243,22 +244,42 @@ export default function App() {
         return;
       }
       if (next !== 'editor') editorDirty.current = false;
-      clearTimeout(skillsExitTimer.current);
-      if (pageRef.current === 'skills' && next !== 'skills') {
-        setSkillsExiting(true);
-        const delay = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
-        skillsExitTimer.current = setTimeout(() => { setSkillsExiting(false); skillsExitTimer.current = null; }, delay);
-      } else {
-        setSkillsExiting(false);
+      if (pageTransitionTimer.current) {
+        if (next === pageRef.current) {
+          clearTimeout(pageTransitionTimer.current);
+          pageTransitionTimer.current = null;
+          pendingPage.current = null;
+          setPagePhase('enter');
+        } else {
+          pendingPage.current = next;
+        }
+        return;
       }
-      pageRef.current = next;
-      setPage(next);
+      if (next === pageRef.current) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        pageRef.current = next;
+        setPage(next);
+        setPagePhase('enter');
+        return;
+      }
+      pendingPage.current = next;
+      setPagePhase('exit');
+      pageTransitionTimer.current = setTimeout(() => {
+        const target = pendingPage.current;
+        pendingPage.current = null;
+        pageTransitionTimer.current = null;
+        if (target && target !== pageRef.current) {
+          pageRef.current = target;
+          setPage(target);
+        }
+        setPagePhase('enter');
+      }, 140);
     };
     const layout = matchMedia('(max-width: 700px)');
     const resize = () => { setMobile(layout.matches); setSidebarOpen(!layout.matches); };
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('hashchange', route); layout.addEventListener('change', resize);
-    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(skillsExitTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
+    return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(pageTransitionTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
     document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'scheduled-job' ? 'Automations' : page === 'context' ? 'Context' : 'Chat'}`;
@@ -577,12 +598,12 @@ export default function App() {
       </aside>
       <button ref={menu} class={`btn btn-ghost btn-square fixed left-3 top-3 z-10 hover:border-transparent ${!mobile && sidebarOpen ? 'hidden' : ''}`}  id="mobile-menu" aria-label="Open sidebar" aria-controls="sidebar" aria-expanded={sidebarOpen} onClick={() => { setSidebarOpen(true); if (mobile) collapseButton.current?.focus(); }}>☰</button>
       <button class={`fixed inset-0 z-10 bg-neutral/60 transition-opacity duration-300 ease-in-out motion-reduce:transition-none ${mobile && sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" inert={!mobile || !sidebarOpen} onClick={closeSidebar} />
-      <main key={page} class="page-enter relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden motion-reduce:animate-none">
+      <main key={page} class={`relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden motion-reduce:animate-none ${pagePhase === 'exit' ? 'page-exit' : 'page-enter'}`} inert={pagePhase === 'exit'}>
         {page === 'repositories' && <Repositories toast={toast} />}
         {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}
-        {(page === 'skills' || skillsExiting) && <Skills exiting={skillsExiting} />}
+        {page === 'skills' && <Skills exiting={pagePhase === 'exit'} />}
         {page === 'editor' && <Suspense fallback={<section class="mx-auto flex min-h-0 w-[min(960px,calc(100%-48px))] flex-1 flex-col overflow-hidden py-12 max-[700px]:w-[calc(100%-30px)] max-[700px]:pt-16" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`m-auto max-w-xl px-4 py-16 text-center ${messages.length ? 'hidden' : ''}`}  id="welcome"><Character welcome /><h1 class="text-3xl font-semibold tracking-tight" id="welcome-greeting">{greetingText}</h1></div>

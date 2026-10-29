@@ -39,7 +39,7 @@ test('settings tab content animates in and respects reduced motion', () => {
   assert.ok(settings.includes("class={page === 'update' ? 'grid gap-3 settings-view-enter' : 'hidden'}"));
   assert.match(personas, /class=\{`grid gap-5\$\{hidden \? ' hidden' : ' settings-view-enter'\}`\}/);
   assert.match(styles, /\.settings-view-enter \{ animation: settings-view-enter 240ms cubic-bezier\(0\.22, 1, 0\.36, 1\) both; \}/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-enter, \.settings-view-enter \{ animation: none; \}/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-enter, \.page-exit, \.settings-view-enter \{ animation: none; \}/);
 });
 
 test('inactive settings forms cannot receive interaction', () => {

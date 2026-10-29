@@ -12,24 +12,29 @@ test('Context route supports the current and legacy hash', () => {
   assert.equal(runInNewContext(`${currentPage}\ncurrentPage()`, { location: { hash: '#dashboard' } }), 'chat');
 });
 
-test('Files route aliases preserve dirty and saving guards', () => {
+test('page routes animate out before switching, preserve file guards, and honor reduced motion', () => {
   const source = readFileSync(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
   const currentPage = source.slice(source.indexOf('function currentPage()'), source.indexOf('function greeting'));
   const route = source.slice(source.indexOf('const route = () =>'), source.indexOf('const layout = matchMedia'));
-  let page = 'editor', confirmations = 0, alerts = 0, discard = false, skillsExiting = false;
+  let page = 'editor', phase = 'enter', confirmations = 0, alerts = 0, discard = false, reducedMotion = false;
   let nextTimer = 0;
   const timers = new Map(), timerDelays = [];
   const context = {
     location: { hash: '#editor' }, editorDirty: { current: true }, editorSaving: { current: false },
-    pageRef: { current: 'editor' }, skillsExitTimer: { current: null },
-    setPage: next => { page = next; }, setSkillsExiting: value => { skillsExiting = value; },
-    matchMedia: () => ({ matches: false }),
+    pageRef: { current: 'editor' }, pendingPage: { current: null }, pageTransitionTimer: { current: null },
+    setPage: next => { page = next; }, setPagePhase: next => { phase = next; },
+    matchMedia: () => ({ matches: reducedMotion }),
     setTimeout: (callback, delay) => { const id = ++nextTimer; timers.set(id, callback); timerDelays.push(delay); return id; },
     clearTimeout: id => timers.delete(id),
     window: { confirm: () => { confirmations++; return discard; }, alert: () => { alerts++; } },
     history: { replaceState: (_state, _title, hash) => { context.location.hash = hash; } },
   };
   const navigate = runInNewContext(`${currentPage}\n${route}\nroute`, context);
+  const finishExit = () => {
+    const [id, callback] = timers.entries().next().value;
+    timers.delete(id);
+    callback();
+  };
   context.location.hash = '#files'; navigate();
   assert.equal(context.editorDirty.current, true);
   assert.equal(confirmations, 0);
@@ -45,22 +50,34 @@ test('Files route aliases preserve dirty and saving guards', () => {
   context.editorSaving.current = false;
   discard = true;
   context.location.hash = '#repositories'; navigate();
+  assert.equal(page, 'editor');
+  assert.equal(phase, 'exit');
+  assert.equal(timerDelays.at(-1), 140);
+  finishExit();
   assert.equal(page, 'repositories');
+  assert.equal(phase, 'enter');
   assert.equal(context.editorDirty.current, false);
 
-  context.pageRef.current = 'socials';
+  page = 'socials'; context.pageRef.current = 'socials';
+  context.location.hash = '#repositories'; navigate();
+  context.location.hash = '#scheduled-job'; navigate();
+  assert.equal(page, 'socials');
+  assert.equal(context.pendingPage.current, 'scheduled-job');
+  finishExit();
+  assert.equal(page, 'scheduled-job', 'rapid navigation switches to the latest requested page');
+
+  page = 'skills'; context.pageRef.current = 'skills';
+  context.location.hash = '#chat'; navigate();
+  assert.equal(phase, 'exit');
+  assert.equal(timers.size, 1);
+  context.location.hash = '#context/skills'; navigate();
+  assert.equal(phase, 'enter');
+  assert.equal(timers.size, 0, 'returning to the current page cancels its pending exit');
+
+  reducedMotion = true;
   context.location.hash = '#repositories'; navigate();
   assert.equal(page, 'repositories');
-  assert.equal(timers.size, 0);
-
-  context.pageRef.current = 'skills';
-  context.location.hash = '#chat'; navigate();
-  assert.equal(page, 'chat');
-  assert.equal(skillsExiting, true);
-  assert.equal(timerDelays.at(-1), 260);
-  assert.equal(timers.size, 1, 'the Skills page stays mounted for its exit animation');
-  context.location.hash = '#skills'; navigate();
-  assert.equal(skillsExiting, false);
-  assert.equal(timers.size, 0, 'navigating back cancels the pending Skills exit');
+  assert.equal(phase, 'enter');
+  assert.equal(timers.size, 0, 'reduced-motion preferences skip the transition delay');
 });
 
