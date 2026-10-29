@@ -27,7 +27,7 @@ test('settings fills the mobile viewport with compact scrollable section navigat
   assert.match(settings, /grid place-items-center p-0 sm:p-4/);
   assert.match(settings, /h-\[100dvh\] max-h-\[100dvh\][^\"]*rounded-none border-0[^\"]*sm:rounded-box/);
   assert.doesNotMatch(settings.match(/<section class=\{`card relative z-10[\s\S]*?aria-labelledby="settings-title"/)?.[0] || '', /sm:border|border-base-300/);
-  assert.match(settings, /grid h-full min-h-0 grid-cols-1 gap-3 p-3 sm:grid-cols-/);
+  assert.match(settings, /grid h-full min-h-0 grid-cols-1 gap-3 px-2\.5 py-3 sm:grid-cols-/);
   assert.match(settings, /min-w-0 min-h-0 gap-1 overflow-x-auto/);
   assert.equal((settings.match(/btn-ghost btn-sm w-max sm:w-full/g) || []).length, 5);
 });

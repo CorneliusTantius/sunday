@@ -74,6 +74,8 @@ test('chat publishes thinking and partial tools before completion without duplic
   assert.ok(h.events.some(e => e.type === 'progress' && e.status === 'thinking'));
   assert.equal(h.events.filter(e => e.type === 'tool_status').length, 3);
   assert.equal(h.session.messages[0].toolCalls.length, 1);
+  assert.equal(h.session.messages[0].toolCalls[0].status, 'completed');
+  assert.equal(h.session.messages[0].toolCalls[0].result, 'ok');
   assert.match(h.prompts[0], /Help users by reading, editing, and writing files and executing commands/);
   assert.match(h.prompts[0], /Ask only when urgently needed to proceed/);
 });

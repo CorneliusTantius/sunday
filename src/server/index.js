@@ -675,10 +675,10 @@ async function runChatTurn(session, job) {
     if (round === MAX_TOOL_ROUNDS) throw new Error('Tool round limit reached');
     await dispatchToolCalls(calls, async call => {
       if (job.controller.signal.aborted) throw new Error('Chat cancelled');
-      const toolCall = { id: call.id, name: BASIC_TOOL_NAMES.includes(call.name) || TOOL_OUTPUT_NAMES.includes(call.name) || job.mcp.tools.some(tool => tool.name === call.name) ? call.name : 'unknown', arguments: call.arguments, status: 'running' };
       const existing = toolCalls.find(item => item.id === call.id);
-      if (existing) Object.assign(existing, toolCall);
-      else toolCalls.push(toolCall);
+      const toolCall = existing || {};
+      Object.assign(toolCall, { id: call.id, name: BASIC_TOOL_NAMES.includes(call.name) || TOOL_OUTPUT_NAMES.includes(call.name) || job.mcp.tools.some(tool => tool.name === call.name) ? call.name : 'unknown', arguments: call.arguments, status: 'running' });
+      if (!existing) toolCalls.push(toolCall);
       publishChat(job, { type: 'tool_status', ...toolCall });
       let result, isError = false;
       publishChat(job, { type: 'progress', status: 'using_tools' });

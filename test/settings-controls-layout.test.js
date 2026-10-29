@@ -79,6 +79,12 @@ test('Settings has an enlarged top X and no redundant bottom Close button', () =
   assert.match(settings, /id="settings-update-page" class=\{page === 'update' \? 'grid gap-3 settings-view-enter' : 'hidden'\}/);
 });
 
+test('Settings modal uses slightly narrower horizontal padding', () => {
+  const settings = read('components/Settings.jsx');
+  assert.match(settings, /data-settings-header class="[^"]*px-3 py-3 sm:px-6 sm:py-4/);
+  assert.match(settings, /ref=\{contentLayout\} class="grid h-full min-h-0 grid-cols-1 gap-3 px-2\.5 py-3 sm:grid-cols-\[15rem_minmax\(0,1fr\)\] sm:gap-7 sm:px-6 sm:py-7"/);
+});
+
 test('settings section navigation is compact, left-aligned, and has no hover border highlight', () => {
   const settings = read('components/Settings.jsx');
   assert.match(settings, /<nav class="[^\"]*gap-1[^\"]*" aria-label="Settings sections">/);
