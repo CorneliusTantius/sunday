@@ -11,6 +11,11 @@ test('provider settings can re-fetch the current provider model list', () => {
   assert.match(settings, /disabled=\{saving \|\| loading\}/);
 });
 
+test('connected provider badge uses compact sizing to prevent text overflow', () => {
+  const settings = read('components/Settings.jsx');
+  assert.match(settings, /badge badge-success badge-soft badge-sm h-auto w-fit max-w-full whitespace-nowrap px-2 py-1 text-\[10px\] leading-tight">Connected<\/span>/);
+});
+
 test('model refresh also updates the active chat model selector', () => {
   const app = read('App.jsx');
   assert.match(app, /const sessionConfigRef = useRef\(null\)/);

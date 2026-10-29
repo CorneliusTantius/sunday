@@ -432,7 +432,7 @@ export default function Settings({ settings, onReload, onClose, toast }) {
             <p class="text-sm text-base-content/70">Manage the providers you have connected.</p>
             <div id="provider-list" class="my-5 grid gap-3">
               {available.map(item => <button key={item.id} type="button" class="card card-border w-full gap-2 border-base-300 bg-black/10 p-4 text-left transition-colors hover:bg-black/20 aria-pressed:border-primary" data-provider={item.id} aria-pressed={provider === item.id} disabled={saving} onClick={() => { chooseProvider(item.id); navigate('connect'); }}>
-                <strong>{item.name || item.id}</strong><span class="badge badge-success badge-soft">Connected</span><small>{[item.hasApiKey ? 'API key saved' : '', item.oauthConnected ? 'ChatGPT signed in' : ''].filter(Boolean).join(' · ')}</small>
+                <strong>{item.name || item.id}</strong><span class="badge badge-success badge-soft badge-sm h-auto w-fit max-w-full whitespace-nowrap px-2 py-1 text-[10px] leading-tight">Connected</span><small>{[item.hasApiKey ? 'API key saved' : '', item.oauthConnected ? 'ChatGPT signed in' : ''].filter(Boolean).join(' · ')}</small>
               </button>)}
               {!available.length && <p class="text-sm text-base-content/70">No providers connected yet. Add a provider to start chatting.</p>}
             </div>
