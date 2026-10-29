@@ -14,15 +14,10 @@ test('Repositories retains manual pulls but no longer contains automatic pull co
   assert.doesNotMatch(source, /autoPull|AUTO_PULL|auto-pull|Automatic pull|sunday-repositories-auto-pull/i);
 });
 
-test('Repositories and Files buttons have no borders; Files directory control only offers Up', () => {
+test('Repository action buttons have no borders', () => {
   const repositories = buttonClasses(read('Repositories.jsx'));
-  const filesSource = read('CodeEditor.jsx');
-  const files = buttonClasses(filesSource);
   assert.ok(repositories.length > 0);
-  assert.ok(files.length > 0);
-  for (const classes of [...repositories, ...files]) assert.match(classes, /(?:^|\s)border-0(?:\s|$)/, classes);
-  assert.match(filesSource, />Up<\/button>/);
-  assert.doesNotMatch(filesSource, />Open<\/button>|btn-outline/);
+  for (const classes of repositories) assert.match(classes, /(?:^|\s)border-0(?:\s|$)/, classes);
 });
 
 test('Automation builder has consistent responsive margins and full-width controls', () => {

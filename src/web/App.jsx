@@ -3,11 +3,9 @@ import { request, jsonRequest } from './api.js';
 import Character from './components/Character.jsx';
 import MenuIcon from './components/MenuIcon.jsx';
 import Repositories from './components/Repositories.jsx';
-import Socials from './components/Socials.jsx';
 import ScheduledJobs from './components/ScheduledJobs.jsx';
 import Memory from './components/Memory.jsx';
 import Skills from './components/Skills.jsx';
-import { lazy, Suspense } from 'preact/compat';
 import SessionConfig from './components/SessionConfig.jsx';
 import Settings from './components/Settings.jsx';
 import MessageBubble from './components/MessageBubble.js';
@@ -19,7 +17,6 @@ import ComposerInput from './components/ComposerInput.jsx';
 import { chatCommands, fileReferences } from './composer.js';
 import { getContextMetrics, formatTokens } from './context.js';
 
-const CodeEditor = lazy(() => import('./components/CodeEditor.jsx'));
 const activityLabels = { compacting: 'Compacting context…', waiting: 'Waiting for response…', thinking: 'Thinking…', preparing_tool: 'Preparing tool…', using_tools: 'Using tools…', retrying: 'Request timed out. Retrying in 5 seconds…' };
 const streamIdleTimeout = 150_000;
 
@@ -34,7 +31,7 @@ function cancelChat(sessionId) {
     .catch(() => {}).finally(() => clearTimeout(timer));
 }
 function currentPage() {
-  return ['#files', '#editor'].includes(location.hash) ? 'editor' : location.hash === '#repositories' ? 'repositories' : location.hash === '#socials' ? 'socials' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#context/skills' ? 'skills' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
+  return location.hash === '#repositories' ? 'repositories' : location.hash === '#scheduled-job' ? 'scheduled-job' : location.hash === '#context/skills' ? 'skills' : ['#context', '#memory'].includes(location.hash) ? 'context' : 'chat';
 }
 
 function greeting() {
@@ -87,8 +84,6 @@ export default function App() {
   const [pagePhase, setPagePhase] = useState('enter');
   const pendingPage = useRef(null);
   const pageTransitionTimer = useRef(null);
-  const editorDirty = useRef(false);
-  const editorSaving = useRef(false);
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 700px)').matches);
   const [sidebarOpen, setSidebarOpen] = useState(() => !matchMedia('(max-width: 700px)').matches);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -234,16 +229,6 @@ export default function App() {
     const visibility = () => { if (!document.hidden) setGreetingText(greeting()); };
     const route = () => {
       const next = currentPage();
-      if (next !== 'editor' && editorSaving.current) {
-        window.alert('Wait for the file to finish saving before leaving.');
-        history.replaceState(null, '', '#files');
-        return;
-      }
-      if (next !== 'editor' && editorDirty.current && !window.confirm('Discard unsaved changes?')) {
-        history.replaceState(null, '', '#files');
-        return;
-      }
-      if (next !== 'editor') editorDirty.current = false;
       if (pageTransitionTimer.current) {
         if (next === pageRef.current) {
           clearTimeout(pageTransitionTimer.current);
@@ -282,12 +267,11 @@ export default function App() {
     return () => { clearInterval(timer); clearTimeout(toastTimer.current); clearTimeout(pageTransitionTimer.current); controller.current?.abort(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('hashchange', route); layout.removeEventListener('change', resize); };
   }, []);
   useEffect(() => {
-    document.title = `Sunday — ${page === 'editor' ? 'Files' : page === 'repositories' ? 'Repositories' : page === 'socials' ? 'Socials' : page === 'scheduled-job' ? 'Automations' : page === 'context' ? 'Context' : 'Chat'}`;
+    const title = { repositories: 'Repositories', 'scheduled-job': 'Automations', context: 'Context' }[page] || 'Chat';
+    document.title = `Sunday — ${title}`;
     if (mobile) setSidebarOpen(false);
     if (firstPage.current) { firstPage.current = false; return; }
-    if (page === 'editor') shell.current?.querySelector('#code-editor-title')?.focus();
-    else if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
-    else if (page === 'socials') shell.current?.querySelector('#socials-title')?.focus();
+    if (page === 'repositories') shell.current?.querySelector('#repositories-title')?.focus();
     else if (page === 'scheduled-job') shell.current?.querySelector('#scheduled-job-title')?.focus();
     else if (page === 'context' || page === 'skills') shell.current?.querySelector(page === 'skills' ? '#skills-title' : '#context-title')?.focus();
     else if (!mobile) promptInput.current?.focus();
@@ -581,8 +565,6 @@ export default function App() {
           <li><a class={page === 'skills' ? 'active' : ''} id="skills-link" href="#context/skills" aria-current={page === 'skills' ? 'page' : undefined}><MenuIcon name="skills" />Skills</a></li>
           <li><a class={page === 'scheduled-job' ? 'active' : ''} id="scheduled-job-link" href="#scheduled-job" aria-current={page === 'scheduled-job' ? 'page' : undefined}><MenuIcon name="schedule" />Automations</a></li>
           <li><a class={page === 'repositories' ? 'active' : ''} id="repos-link" href="#repositories" aria-current={page === 'repositories' ? 'page' : undefined}><MenuIcon name="repositories" />Repositories</a></li>
-          <li><a class={page === 'editor' ? 'active' : ''} id="editor-link" href="#files" aria-current={page === 'editor' ? 'page' : undefined}><MenuIcon name="files" />Files</a></li>
-          <li><a class={page === 'socials' ? 'active' : ''} id="socials-link" href="#socials" aria-current={page === 'socials' ? 'page' : undefined}><MenuIcon name="socials" />Socials</a></li>
         </ul>
         <hr class="my-1 border-base-300" />
         <section aria-labelledby="agents-heading" class="flex min-h-0 flex-col gap-2">
@@ -600,11 +582,9 @@ export default function App() {
       <button class={`fixed inset-0 z-10 bg-neutral/60 transition-opacity duration-300 ease-in-out motion-reduce:transition-none ${mobile && sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} id="sidebar-backdrop" aria-hidden={!mobile || !sidebarOpen} aria-label="Close sidebar" tabIndex="-1" inert={!mobile || !sidebarOpen} onClick={closeSidebar} />
       <main key={page} class={`relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden motion-reduce:animate-none ${pagePhase === 'exit' ? 'page-exit' : 'page-enter'}`} inert={pagePhase === 'exit'}>
         {page === 'repositories' && <Repositories toast={toast} />}
-        {page === 'socials' && <Socials />}
         {page === 'scheduled-job' && <ScheduledJobs />}
         {page === 'context' && <Memory toast={toast} />}
         {page === 'skills' && <Skills exiting={pagePhase === 'exit'} />}
-        {page === 'editor' && <Suspense fallback={<section class="mx-auto flex min-h-0 w-[min(960px,calc(100%-48px))] flex-1 flex-col overflow-hidden py-12 max-[700px]:w-[calc(100%-30px)] max-[700px]:pt-16" role="status">Loading editor…</section>}><CodeEditor toast={toast} onDirtyChange={dirty => { editorDirty.current = dirty; }} onSavingChange={saving => { editorSaving.current = saving; }} /></Suspense>}
         <section ref={transcript} class={`mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${page !== 'chat' ? 'hidden' : ''}`}  id="conversation" aria-live="polite" onScroll={updateScrollPosition}>
           <div class={`m-auto max-w-xl px-4 py-16 text-center ${messages.length ? 'hidden' : ''}`}  id="welcome"><Character welcome /><h1 class="text-3xl font-semibold tracking-tight" id="welcome-greeting">{greetingText}</h1></div>
           {activeRunning && !busy && <div class="alert alert-info my-3" role="status">This agent is running on the server. You can switch sessions; its response will appear here when it finishes.</div>}

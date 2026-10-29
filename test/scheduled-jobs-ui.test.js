@@ -99,7 +99,7 @@ async function mount(t) {
 
 test('the application title uses Automations for the automation page', async () => {
   const source = await readFile(new URL('../src/web/App.jsx', import.meta.url), 'utf8');
-  assert.match(source, /page === 'scheduled-job' \? 'Automations'/);
+  assert.match(source, /'scheduled-job': 'Automations'/);
 });
 
 test('scheduled jobs UI creates, edits, enables, disables, deletes, and displays run history', async t => {
