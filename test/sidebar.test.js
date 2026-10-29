@@ -154,14 +154,17 @@ test('desktop collapse and rapid reopen keep the sidebar and backdrop mounted', 
   for (let i = 0; i < 3; i++) {
     app.click('collapse-sidebar');
     state(app, { mobile: false, open: false });
-    assert.ok(sidebar.className.includes('transition-[width,transform,opacity,padding]'));
+    assert.ok(sidebar.className.includes('transition-[width,transform,padding]'));
+    assert.ok(sidebar.className.includes('duration-300'));
     assert.ok(sidebar.classList.contains('w-0'));
-    assert.ok(sidebar.classList.contains('opacity-0'));
+    assert.ok(sidebar.classList.contains('-translate-x-72'));
+    assert.ok(!sidebar.classList.contains('opacity-0'), 'sidebar closes by sliding, not fading');
     assert.ok(!sidebar.classList.contains('hidden'), 'closed sidebar stays mounted to animate');
     assert.equal(app.window.document.activeElement, app.get('mobile-menu'));
     app.click('mobile-menu');
     state(app, { mobile: false, open: true });
-    assert.ok(sidebar.classList.contains('opacity-100'));
+    assert.ok(sidebar.classList.contains('translate-x-0'));
+    assert.ok(!sidebar.classList.contains('opacity-100'), 'sidebar opens without a fade effect');
     assert.equal(app.get('sidebar'), sidebar);
     assert.equal(app.get('sidebar-backdrop'), backdrop);
   }
