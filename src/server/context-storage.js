@@ -8,6 +8,8 @@ const MAX_CHUNK_LENGTH = 5000;
 const CHUNK_OVERLAP = 250;
 const CHUNK_VERSION = '5000-250-v1';
 const hash = value => createHash('sha256').update(value).digest('hex');
+const AUTO_SOURCE_NAMESPACE = /^auto\//;
+const AUTO_SOURCE_PATTERN = /^auto\/[a-f0-9]{64}\//;
 
 function splitChunks(content) {
   const chunks = [];
@@ -62,6 +64,11 @@ export function createContextStorage(path) {
       CHECK(source_id != target_id)
     );
     CREATE INDEX IF NOT EXISTS context_links_target_idx ON context_links(target_id);
+    CREATE TABLE IF NOT EXISTS context_memory_scopes (
+      id TEXT PRIMARY KEY,
+      repositories TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS context_metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -106,13 +113,17 @@ export function createContextStorage(path) {
     }
   }
 
-  function index(source, title, rawContent) {
+  function indexSource(source, title, rawContent, automatic = false) {
     if (typeof source !== 'string' || !source.trim() || source.trim().length > MAX_SOURCE_LENGTH ||
         typeof title !== 'string' || !title.trim() || title.trim().length > MAX_TITLE_LENGTH ||
         typeof rawContent !== 'string' || !rawContent.trim() || rawContent.length > MAX_CONTENT_LENGTH) {
       throw new Error('Invalid context source');
     }
     source = source.trim();
+    const isAutomaticNamespace = AUTO_SOURCE_NAMESPACE.test(source);
+    const isValidAutomatic = AUTO_SOURCE_PATTERN.test(source);
+    if (isAutomaticNamespace && !automatic) throw new Error('Automatic context sources are reserved');
+    if (automatic && !isValidAutomatic) throw new Error('Invalid automatic context source');
     title = title.trim();
     const content = rawContent.trim();
     const sourceId = hash(source.normalize('NFKC'));
@@ -161,6 +172,9 @@ export function createContextStorage(path) {
     return { source, title, indexed: true, added, updated, reused, removed };
   }
 
+  function index(source, title, content) { return indexSource(source, title, content); }
+  function indexAutomatic(source, title, content) { return indexSource(source, title, content, true); }
+
   function search(query, limit = 5, sourcePrefix = null) {
     if (sourcePrefix !== null && (typeof sourcePrefix !== 'string' || !sourcePrefix.length)) throw new Error('Invalid context scope');
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new Error('Invalid context search limit');
@@ -184,6 +198,34 @@ export function createContextStorage(path) {
       FROM context_sources s LEFT JOIN context_chunks c ON c.source_id = s.id
       GROUP BY s.id ORDER BY s.updated_at DESC, s.source
     `).all();
+  }
+
+  function registerMemoryScope(id, repositories) {
+    if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id) || !Array.isArray(repositories) ||
+        !repositories.length || repositories.some(name => typeof name !== 'string' || !name.trim() || name.length > 200)) {
+      throw new Error('Invalid automatic memory scope');
+    }
+    const normalized = [...new Set(repositories)].sort();
+    if (hash(JSON.stringify(normalized)) !== id) throw new Error('Invalid automatic memory scope');
+    database.prepare(`INSERT INTO context_memory_scopes (id, repositories, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET repositories = excluded.repositories, updated_at = excluded.updated_at`)
+      .run(id, JSON.stringify(normalized), Date.now());
+  }
+
+  function listAutoMemoryScopes() {
+    const summaries = new Map();
+    for (const row of database.prepare("SELECT source, length(content) AS characters FROM context_sources WHERE source LIKE 'auto/%'").all()) {
+      const match = /^auto\/([a-f0-9]{64})\//.exec(row.source);
+      if (!match) continue;
+      const item = summaries.get(match[1]) || { id: match[1], prefix: `auto/${match[1]}/`, noteCount: 0, characters: 0 };
+      item.noteCount++;
+      item.characters += row.characters;
+      summaries.set(match[1], item);
+    }
+    const registered = new Map(database.prepare('SELECT id, repositories FROM context_memory_scopes').all()
+      .map(row => [row.id, JSON.parse(row.repositories)]));
+    return [...summaries.values()].map(item => ({ ...item, repositories: registered.get(item.id) || null }))
+      .sort((a, b) => (a.repositories?.join(',') || a.id).localeCompare(b.repositories?.join(',') || b.id));
   }
 
   function getSource(id) {
@@ -276,5 +318,5 @@ export function createContextStorage(path) {
     return true;
   }
 
-  return { index, search, listSources, getSource, graph, deleteSource, linkSources, links, unlinkSources, close: () => database.close() };
+  return { index, indexAutomatic, search, listSources, registerMemoryScope, listAutoMemoryScopes, getSource, graph, deleteSource, linkSources, links, unlinkSources, close: () => database.close() };
 }

@@ -360,6 +360,16 @@ test('context source indexing opens in an accessible modal', () => {
   assert.doesNotMatch(source, /<form class="context-panel context-index-form"/);
 });
 
+test('auto-note list exposes a manual consolidator scoped to one repository set', () => {
+  const source = readFileSync(new URL('../src/web/components/Memory.jsx', import.meta.url), 'utf8');
+  assert.match(source, /noteFilter === 'automatic' && <section/);
+  assert.match(source, /id="auto-memory-scope"/);
+  assert.match(source, /Consolidate selected scope/);
+  assert.match(source, /scopeId: selectedScopeId/);
+  assert.match(source, /Intentional notes and other scopes are never included/);
+  assert.match(source, /method: 'DELETE'/);
+});
+
 test('context notes load, create, and remove directed links', async () => {
   const sources = [{ id: 'a', source: 'notes/a.md', title: 'A' }, { id: 'b', source: 'notes/b.md', title: 'B' }];
   const selected = { ...sources[0], scope: 'shared', content: 'Note A' };
@@ -369,6 +379,8 @@ test('context notes load, create, and remove directed links', async () => {
   const h = mount('Memory', { toast() {} }, async url => {
     calls.push(url);
     if (url === '/api/context/sources') return { sources };
+    if (url === '/api/context/memory/scopes') return { scopes: [] };
+    if (url === '/api/context/memory/consolidations') return { job: null };
     if (url === '/api/context/graph') return graph;
     if (url === '/api/context/sources/a') return { source: selected };
     if (url.startsWith('/api/context/links?source=')) return { links };
@@ -409,6 +421,8 @@ test('context graph animates on load and cancels when reduced motion is enabled'
   const h = mount('Memory', { toast() {} }, async url => {
     if (url === '/api/context/graph') return { nodes, links: [] };
     if (url === '/api/context/sources') return { sources: [] };
+    if (url === '/api/context/memory/scopes') return { scopes: [] };
+    if (url === '/api/context/memory/consolidations') return { job: null };
     assert.fail(`Unexpected request: ${url}`);
   }, undefined, { window: browser });
   await h.settle();

@@ -8,6 +8,11 @@ export default function Memory({ toast }) {
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState('');
   const [noteFilter, setNoteFilter] = useState('all');
+  const [autoScopes, setAutoScopes] = useState([]);
+  const [selectedScopeId, setSelectedScopeId] = useState('');
+  const [consolidationJob, setConsolidationJob] = useState(null);
+  const [consolidationSubmitting, setConsolidationSubmitting] = useState(false);
+  const [consolidationError, setConsolidationError] = useState('');
   const [results, setResults] = useState([]);
   const [links, setLinks] = useState([]);
   const [linkTarget, setLinkTarget] = useState('');
@@ -32,11 +37,39 @@ export default function Memory({ toast }) {
   const busyRef = useRef(false);
   busyRef.current = busy;
 
+  async function refreshAutoScopes() {
+    const data = await request('/api/context/memory/scopes');
+    const scopes = Array.isArray(data.scopes) ? data.scopes : [];
+    setAutoScopes(scopes);
+    setSelectedScopeId(current => scopes.some(scope => scope.id === current) ? current : (scopes[0]?.id || ''));
+  }
+
   async function refreshSources() {
     const data = await request('/api/context/sources');
     setSources(data.sources);
     const next = data.sources.find(item => item.id === selected?.id) || data.sources[0];
     setSelected(next ? (await request(`/api/context/sources/${next.id}`)).source : null);
+    await refreshAutoScopes();
+  }
+
+  async function startConsolidation() {
+    if (!selectedScopeId || consolidationSubmitting) return;
+    setConsolidationError('');
+    setConsolidationSubmitting(true);
+    try {
+      const data = await jsonRequest('/api/context/memory/consolidations', 'POST', { scopeId: selectedScopeId });
+      setConsolidationJob(data.job);
+      toast?.('Automatic note consolidation started');
+    } catch (reason) { setConsolidationError(reason.message); }
+    finally { setConsolidationSubmitting(false); }
+  }
+
+  async function cancelConsolidation() {
+    if (!consolidationJob?.id || consolidationJob.status !== 'running') return;
+    try {
+      const data = await request(`/api/context/memory/consolidations/${consolidationJob.id}`, { method: 'DELETE' });
+      setConsolidationJob(job => ({ ...job, ...data.job }));
+    } catch (reason) { setConsolidationError(reason.message); }
   }
 
   async function refreshGraph() {
@@ -71,9 +104,17 @@ export default function Memory({ toast }) {
     let active = true;
     async function load() {
       try {
-        const data = await request('/api/context/sources');
+        const [data, scopeData, activeConsolidation] = await Promise.all([
+          request('/api/context/sources'),
+          request('/api/context/memory/scopes'),
+          request('/api/context/memory/consolidations'),
+        ]);
         if (!active) return;
         setSources(data.sources);
+        const scopes = Array.isArray(scopeData.scopes) ? scopeData.scopes : [];
+        setAutoScopes(scopes);
+        setSelectedScopeId(scopes[0]?.id || '');
+        if (activeConsolidation.job) setConsolidationJob(activeConsolidation.job);
         if (data.sources.length) {
           const result = await request(`/api/context/sources/${data.sources[0].id}`);
           if (active) setSelected(result.source);
@@ -84,6 +125,32 @@ export default function Memory({ toast }) {
     load();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const jobId = consolidationJob?.id;
+    if (!jobId || !['running', 'cancelling'].includes(consolidationJob.status)) return;
+    let active = true, timer;
+    async function poll() {
+      try {
+        const data = await request(`/api/context/memory/consolidations/${jobId}`);
+        if (!active) return;
+        setConsolidationJob(data.job);
+        if (['completed', 'failed', 'cancelled'].includes(data.job.status)) {
+          await Promise.all([refreshSources(), refreshGraph()]);
+          if (data.job.status === 'completed') {
+            const result = data.job.result;
+            toast?.(`Auto-note consolidation complete: ${result?.beforeNotes ?? 0} → ${result?.afterNotes ?? 0} notes`);
+          }
+          return;
+        }
+      } catch (reason) {
+        if (active) setConsolidationError(reason.message);
+      }
+      if (active) timer = setTimeout(poll, 1000);
+    }
+    timer = setTimeout(poll, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [consolidationJob?.id, consolidationJob?.status]);
 
   useEffect(() => {
     if (!indexOpen) return;
@@ -188,6 +255,8 @@ export default function Memory({ toast }) {
     finally { setBusy(false); }
   }
 
+  const selectedAutoScope = autoScopes.find(scope => scope.id === selectedScopeId);
+  const consolidationActive = ['running', 'cancelling'].includes(consolidationJob?.status);
   const visibleSources = sources.filter(item => !query.trim() || `${item.title} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase()));
   const visibleNoteGroups = groupContextNotes(visibleSources);
   const filteredSources = filterContextNotes(visibleSources, noteFilter);
@@ -314,6 +383,31 @@ export default function Memory({ toast }) {
         <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter notes by type">
           {noteFilterOptions.map(filter => <button key={filter.id} class={`btn btn-sm rounded-full ${noteFilter === filter.id ? 'btn-primary' : 'btn-ghost border border-base-300'}`} type="button" aria-pressed={noteFilter === filter.id} onClick={() => setNoteFilter(filter.id)}>{filter.label}<span class="ml-1 text-xs tabular-nums opacity-80">{filter.count}</span></button>)}
         </div>
+        {noteFilter === 'automatic' && <section class="mt-3 grid gap-3 rounded-box border border-base-300 bg-base-100 p-4" aria-labelledby="auto-memory-consolidation-title">
+          <div><h3 id="auto-memory-consolidation-title">Consolidate auto notes</h3><p class="text-sm text-base-content/70">Choose one repository scope. Intentional notes and other scopes are never included.</p></div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="grid flex-1 gap-1">
+              <label class="label-text font-medium" for="auto-memory-scope">Repository scope</label>
+              <select id="auto-memory-scope" class="select select-bordered w-full" value={selectedScopeId} disabled={!autoScopes.length || consolidationActive || consolidationSubmitting} onChange={event => { setSelectedScopeId(event.currentTarget.value); setConsolidationJob(null); setConsolidationError(''); }}>
+                {autoScopes.length ? autoScopes.map(scope => <option key={scope.id} value={scope.id}>{scope.repositories?.join(', ') || `Unmapped scope ${scope.id.slice(0, 8)}`}</option>) : <option value="">No automatic notes</option>}
+              </select>
+              {selectedAutoScope && <p class="text-xs text-base-content/70">{selectedAutoScope.noteCount.toLocaleString()} notes · {selectedAutoScope.characters.toLocaleString()} characters</p>}
+            </div>
+            <button class="btn btn-primary" type="button" disabled={!selectedAutoScope || consolidationActive || consolidationSubmitting} onClick={startConsolidation}>
+              {consolidationSubmitting ? 'Starting…' : consolidationActive ? 'Consolidating…' : 'Consolidate selected scope'}
+            </button>
+            {consolidationActive && <button class="btn btn-ghost" type="button" disabled={consolidationJob.status === 'cancelling'} onClick={cancelConsolidation}>{consolidationJob.status === 'cancelling' ? 'Cancelling…' : 'Cancel'}</button>}
+          </div>
+          {consolidationActive && consolidationJob.progress?.total > 0 && <progress class="progress progress-primary w-full" value={consolidationJob.progress.completed} max={consolidationJob.progress.total} aria-label="Consolidation progress" />}
+          {consolidationJob && <p class="text-sm" role="status" aria-live="polite">
+            {consolidationJob.status === 'completed' && `Complete: ${consolidationJob.result.beforeNotes} → ${consolidationJob.result.afterNotes} notes; ${consolidationJob.result.beforeCharacters.toLocaleString()} → ${consolidationJob.result.afterCharacters.toLocaleString()} characters.`}
+            {consolidationJob.status === 'running' && `Consolidating batch ${(consolidationJob.progress?.completed || 0) + 1}${consolidationJob.progress?.total ? ` of ${consolidationJob.progress.total}` : ''}…`}
+            {consolidationJob.status === 'cancelling' && 'Cancelling after the current model request…'}
+            {consolidationJob.status === 'cancelled' && 'Cancelled. Completed batches, if any, were safely saved.'}
+            {consolidationJob.status === 'failed' && (consolidationJob.error || 'Consolidation failed.')}
+          </p>}
+          {consolidationError && <p class="text-sm text-error" role="alert">{consolidationError}</p>}
+        </section>}
         {loading ? <p class="my-3 text-sm leading-relaxed text-base-content/70">Loading notes…</p> : filteredSources.length ? <div class="mt-3 max-h-[65vh] min-w-0 space-y-4 overflow-auto">
           {[{ label: 'Intentional notes', notes: filteredNoteGroups.intentional }, { label: 'Auto notes', notes: filteredNoteGroups.automatic }].filter(group => group.notes.length).map(group => <section key={group.label} aria-label={group.label}>
             <h3 class="mb-2 flex items-center gap-2">{group.label}<span class="text-sm font-normal tabular-nums opacity-70">{group.notes.length}</span></h3>

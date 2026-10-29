@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createContextStorage } from '../src/server/context-storage.js';
+import { memoryPrefix, memoryScopeId } from '../src/server/memory-lifecycle.js';
 
 async function withStore(run) {
   const dir = await mkdtemp(join(tmpdir(), 'sunday-context-'));
@@ -21,6 +22,30 @@ function storedChunks(path, source) {
       JOIN context_sources s ON s.id = c.source_id WHERE s.source = ? ORDER BY c.position`).all(source).map(row => row.content);
   } finally { database.close(); }
 }
+
+test('automatic memory scopes retain repository labels and aggregate only their exact sources', async () => withStore(store => {
+  const repositories = ['sunday', 'docs'];
+  const scopeId = memoryScopeId(repositories);
+  const prefix = memoryPrefix(repositories);
+  store.registerMemoryScope(scopeId, repositories);
+  store.indexAutomatic(`${prefix}one`, 'First auto note', 'short content');
+  store.indexAutomatic(`${prefix}two`, 'Second auto note', 'more content');
+  store.indexAutomatic(`${memoryPrefix(['other'])}one`, 'Other scope note', 'excluded');
+  store.index('sunday/manual', 'Curated note', 'excluded');
+  const scopes = store.listAutoMemoryScopes();
+  assert.deepEqual(scopes.find(scope => scope.id === scopeId), { id: scopeId, prefix, noteCount: 2, characters: 25, repositories: ['docs', 'sunday'] });
+  assert.equal(scopes.length, 2);
+  assert.equal(scopes.find(scope => scope.id !== scopeId).repositories, null);
+  assert.throws(() => store.registerMemoryScope('a'.repeat(64), repositories), /Invalid automatic memory scope/);
+}));
+
+test('manual indexing cannot write into the reserved automatic-memory namespace', async () => withStore(store => {
+  const source = `${memoryPrefix(['sunday'])}manual`;
+  assert.throws(() => store.index(source, 'Manual note', 'Do not mix with auto notes.'), /Automatic context sources are reserved/);
+  assert.throws(() => store.index('auto/unscoped/manual', 'Manual note', 'This namespace is also reserved.'), /Automatic context sources are reserved/);
+  assert.equal(store.indexAutomatic(source, 'Auto note', 'Generated note content.').indexed, true);
+  assert.equal(store.listSources().length, 1);
+}));
 
 test('context sources are chunked, searchable with stemming, and re-indexed incrementally', async () => withStore(store => {
   const content = `${'Release deployments use the stable branch. Rollback to the prior release. '.repeat(120)}\n${'Unrelated implementation details. '.repeat(120)}`;

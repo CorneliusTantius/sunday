@@ -1,4 +1,5 @@
-import { retrieveMemory, memoryOverview, reviewMemory, MEMORY_REVIEW_PROMPT } from './memory-lifecycle.js';
+import { retrieveMemory, memoryOverview, reviewMemory, memoryScopeId, MEMORY_REVIEW_PROMPT } from './memory-lifecycle.js';
+import { consolidateAutoMemory, MEMORY_CHUNK_PROMPT, MEMORY_CONSOLIDATION_PROMPT } from './memory-consolidation.js';
 import { estimateContext, shouldCompact, measuredInput, compactionCut, summarizeContext, isContextOverflow } from './context.js';
 import { repositoryStatusDetails, pullRepository } from './repo-status.js';
 import http from 'node:http';
@@ -69,6 +70,12 @@ const scheduledJobStorage = createScheduledJobsStorage(scheduledJobsDbPath);
 await chmod(scheduledJobsDbPath, 0o600);
 const contextStorage = createContextStorage(contextDbPath);
 await chmod(contextDbPath, 0o600);
+const existingAutoScopeIds = new Set(contextStorage.listAutoMemoryScopes().map(scope => scope.id));
+for (const sessionId of sessionStorage.listIds()) {
+  const savedSession = sessionStorage.get(sessionId);
+  const scopeId = memoryScopeId(savedSession?.allowedRepositories || []);
+  if (scopeId && existingAutoScopeIds.has(scopeId)) contextStorage.registerMemoryScope(scopeId, savedSession.allowedRepositories);
+}
 const toolOutputStorage = createToolOutputStorage(toolOutputsDbPath);
 await chmod(toolOutputsDbPath, 0o600);
 const configStorage = createConfigStorage(configDbPath);
@@ -832,6 +839,7 @@ async function syncAgentWorkspace(session, repositories = session.allowedReposit
   return root;
 }
 const scheduledRunPromises = new Set();
+const memoryConsolidationJobs = new Map();
 const scheduledShutdown = new AbortController();
 async function executeScheduledJob(job, run, shutdownSignal) {
   shutdownSignal.throwIfAborted();
@@ -1043,6 +1051,69 @@ const server = http.createServer(async (req, res) => {
         throw error;
       }
     }
+    if (url.pathname === '/api/context/memory/scopes') {
+      if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+      return json(res, 200, { scopes: contextStorage.listAutoMemoryScopes() });
+    }
+    if (url.pathname === '/api/context/memory/consolidations') {
+      if (req.method === 'GET') {
+        const job = [...memoryConsolidationJobs.values()].find(item => ['running', 'cancelling'].includes(item.status));
+        return json(res, 200, { job: job ? { id: job.id, status: job.status, progress: job.progress } : null });
+      }
+      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'Use application/json' });
+      const input = await body(req, 4096);
+      if (typeof input?.scopeId !== 'string' || !/^[a-f0-9]{64}$/.test(input.scopeId)) return json(res, 400, { error: 'Invalid automatic memory scope' });
+      const scope = contextStorage.listAutoMemoryScopes().find(item => item.id === input.scopeId);
+      if (!scope) return json(res, 404, { error: 'Automatic memory scope not found' });
+      const now = Date.now();
+      for (const [id, job] of memoryConsolidationJobs) if (job.finishedAt && now - job.finishedAt > 60 * 60 * 1000) memoryConsolidationJobs.delete(id);
+      if ([...memoryConsolidationJobs.values()].some(job => ['running', 'cancelling'].includes(job.status))) {
+        return json(res, 409, { error: 'Another automatic memory consolidation is already running' });
+      }
+      const id = randomUUID();
+      const job = { id, scopeId: scope.id, status: 'running', progress: { completed: 0, total: 0, phase: 'starting' }, result: null, error: null, controller: new AbortController(), finishedAt: null, promise: null };
+      memoryConsolidationJobs.set(id, job);
+      job.promise = (async () => {
+        try {
+          const model = modelsByMode[settings.mode].getModel(settings.provider, settings.model);
+          if (!model) throw new Error('Configured model unavailable');
+          job.result = await consolidateAutoMemory({
+            storage: contextStorage,
+            scopeId: scope.id,
+            repositories: scope.repositories,
+            signal: job.controller.signal,
+            onProgress: progress => { job.progress = progress; },
+            summarize: async (kind, payload, signal) => {
+              signal.throwIfAborted();
+              const stream = modelsByMode[settings.mode].streamSimple(model, {
+                systemPrompt: kind === 'chunk' ? MEMORY_CHUNK_PROMPT : MEMORY_CONSOLIDATION_PROMPT,
+                messages: [{ role: 'user', content: JSON.stringify(payload) }],
+              }, { signal, timeoutMs: 120_000, maxRetries: 0, maxTokens: kind === 'chunk' ? 3000 : 6000 });
+              const response = await waitForChat(stream.result(), AbortSignal.any([signal, AbortSignal.timeout(120_000)]));
+              if (response.stopReason === 'error' || response.stopReason === 'aborted') throw new Error('Consolidation model call failed');
+              return response.content.filter(part => part.type === 'text').map(part => part.text).join('');
+            },
+          });
+          job.status = 'completed';
+        } catch {
+          job.status = job.controller.signal.aborted ? 'cancelled' : 'failed';
+          if (job.status === 'failed') job.error = 'Consolidation failed. Earlier completed batches may have been saved; unprocessed originals were kept.';
+        } finally { job.finishedAt = Date.now(); }
+      })();
+      return json(res, 202, { job: { id: job.id, status: job.status, progress: job.progress } });
+    }
+    const memoryJobMatch = url.pathname.match(/^\/api\/context\/memory\/consolidations\/([0-9a-f-]{36})$/);
+    if (memoryJobMatch) {
+      const job = memoryConsolidationJobs.get(memoryJobMatch[1]);
+      if (!job) return json(res, 404, { error: 'Consolidation job not found' });
+      if (req.method === 'DELETE') {
+        if (job.status === 'running') { job.status = 'cancelling'; job.controller.abort(new Error('Consolidation cancelled')); }
+        return json(res, 200, { job: { id: job.id, status: job.status } });
+      }
+      if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+      return json(res, 200, { job: { id: job.id, status: job.status, progress: job.progress, result: job.result, error: job.error } });
+    }
     if (url.pathname === '/api/context/sources') {
       if (req.method === 'GET') return json(res, 200, { sources: contextStorage.listSources() });
       if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
@@ -1052,7 +1123,7 @@ const server = http.createServer(async (req, res) => {
         const result = contextStorage.index(input?.source, input?.title, input?.content);
         return json(res, 200, { result });
       } catch (error) {
-        if (error.message === 'Invalid context source') return json(res, 400, { error: error.message });
+        if (error.message === 'Invalid context source' || error.message === 'Automatic context sources are reserved') return json(res, 400, { error: error.message });
         throw error;
       }
     }
@@ -1493,9 +1564,10 @@ function shutdown() {
   const reason = new Error('Sunday is stopping');
   scheduledShutdown.abort(reason);
   for (const job of activeChats.values()) job.controller.abort(reason);
+  for (const job of memoryConsolidationJobs.values()) if (job.status === 'running' || job.status === 'cancelling') job.controller.abort(reason);
   const serverClosed = new Promise(resolve => server.close(resolve));
   shutdownPromise = (async () => {
-    await Promise.allSettled([...scheduledRunPromises]);
+    await Promise.allSettled([...scheduledRunPromises, ...[...memoryConsolidationJobs.values()].map(job => job.promise).filter(Boolean)]);
     await withLoginLock(() => cancelLogin());
     await vite?.close();
     await serverClosed;

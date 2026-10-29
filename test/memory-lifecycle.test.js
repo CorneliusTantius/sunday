@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createContextStorage } from '../src/server/context-storage.js';
-import { memoryPrefix, retrieveMemory, reviewMemory, memoryOverview, maintainMemory } from '../src/server/memory-lifecycle.js';
+import { memoryPrefix, retrieveMemory, reviewMemory, memoryOverview } from '../src/server/memory-lifecycle.js';
 
 const session = () => ({ allowedRepositories: ['sunday'], messages: [{ role: 'user', content: 'sqlite memory design' }] });
 const proposal = { title: 'Storage', content: '# Storage\n\n## Findings\n- SQLite stores durable memory.' };
@@ -10,7 +10,7 @@ test('automatic review saves deduplicated snapshots and retrieval excludes other
   const storage = createContextStorage(':memory:');
   try {
     storage.index('other/sqlite', 'SQLite', 'sqlite memory design');
-    storage.index(`${memoryPrefix(['other'])}note`, 'SQLite', 'sqlite memory design');
+    storage.indexAutomatic(`${memoryPrefix(['other'])}note`, 'SQLite', 'sqlite memory design');
     const options = { storage, session: session(), review: async () => JSON.stringify(proposal) };
     await reviewMemory(options);
     await reviewMemory(options);
@@ -47,7 +47,7 @@ test('related automatic notes are linked without touching curated or other-scope
     const first = { title: 'Graph radial layout', content: '# Graph radial layout\n\n## Findings\n- Radial simulation prevents square boundary accumulation.\n- Spring animation settles graph nodes.' };
     const second = { title: 'Graph radial simulation', content: '# Graph radial simulation\n\n## Findings\n- Radial simulation prevents square boundary accumulation.\n- Spring animation settles graph nodes.' };
     storage.index('sunday/manual', 'Graph radial layout', first.content);
-    storage.index(`${memoryPrefix(['other'])}other`, first.title, first.content);
+    storage.indexAutomatic(`${memoryPrefix(['other'])}other`, first.title, first.content);
     const options = { storage, session: session() };
     const a = await reviewMemory({ ...options, review: async () => JSON.stringify(first) });
     const b = await reviewMemory({ ...options, review: async () => JSON.stringify(second) });
@@ -67,7 +67,7 @@ test('an edited automatic source is not overwritten when its old snapshot recurs
     const options = { storage, session: session(), review: async () => JSON.stringify(proposal) };
     const original = await reviewMemory(options);
     const edited = '# Different subject\n\n## Findings\n- Browser typography improves contrast.';
-    storage.index(original.source, 'Different subject', edited);
+    storage.indexAutomatic(original.source, 'Different subject', edited);
     const next = await reviewMemory(options);
     assert.notEqual(next.source, original.source);
     const notes = storage.listSources();
@@ -99,6 +99,17 @@ test('review skips empty decisions and rejects malformed or sensitive proposals'
     await assert.rejects(reviewMemory({ ...options, review: async () => raw }));
   }
   assert.equal(writes, 0);
+});
+
+test('memory review does not prune automatic notes after the former 100-note limit', async () => {
+  const storage = createContextStorage(':memory:');
+  try {
+    const prefix = memoryPrefix(['sunday']);
+    for (let index = 0; index < 101; index++) storage.indexAutomatic(`${prefix}note-${index}`, `Auto note ${index}`, `# Auto note ${index}\\n\\n## Findings\\n- Durable fact ${index}.`);
+    const result = await reviewMemory({ storage, session: session(), review: async () => 'null' });
+    assert.equal(result.status, 'skipped');
+    assert.equal(storage.listSources().filter(item => item.source.startsWith(prefix)).length, 101);
+  } finally { storage.close(); }
 });
 
 test('scope ordering is stable and cancelled reviews cannot write', async () => {

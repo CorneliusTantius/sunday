@@ -406,7 +406,7 @@ export default function App() {
       else if (data.type === 'memory' && controller.current === abort && activeSession.current === sessionId) {
         setMemoryActivity(data.operation === 'retrieval'
           ? `Memory: retrieved ${data.count} excerpts`
-          : `Memory review: ${data.status}${data.pruned ? `; retired ${data.pruned} old snapshots` : ''}`);
+          : `Memory review: ${data.status}`);
       }
       else if (data.type === 'context_usage') { if (controller.current === abort && activeSession.current === sessionId) setContextUsage(data); }
       else if (data.type === 'compaction') { if (controller.current === abort && activeSession.current === sessionId) setCompaction(data.compaction?.summary ? data.compaction : null); }
