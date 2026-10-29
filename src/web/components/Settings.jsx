@@ -371,13 +371,13 @@ export default function Settings({ settings, onReload, onClose, toast }) {
           <section inert={page !== 'connect'} id="settings-connect-page" class={page === 'connect' ? 'settings-view-enter' : 'hidden'}>
             <button class="btn btn-ghost" id="provider-back" onClick={() => navigate('providers')}>← Providers</button><h3>Connect provider</h3>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="provider">Provider</label>
-            <select id="provider" class="select select-bordered w-full" value={provider} disabled={saving || authBusy} onChange={event => chooseProvider(event.currentTarget.value)}>
+            <select id="provider" class="select select-bordered w-full bg-black/10 focus:border-base-300 focus:bg-black/10 focus:shadow-none focus:outline-none focus-visible:outline-none" value={provider} disabled={saving || authBusy} onChange={event => chooseProvider(event.currentTarget.value)}>
               {Object.entries(providerNames).map(([id, name]) => <option key={id} value={id}>{providers.find(item => item.id === id)?.name || name}</option>)}
             </select></div>
             <div class="my-4 grid gap-2"><label class="label font-semibold" for="mode">Connect with</label>
-            <select id="mode" class="select select-bordered w-full" value={mode} disabled={saving || authBusy} onChange={event => chooseProvider(provider, event.currentTarget.value)}><option value="api_key">API key</option><option value="oauth" disabled={provider !== 'openai'}>Sign in with ChatGPT</option></select></div>
+            <select id="mode" class="select select-bordered w-full bg-black/10 focus:border-base-300 focus:bg-black/10 focus:shadow-none focus:outline-none focus-visible:outline-none" value={mode} disabled={saving || authBusy} onChange={event => chooseProvider(provider, event.currentTarget.value)}><option value="api_key">API key</option><option value="oauth" disabled={provider !== 'openai'}>Sign in with ChatGPT</option></select></div>
             <div id="api-panel" class={`mt-4 space-y-3${mode === 'oauth' ? ' hidden' : ''}`}>
-              <label class="label font-semibold" for="api-key">API key</label><input id="api-key" class="input input-bordered w-full" type="password" autoComplete="off" value={apiKey} disabled={saving} placeholder={details.hasApiKey ? 'Key saved — leave blank to keep it' : 'Provider API key'} onInput={event => setApiKey(event.currentTarget.value)} />
+              <label class="label font-semibold" for="api-key">API key</label><input id="api-key" class="input input-bordered w-full bg-black/10 focus:border-base-300 focus:bg-black/10 focus:shadow-none focus:outline-none focus-visible:outline-none" type="password" autoComplete="off" value={apiKey} disabled={saving} placeholder={details.hasApiKey ? 'Key saved — leave blank to keep it' : 'Provider API key'} onInput={event => setApiKey(event.currentTarget.value)} />
               <p class="text-sm text-base-content/70">Leave blank to keep your saved key. Your key is stored by Sunday and never in your browser.</p>
             </div>
             <div id="oauth-panel" class={`mt-4 space-y-3${mode === 'oauth' ? '' : ' hidden'}`}>
