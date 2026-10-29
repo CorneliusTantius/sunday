@@ -41,7 +41,7 @@ test('requested icons, controls, and composer use borderless and transparent sty
     assert.match(settings, new RegExp(`class="btn btn-ghost border-0[^\\"]*" id="${id}"`));
   }
   assert.match(mcp, /<div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>MCP servers<\/h3>/);
-  assert.match(mcp, /<button class="btn btn-ghost border-0" disabled=\{busy\} onClick=\{\(\) => open\(\)\}>＋ Add server/);
+  assert.match(mcp, /<button class="btn btn-ghost border-0 bg-black\/20 hover:bg-black\/30" disabled=\{busy\} onClick=\{\(\) => open\(\)\}>＋ Add server/);
   assert.match(settings, /card card-border[^\"]*bg-black\/10[^\"]*hover:bg-black\/20/);
   assert.match(composer, /bg-transparent[^\"]*focus:bg-transparent/);
   assert.doesNotMatch(character, /border-\[3px\]/);

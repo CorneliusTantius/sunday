@@ -41,7 +41,7 @@ export default function McpServers({ config, auth = {}, busy, onSave, onLogin, l
     } catch (error) { setError(error.message); }
   }
   return <>
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>MCP servers</h3><button class="btn btn-ghost border-0" disabled={busy} onClick={() => open()}>＋ Add server</button></div>
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-4"><h3>MCP servers</h3><button class="btn btn-ghost border-0 bg-black/20 hover:bg-black/30" disabled={busy} onClick={() => open()}>＋ Add server</button></div>
     <p class="text-sm text-base-content/70">Only add trusted servers: stdio servers execute code. Secrets in environment variables or headers are stored locally.</p>
     <div class="grid gap-3">
       {Object.entries(servers).map(([name, server]) => <div class="card card-border bg-base-100 p-4" key={name}>
