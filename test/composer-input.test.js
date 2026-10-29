@@ -10,5 +10,6 @@ test('chat composer textarea stays borderless when keyboard-focused', () => {
   assert.doesNotMatch(source, /focus-within:ring/);
   assert.match(source, /<textarea class="w-full resize-none rounded-box border-0 bg-transparent px-3 py-2 text-base-content shadow-none placeholder:text-base-content\/60 focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none"/);
   assert.doesNotMatch(source, /<textarea class="[^\"]*\btextarea(?:-ghost)?\b/);
-  assert.match(styles, /#prompt:focus-visible \{\s*outline: none;\s*caret-color: var\(--color-primary\);/);
+  assert.match(styles, /#prompt:focus-visible(?:,[^{}]+)?\s*\{\s*outline: none;\s*\}/);
+  assert.match(styles, /#prompt:focus-visible\s*\{\s*caret-color: var\(--color-primary\);\s*\}/);
 });

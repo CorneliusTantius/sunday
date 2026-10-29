@@ -347,6 +347,26 @@ test('opens another session settings while the active session is streaming', asy
   await waitFor(() => assert.equal(h.$('#send-button').getAttribute('aria-label'), 'Send message'));
 });
 
+test('agent settings closes with an exit animation from the X button and backdrop', async t => {
+  const h = await mount(t);
+  h.click('button[aria-label^="Configure agent:"]');
+  await waitFor(() => assert.equal(h.$('#session-config-dialog')?.open, true));
+
+  h.click('#close-session-config');
+  await waitFor(() => {
+    const dialog = h.$('#session-config-dialog');
+    assert.ok(dialog?.classList.contains('session-config-dialog-exit'));
+    assert.equal(dialog.open, true, 'the dialog remains open while its exit animation plays');
+  });
+  await waitFor(() => assert.equal(h.$('#session-config-dialog'), null));
+
+  h.click('button[aria-label^="Configure agent:"]');
+  await waitFor(() => assert.equal(h.$('#session-config-dialog')?.open, true));
+  h.click('#session-config-dialog');
+  await waitFor(() => assert.ok(h.$('#session-config-dialog')?.classList.contains('session-config-dialog-exit')));
+  await waitFor(() => assert.equal(h.$('#session-config-dialog'), null));
+});
+
 test('early tool status is updated by id without duplicate calls or lost arguments', async t => {
   const h = await mount(t);
   await startChat(h);

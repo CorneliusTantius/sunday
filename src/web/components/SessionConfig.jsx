@@ -23,11 +23,19 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
   const [model, setModel] = useState('');
   const [thinking, setThinking] = useState('off');
   const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
   const closeTimer = useRef(null);
   const animateClose = () => {
-    if (closing) return;
+    if (closingRef.current) return;
+    closingRef.current = true;
+    clearDeleteArm();
     setClosing(true);
-    closeTimer.current = setTimeout(() => { dialog.current?.close(); onClose(); }, 180);
+    const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      dialog.current?.close();
+      onClose();
+    }, reduced ? 0 : 180);
   };
   useEffect(() => {
     let active = true;
@@ -84,7 +92,7 @@ export default function SessionConfig({ session, onClose, onSaved, onDelete, toa
   }
   const levels = models.find(item => item.id === model)?.thinkingLevels || ['off'];
   const selectedThinking = levels.includes(thinking) ? thinking : levels[0];
-  return <dialog ref={dialog} id="session-config-dialog" class="modal" aria-labelledby="session-config-heading" onClick={event => { if (event.target === dialog.current) animateClose(); }} onCancel={event => { event.preventDefault(); animateClose(); }} onClose={() => { if (alive.current && !closing) close(); }}>
+  return <dialog ref={dialog} id="session-config-dialog" class={`modal session-config-dialog ${closing ? 'session-config-dialog-exit' : 'session-config-dialog-enter'}`} aria-labelledby="session-config-heading" onClick={event => { if (event.target === dialog.current) animateClose(); }} onCancel={event => { event.preventDefault(); animateClose(); }} onClose={() => { if (alive.current && !closingRef.current) close(); }}>
     <div class="modal-box max-h-[calc(100dvh-2.5rem)] w-[min(560px,calc(100%-2rem))] overflow-y-auto bg-base-100 p-0 text-base-content">
     <header class="flex items-center justify-between border-b border-base-300 p-5"><h2 id="session-config-heading" class="text-lg font-bold">Agent settings</h2><button class="btn btn-ghost btn-square text-2xl" id="close-session-config" type="button" aria-label="Close session settings" onClick={animateClose}>×</button></header>
     <form id="session-config-form" onSubmit={save}><div class="space-y-4 p-5">
