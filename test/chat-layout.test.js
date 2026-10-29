@@ -17,6 +17,7 @@ test('viewport layout confines scrolling to chat history and repository content'
   assert.match(styles, /@keyframes page-enter/);
   assert.match(styles, /@keyframes page-exit/);
   assert.match(styles, /\.page-exit \{ animation: page-exit 140ms ease-in both; pointer-events: none; \}/);
+  assert.match(styles, /#prompt:focus-visible, #repo-url:focus-visible \{\s*outline: none;/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-enter, \.page-exit, \.settings-view-enter \{ animation: none; \}/);
   const html = readFileSync(new URL('../src/web/index.html', import.meta.url), 'utf8');
   assert.match(html, /<html[^>]*class="h-full w-full overflow-hidden/);

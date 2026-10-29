@@ -53,8 +53,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visib
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
-#prompt:focus-visible {
+#prompt:focus-visible, #repo-url:focus-visible {
   outline: none;
+}
+#prompt:focus-visible {
   caret-color: var(--color-primary);
 }
 
